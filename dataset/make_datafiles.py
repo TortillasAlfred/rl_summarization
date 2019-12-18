@@ -10,7 +10,7 @@ import io
 import pickle as pkl
 
 
-dm_single_close_quote = '\u2019' # unicode
+dm_single_close_quote = '\u2019'  # unicode
 dm_double_close_quote = '\u201d'
 # acceptable ways to end a sentence
 END_TOKENS = ['.', '!', '?', '...', "'", "`", '"',
@@ -119,7 +119,7 @@ def get_art_abs(story_file):
     next_is_highlight = False
     for idx, line in enumerate(lines):
         if line == "":
-            continue # empty line
+            continue  # empty line
         elif line.startswith("@highlight"):
             next_is_highlight = True
         elif next_is_highlight:
@@ -198,8 +198,8 @@ def write_to_tar(url_file, out_file, makevocab=False):
                 art_tokens = ' '.join(article_sents).split()
                 abs_tokens = ' '.join(abstract_sents).split()
                 tokens = art_tokens + abs_tokens
-                tokens = [t.strip() for t in tokens] # strip
-                tokens = [t for t in tokens if t != ""] # remove empty
+                tokens = [t.strip() for t in tokens]  # strip
+                tokens = [t for t in tokens if t != ""]  # remove empty
                 vocab_counter.update(tokens)
 
     print("Finished writing file {}\n".format(out_file))
