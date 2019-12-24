@@ -7,23 +7,30 @@ from torch.utils.data import DataLoader
 
 
 class SummarizationDataset:
-    def __init__(self, split, path, data_fetcher):
+    def __init__(self, split, path, data_fetcher, word2idx):
         self.data_fetcher = data_fetcher
         self.path = path
         self.split = split
+        self.word2idx = word2idx
 
         self._build()
 
     def _build(self):
         self.data = self.data_fetcher(self.path, self.split)
 
-        self._pad()
+        self._convert_to_idx()
 
-        # TODO: Add preprocessing to get from lists of words to integer tensors from embedding layer
+    def _convert_to_idx(self):
+        def convert_sent(sent):
+            return list(map(lambda word: self.word2idx[word], sent.split()))
 
-    def _pad(self):
-        self.data = list(map(lambda article: (list(map(
-            lambda sent: '<BOS> ' + sent + ' <EOS>', article[0])), article[1]), self.data))
+        def convert_enclose_sent(sent):
+            return convert_sent('<BOS> ' + sent + ' <EOS>')
+
+        def convert_article(article):
+            return list(map(convert_enclose_sent, article[0])), list(map(convert_sent, article[1]))
+
+        data = list(map(convert_article, self.data))
 
     def __getitem__(self, index):
         return self.data[index]
@@ -35,8 +42,9 @@ class SummarizationDataset:
 class CnnDmDataset(SummarizationDataset):
     DEFAULT_CNN_DM_PATH = './data/finished_files/'
 
-    def __init__(self, split, path=DEFAULT_CNN_DM_PATH):
-        super(CnnDmDataset, self).__init__(split, path, cnn_dm_fetcher)
+    def __init__(self, split, word2idx, path=DEFAULT_CNN_DM_PATH):
+        super(CnnDmDataset, self).__init__(
+            split, path, cnn_dm_fetcher, word2idx)
 
 
 # Fetchers
@@ -56,4 +64,9 @@ def cnn_dm_fetcher(path, split):
 
 
 if __name__ == '__main__':
-    cnn_dm_dataset = CnnDmDataset('test')
+    from embeddings import GloveEmbeddings
+
+    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
+                          './data/embeddings/glove/glove.6B.50d.txt')
+
+    cnn_dm_dataset = CnnDmDataset('test', emb.word2index())

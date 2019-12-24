@@ -3,6 +3,7 @@ import numpy as np
 
 from gensim.models import KeyedVectors
 from gensim.scripts.glove2word2vec import glove2word2vec
+from collections import defaultdict
 
 
 class PretrainedEmbeddings:
@@ -35,6 +36,13 @@ class PretrainedEmbeddings:
         self.preprocessing_idx = {}
         for token in preprocessing_tokens:
             self.preprocessing_idx[token] = self.model.vocab[token].index
+
+    def word2index(self):
+        word2index = defaultdict(lambda: self.preprocessing_idx['<UNK>'])
+        word2index.update({token: token_index for token_index,
+                           token in enumerate(self.model.index2word)})
+
+        return word2index
 
 
 class GloveEmbeddings(PretrainedEmbeddings):
