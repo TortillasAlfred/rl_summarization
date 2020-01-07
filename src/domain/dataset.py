@@ -30,7 +30,7 @@ class SummarizationDataset:
         def convert_article(article):
             return list(map(convert_enclose_sent, article[0])), list(map(convert_sent, article[1]))
 
-        data = list(map(convert_article, self.data))
+        self.data = list(map(convert_article, self.data))
 
     def __getitem__(self, index):
         return self.data[index]
