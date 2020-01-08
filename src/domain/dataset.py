@@ -3,12 +3,12 @@ import tarfile
 import json
 
 from os.path import join
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 
 
-class SummarizationDataset:
+class SummarizationDataset(Dataset):
     def __init__(self, split, path, data_fetcher, word2idx):
-        self.data_fetcher = data_fetcher
+        self.texts_fetcher = data_fetcher
         self.path = path
         self.split = split
         self.word2idx = word2idx
@@ -16,27 +16,20 @@ class SummarizationDataset:
         self._build()
 
     def _build(self):
-        self.data = self.data_fetcher(self.path, self.split)
+        self.texts = self.texts_fetcher(self.path, self.split)
 
-        self._convert_to_idx()
+        self._preprocess()
 
-    def _convert_to_idx(self):
-        def convert_sent(sent):
-            return list(map(lambda word: self.word2idx[word], sent.split()))
-
-        def convert_enclose_sent(sent):
-            return convert_sent('<BOS> ' + sent + ' <EOS>')
-
-        def convert_article(article):
-            return list(map(convert_enclose_sent, article[0])), list(map(convert_sent, article[1]))
-
-        self.data = list(map(convert_article, self.data))
+    def _preprocess(self):
+        # map(lambda text: text.preprocess(self.word2idx), self.texts)
+        for text in self.texts:
+            text.preprocess(self.word2idx)
 
     def __getitem__(self, index):
-        return self.data[index]
+        return self.texts[index]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.texts)
 
 
 class CnnDmDataset(SummarizationDataset):
@@ -56,11 +49,54 @@ def cnn_dm_fetcher(path, split):
     with tarfile.open(reading_path) as all_samples_file:
         for sample_path in all_samples_file:
             with all_samples_file.extractfile(sample_path) as sample_file:
-                article = json.load(sample_file)
+                article_data = json.load(sample_file)
 
-                all_articles.append((article['article'], article['abstract']))
+                all_articles.append((CnnDmArticle(article_data)))
 
     return all_articles
+
+
+class Text:
+    def __init__(self, content, abstract, id):
+        self.content = content
+        self.abstract = abstract
+        self.id = id
+
+    def preprocess(self, word2idx, apply_padding=True, max_sent_length=80, max_sent_number=50):
+        if apply_padding:
+            content_to_parse = self._apply_padding(
+                self.content, max_sent_length, max_sent_number)
+            abstract_to_parse = self._apply_padding(
+                self.abstract, max_sent_length, max_sent_number, enclose=False)
+        else:
+            content_to_parse = self.content
+            abstract_to_parse = self.abstract
+
+        def convert_sent(sent):
+            return list(map(lambda word: word2idx[word], sent.split()))
+
+        self.idx_content = list(map(convert_sent, content_to_parse))
+        self.idx_abstract = list(map(convert_sent, abstract_to_parse))
+
+    def _apply_padding(self, sents, max_sent_length, max_sent_number, enclose=True):
+        sents = sents[:max_sent_number]
+
+        if enclose:
+            sents = ['<BOS> ' + s + ' <EOS>' for s in sents]
+
+        sents = [s.split() for s in sents]
+        tokens_per_sent = min(max([len(s)
+                                   for s in sents]), max_sent_length)
+        sents = [s[:tokens_per_sent] for s in sents]
+        sents = [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
+        return [' '.join(s) for s in sents]
+
+
+class CnnDmArticle(Text):
+    def __init__(self, json_data):
+        super().__init__(json_data['article'],
+                         json_data['abstract'],
+                         json_data['id'])
 
 
 if __name__ == '__main__':
