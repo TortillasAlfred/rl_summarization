@@ -49,4 +49,10 @@ class GloveEmbeddings(PretrainedEmbeddings):
     def load_from_input(self, input_path, save_path):
         glove_input_path = input_path + '.glove'
         glove2word2vec(input_path, glove_input_path)
-        super().load_from_input(glove_input_path, save_path)
+        super(GloveEmbeddings, self).load_from_input(
+            glove_input_path, save_path)
+
+
+if __name__ == '__main__':
+    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
+                          './data/embeddings/glove/glove.6B.50d.txt')
