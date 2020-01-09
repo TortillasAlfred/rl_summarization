@@ -1,4 +1,0 @@
-['remote "s3remote"']
-url = s3://summarization-datasets-mg
-[core]
-remote = s3remote
