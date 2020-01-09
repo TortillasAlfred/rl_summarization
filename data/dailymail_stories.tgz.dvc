@@ -1,0 +1,7 @@
+md5: c689947f0752ff99bf3c8b5ee0bbc47b
+outs:
+- md5: f9c5f565e8abe86c38bfa4ae8f96fd72
+  path: dailymail_stories.tgz
+  cache: true
+  metric: false
+  persist: false
