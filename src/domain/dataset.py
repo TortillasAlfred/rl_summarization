@@ -6,24 +6,20 @@ from os.path import join
 from torch.utils.data import Dataset
 
 
+DEFAULT_MAX_SENT_LENGTH = 80
+DEFAULT_MAX_SENT_NUMBER = 50
+
+
 class SummarizationDataset(Dataset):
     def __init__(self, split, path, data_fetcher, word2idx):
+        super(SummarizationDataset, self).__init__()
         self.texts_fetcher = data_fetcher
         self.path = path
         self.split = split
-        self.word2idx = word2idx
-
-        self._build()
-
-    def _build(self):
         self.texts = self.texts_fetcher(self.path, self.split)
 
-        self._preprocess()
-
-    def _preprocess(self):
-        # map(lambda text: text.preprocess(self.word2idx), self.texts)
-        for text in self.texts:
-            text.preprocess(self.word2idx)
+    def preprocess(self, word2idx):
+        map(lambda text: text.preprocess(word2idx), self.texts)
 
     def __getitem__(self, index):
         return self.texts[index]
@@ -62,7 +58,7 @@ class Text:
         self.abstract = abstract
         self.id = id
 
-    def preprocess(self, word2idx, apply_padding=True, max_sent_length=80, max_sent_number=50):
+    def preprocess(self, word2idx, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
         if apply_padding:
             content_to_parse = self._apply_padding(
                 self.content, max_sent_length, max_sent_number)
@@ -94,15 +90,63 @@ class Text:
 
 class CnnDmArticle(Text):
     def __init__(self, json_data):
-        super().__init__(json_data['article'],
-                         json_data['abstract'],
-                         json_data['id'])
+        super(CnnDmArticle, self).__init__(json_data['article'],
+                                           json_data['abstract'],
+                                           json_data['id'])
+
+
+def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
+    from embeddings import GloveEmbeddings
+    import tarfile
+    import io
+
+    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
+                          './data/embeddings/glove/glove.6B.50d.txt')
+
+    cnn_dm_dataset = CnnDmDataset('train', emb.word2index())
+
+    with tarfile.open(out_file, 'w') as writer:
+        for idx in range(100):
+            article = cnn_dm_dataset[idx]
+            js_example = {}
+            js_example['id'] = article.id
+            js_example['article'] = article.content
+            js_example['abstract'] = article.abstract
+            js_serialized = json.dumps(js_example, indent=4).encode()
+            save_file = io.BytesIO(js_serialized)
+            tar_info = tarfile.TarInfo('{}/{}.json'.format(
+                os.path.basename(out_file).replace('.tar', ''), idx))
+            tar_info.size = len(js_serialized)
+            writer.addfile(tar_info, save_file)
+
+
+def build_max_dataset(out_file='./data/finished_files/max.tar'):
+    import tarfile
+    import io
+
+    with tarfile.open(out_file, 'w') as writer:
+        for idx in range(100):
+            js_example = {}
+            js_example['id'] = idx
+            js_example['article'] = [
+                ' '.join(['<PAD>'] * DEFAULT_MAX_SENT_LENGTH)] * DEFAULT_MAX_SENT_NUMBER
+            js_example['abstract'] = [
+                ' '.join(['<PAD>'] * DEFAULT_MAX_SENT_LENGTH)] * 3
+            js_serialized = json.dumps(js_example, indent=4).encode()
+            save_file = io.BytesIO(js_serialized)
+            tar_info = tarfile.TarInfo('{}/{}.json'.format(
+                os.path.basename(out_file).replace('.tar', ''), idx))
+            tar_info.size = len(js_serialized)
+            writer.addfile(tar_info, save_file)
 
 
 if __name__ == '__main__':
+    build_dev_dataset()
+    build_max_dataset()
+
     from embeddings import GloveEmbeddings
 
     emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
                           './data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('test', emb.word2index())
+    cnn_dm_dataset = CnnDmDataset('dev', emb.word2index())
