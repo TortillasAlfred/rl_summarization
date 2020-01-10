@@ -11,7 +11,7 @@ DEFAULT_MAX_SENT_NUMBER = 50
 
 
 class SummarizationDataset(Dataset):
-    def __init__(self, split, path, data_fetcher, word2idx):
+    def __init__(self, split, path, data_fetcher):
         super(SummarizationDataset, self).__init__()
         self.texts_fetcher = data_fetcher
         self.path = path
@@ -19,7 +19,7 @@ class SummarizationDataset(Dataset):
         self.texts = self.texts_fetcher(self.path, self.split)
 
     def preprocess(self, word2idx):
-        map(lambda text: text.preprocess(word2idx), self.texts)
+        self.texts = list(map(lambda text: text.preprocess(word2idx), self.texts))
 
     def __getitem__(self, index):
         return self.texts[index]
@@ -31,9 +31,8 @@ class SummarizationDataset(Dataset):
 class CnnDmDataset(SummarizationDataset):
     DEFAULT_CNN_DM_PATH = './data/finished_files/'
 
-    def __init__(self, split, word2idx, path=DEFAULT_CNN_DM_PATH):
-        super(CnnDmDataset, self).__init__(
-            split, path, cnn_dm_fetcher, word2idx)
+    def __init__(self, split, path=DEFAULT_CNN_DM_PATH):
+        super(CnnDmDataset, self).__init__(split, path, cnn_dm_fetcher)
 
 
 # Fetchers
@@ -54,8 +53,8 @@ def cnn_dm_fetcher(path, split):
 
 class Text:
     def __init__(self, content, abstract, id):
-        self.content = content
-        self.abstract = abstract
+        self.content = [sent.split() for sent in content]
+        self.abstract = [sent.split() for sent in abstract]
         self.id = id
 
     def preprocess(self, word2idx, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
@@ -69,23 +68,23 @@ class Text:
             abstract_to_parse = self.abstract
 
         def convert_sent(sent):
-            return list(map(lambda word: word2idx[word], sent.split()))
+            return list(map(lambda word: word2idx[word], sent))
 
         self.idx_content = list(map(convert_sent, content_to_parse))
         self.idx_abstract = list(map(convert_sent, abstract_to_parse))
+
+        return self
 
     def _apply_padding(self, sents, max_sent_length, max_sent_number, enclose=True):
         sents = sents[:max_sent_number]
 
         if enclose:
-            sents = ['<BOS> ' + s + ' <EOS>' for s in sents]
+            sents = [['<BOS>'] + s + ['<EOS>'] for s in sents]
 
-        sents = [s.split() for s in sents]
         tokens_per_sent = min(max([len(s)
                                    for s in sents]), max_sent_length)
         sents = [s[:tokens_per_sent] for s in sents]
-        sents = [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
-        return [' '.join(s) for s in sents]
+        return [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
 
 
 class CnnDmArticle(Text):
@@ -96,14 +95,10 @@ class CnnDmArticle(Text):
 
 
 def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
-    from embeddings import GloveEmbeddings
     import tarfile
     import io
 
-    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
-                          './data/embeddings/glove/glove.6B.50d.txt')
-
-    cnn_dm_dataset = CnnDmDataset('train', emb.word2index())
+    cnn_dm_dataset = CnnDmDataset('val')
 
     with tarfile.open(out_file, 'w') as writer:
         for idx in range(100):
@@ -141,12 +136,13 @@ def build_max_dataset(out_file='./data/finished_files/max.tar'):
 
 
 if __name__ == '__main__':
-    build_dev_dataset()
-    build_max_dataset()
+    # build_dev_dataset()
+    # build_max_dataset()
 
     from embeddings import GloveEmbeddings
 
     emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
                           './data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('dev', emb.word2index())
+    cnn_dm_dataset = CnnDmDataset('dev')
+    cnn_dm_dataset.preprocess(emb.word2index())
