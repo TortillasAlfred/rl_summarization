@@ -1,0 +1,7 @@
+md5: f9471e4eebdec49735c35b55e484e8a0
+outs:
+- md5: 2db52aa0c956a94e3894f93ca5a4f994
+  path: test.tar
+  cache: true
+  metric: false
+  persist: false
