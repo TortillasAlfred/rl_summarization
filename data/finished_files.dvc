@@ -1,7 +1,0 @@
-md5: 861be0071f276bb3b53ed4bc93b6a2ed
-outs:
-- md5: b0bb6c797be95b94ccf726b3a5c4b532.dir
-  path: finished_files
-  cache: true
-  metric: false
-  persist: false

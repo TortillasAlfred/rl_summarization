@@ -105,8 +105,8 @@ def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
             article = cnn_dm_dataset[idx]
             js_example = {}
             js_example['id'] = article.id
-            js_example['article'] = article.content
-            js_example['abstract'] = article.abstract
+            js_example['article'] = [' '.join(sent) for sent in article.content]
+            js_example['abstract'] = [' '.join(sent) for sent in article.abstract]
             js_serialized = json.dumps(js_example, indent=4).encode()
             save_file = io.BytesIO(js_serialized)
             tar_info = tarfile.TarInfo('{}/{}.json'.format(
