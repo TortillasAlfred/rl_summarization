@@ -19,7 +19,8 @@ class SummarizationDataset(Dataset):
         self.texts = self.texts_fetcher(self.path, self.split)
 
     def preprocess(self, word2idx):
-        self.texts = list(map(lambda text: text.preprocess(word2idx), self.texts))
+        self.texts = list(
+            map(lambda text: text.preprocess(word2idx), self.texts))
 
     def __getitem__(self, index):
         return self.texts[index]
@@ -57,7 +58,7 @@ class Text:
         self.abstract = [sent.split() for sent in abstract]
         self.id = id
 
-    def preprocess(self, word2idx, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
+    def preprocess(self, embeddings, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
         if apply_padding:
             content_to_parse = self._apply_padding(
                 self.content, max_sent_length, max_sent_number)
@@ -68,7 +69,7 @@ class Text:
             abstract_to_parse = self.abstract
 
         def convert_sent(sent):
-            return list(map(lambda word: word2idx[word], sent))
+            return list(map(lambda word: embeddings.find(word), sent))
 
         self.idx_content = list(map(convert_sent, content_to_parse))
         self.idx_abstract = list(map(convert_sent, abstract_to_parse))
@@ -105,8 +106,10 @@ def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
             article = cnn_dm_dataset[idx]
             js_example = {}
             js_example['id'] = article.id
-            js_example['article'] = [' '.join(sent) for sent in article.content]
-            js_example['abstract'] = [' '.join(sent) for sent in article.abstract]
+            js_example['article'] = [' '.join(sent)
+                                     for sent in article.content]
+            js_example['abstract'] = [
+                ' '.join(sent) for sent in article.abstract]
             js_serialized = json.dumps(js_example, indent=4).encode()
             save_file = io.BytesIO(js_serialized)
             tar_info = tarfile.TarInfo('{}/{}.json'.format(
@@ -139,10 +142,9 @@ if __name__ == '__main__':
     # build_dev_dataset()
     # build_max_dataset()
 
-    from embeddings import GloveEmbeddings
+    from embeddings import PretrainedEmbeddings
 
-    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
-                          './data/embeddings/glove/glove.6B.50d.txt')
+    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
     cnn_dm_dataset = CnnDmDataset('dev')
-    cnn_dm_dataset.preprocess(emb.word2index())
+    cnn_dm_dataset.preprocess(emb)

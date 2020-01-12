@@ -39,13 +39,12 @@ def get_repeating_data_loader(dataset, num_samples_per_batch=1, batch_size=1, dr
 
 if __name__ == '__main__':
     from dataset import CnnDmDataset
-    from embeddings import GloveEmbeddings
+    from embeddings import PretrainedEmbeddings
 
-    emb = GloveEmbeddings('./data/embeddings/glove/glove.6B.50d.bin', 50,
-                          './data/embeddings/glove/glove.6B.50d.txt')
+    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
     cnn_dm_dataset = CnnDmDataset('dev')
-    cnn_dm_dataset.preprocess(emb.word2index())
+    cnn_dm_dataset.preprocess(emb)
 
     loader = get_repeating_data_loader(cnn_dm_dataset, 3, 8)
     for batch in loader:
