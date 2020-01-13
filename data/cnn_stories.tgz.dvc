@@ -1,7 +1,0 @@
-md5: bd86e9c9b72aa48942c2fd331c3dba1d
-outs:
-- md5: 85ac23a1926a831e8f46a6b8eaf57263
-  path: cnn_stories.tgz
-  cache: true
-  metric: false
-  persist: false
