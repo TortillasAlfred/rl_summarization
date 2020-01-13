@@ -1,7 +1,0 @@
-md5: 338fa083781fdd1efdf188d22a497cdf
-outs:
-- md5: cefa054486fefc4b1f01e1b444998dd1
-  path: val.tar
-  cache: true
-  metric: false
-  persist: false
