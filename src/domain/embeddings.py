@@ -21,7 +21,8 @@ class PretrainedEmbeddings:
         return output_dir
 
     def load_from_input(self, input_path, save_path):
-        self.mapping = {}
+        self.words_mapping = {}
+        self.idx_mapping = {}
 
         embeddings = np.loadtxt(input_path, dtype='str', comments=None)
 
@@ -41,24 +42,34 @@ class PretrainedEmbeddings:
         word_vectors_path = os.path.join(save_path, 'word_vectors.npy')
         np.save(word_vectors_path, self.word_vectors)
 
-        mapping_path = os.path.join(save_path, 'mapping.pck')
-        with open(mapping_path, 'wb') as handle:
-            pickle.dump(self.mapping, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        words_mapping_path = os.path.join(save_path, 'words_mapping.pck')
+        with open(words_mapping_path, 'wb') as handle:
+            pickle.dump(self.words_mapping, handle,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+
+        idx_mapping_path = os.path.join(save_path, 'idx_mapping.pck')
+        with open(idx_mapping_path, 'wb') as handle:
+            pickle.dump(self.idx_mapping, handle,
+                        protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_from_saved(self, save_path):
         word_vectors_path = os.path.join(save_path, 'word_vectors.npy')
         self.word_vectors = np.load(word_vectors_path)
         self.emb_dim = self.word_vectors.shape[1]
 
-        mapping_path = os.path.join(save_path, 'mapping.pck')
-        with open(mapping_path, 'rb') as handle:
-            self.mapping = pickle.load(handle)
+        words_mapping_path = os.path.join(save_path, 'words_mapping.pck')
+        with open(words_mapping_path, 'rb') as handle:
+            self.words_mapping = pickle.load(handle)
+
+        idx_mapping_path = os.path.join(save_path, 'idx_mapping.pck')
+        with open(idx_mapping_path, 'rb') as handle:
+            self.idx_mapping = pickle.load(handle)
 
         self._init_preprocessing_attributes()
 
     def _add_token_idx_pair(self, token, idx):
-        self.mapping[token] = idx
-        self.mapping[idx] = token
+        self.words_mapping[token] = idx
+        self.idx_mapping[idx] = token
 
     def _add_preprocessing_tokens(self):
         preprocessing_tokens = ['<BOS>', '<EOS>', '<UNK>', '<PAD>']
@@ -75,17 +86,49 @@ class PretrainedEmbeddings:
         self._init_preprocessing_attributes()
 
     def _init_preprocessing_attributes(self):
-        self.bos = self.mapping['<BOS>']
-        self.eos = self.mapping['<EOS>']
-        self.unk = self.mapping['<UNK>']
-        self.pad = self.mapping['<PAD>']
+        self.bos = self.words_mapping['<BOS>']
+        self.eos = self.words_mapping['<EOS>']
+        self.unk = self.words_mapping['<UNK>']
+        self.pad = self.words_mapping['<PAD>']
+
+    def fit_to_vocab(self, vocab, return_unk_words=False):
+        vocab_uniques = set(vocab)
+        embeddings_uniques = set(self.words_mapping.keys())
+
+        retained_words = vocab_uniques & embeddings_uniques
+
+        self._filter_embeddings(retained_words)
+
+        if return_unk_words:
+            return vocab_uniques - retained_words
+
+    def _filter_embeddings(self, embeddings_to_keep):
+        retained_indices = [self.words_mapping[word]
+                            for word in embeddings_to_keep]
+
+        self.word_vectors = self.word_vectors[retained_indices]
+
+        self.words_mapping = {}
+        self.idx_mapping = {}
+
+        for idx, word in enumerate(embeddings_to_keep):
+            self._add_token_idx_pair(idx, word)
+
+        self._add_preprocessing_tokens()
 
     def find(self, item):
         if isinstance(item, str):
-            return self.mapping.get(item, self.unk)
+            return self.words_mapping.get(item, self.unk)
         else:
-            return self.mapping[item]
+            return self.idx_mapping[item]
 
 
 if __name__ == '__main__':
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
+
+    import pickle
+
+    with open('./data/cnn_dailymail/analysis/vocab_cnt.pkl', 'rb') as f:
+        vocab = pickle.load(f)
+
+    emb.fit_to_vocab(vocab.keys())
