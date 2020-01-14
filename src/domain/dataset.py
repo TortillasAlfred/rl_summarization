@@ -30,7 +30,7 @@ class SummarizationDataset(Dataset):
 
 
 class CnnDmDataset(SummarizationDataset):
-    DEFAULT_CNN_DM_PATH = './data/finished_files/'
+    DEFAULT_CNN_DM_PATH = './data/cnn_dailymail/finished_files/'
 
     def __init__(self, split, path=DEFAULT_CNN_DM_PATH):
         super(CnnDmDataset, self).__init__(split, path, cnn_dm_fetcher)
@@ -54,8 +54,8 @@ def cnn_dm_fetcher(path, split):
 
 class Text:
     def __init__(self, content, abstract, id):
-        self.content = [sent.split() for sent in content]
-        self.abstract = [sent.split() for sent in abstract]
+        self.content = content
+        self.abstract = abstract
         self.id = id
 
     def preprocess(self, embeddings, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
@@ -69,7 +69,7 @@ class Text:
             abstract_to_parse = self.abstract
 
         def convert_sent(sent):
-            return list(map(lambda word: embeddings.find(word), sent))
+            return list(map(lambda word: embeddings.find(word), sent.split()))
 
         self.idx_content = list(map(convert_sent, content_to_parse))
         self.idx_abstract = list(map(convert_sent, abstract_to_parse))
@@ -78,6 +78,7 @@ class Text:
 
     def _apply_padding(self, sents, max_sent_length, max_sent_number, enclose=True):
         sents = sents[:max_sent_number]
+        sents = [sent.split() for sent in sents]
 
         if enclose:
             sents = [['<BOS>'] + s + ['<EOS>'] for s in sents]
@@ -85,7 +86,9 @@ class Text:
         tokens_per_sent = min(max([len(s)
                                    for s in sents]), max_sent_length)
         sents = [s[:tokens_per_sent] for s in sents]
-        return [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
+        sents = [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
+        return [' '.join(sent) for sent in sents]
+
 
 
 class CnnDmArticle(Text):
@@ -95,7 +98,7 @@ class CnnDmArticle(Text):
                                            json_data['id'])
 
 
-def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
+def build_dev_dataset(out_file='./data/cnn_dailymail/finished_files/dev.tar'):
     import tarfile
     import io
 
@@ -106,10 +109,8 @@ def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
             article = cnn_dm_dataset[idx]
             js_example = {}
             js_example['id'] = article.id
-            js_example['article'] = [' '.join(sent)
-                                     for sent in article.content]
-            js_example['abstract'] = [
-                ' '.join(sent) for sent in article.abstract]
+            js_example['article'] = article.content
+            js_example['abstract'] = article.abstract
             js_serialized = json.dumps(js_example, indent=4).encode()
             save_file = io.BytesIO(js_serialized)
             tar_info = tarfile.TarInfo('{}/{}.json'.format(
@@ -118,7 +119,7 @@ def build_dev_dataset(out_file='./data/finished_files/dev.tar'):
             writer.addfile(tar_info, save_file)
 
 
-def build_max_dataset(out_file='./data/finished_files/max.tar'):
+def build_max_dataset(out_file='./data/cnn_dailymail/finished_files/max.tar'):
     import tarfile
     import io
 
@@ -147,4 +148,5 @@ if __name__ == '__main__':
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
     cnn_dm_dataset = CnnDmDataset('dev')
+    cnn_dm_dataset.analysis_report()
     cnn_dm_dataset.preprocess(emb)
