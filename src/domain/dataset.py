@@ -4,6 +4,7 @@ import json
 
 from os.path import join
 from torch.utils.data import Dataset
+from utils import datetime_tqdm
 
 
 DEFAULT_MAX_SENT_LENGTH = 80
@@ -18,9 +19,9 @@ class SummarizationDataset(Dataset):
         self.split = split
         self.texts = self.texts_fetcher(self.path, self.split)
 
-    def preprocess(self, word2idx):
-        self.texts = list(
-            map(lambda text: text.preprocess(word2idx), self.texts))
+    def preprocess(self, embeddings):
+        self.texts = list(map(lambda text: text.preprocess(embeddings), datetime_tqdm(
+            self.texts, desc='Preprocessing dataset texts...')))
 
     def __getitem__(self, index):
         return self.texts[index]
@@ -30,7 +31,7 @@ class SummarizationDataset(Dataset):
 
 
 class CnnDmDataset(SummarizationDataset):
-    DEFAULT_CNN_DM_PATH = './data/cnn_dailymail/finished_files/'
+    DEFAULT_CNN_DM_PATH = './data/cnn_dailymail/'
 
     def __init__(self, split, path=DEFAULT_CNN_DM_PATH):
         super(CnnDmDataset, self).__init__(split, path, cnn_dm_fetcher)
@@ -38,12 +39,12 @@ class CnnDmDataset(SummarizationDataset):
 
 # Fetchers
 def cnn_dm_fetcher(path, split):
-    reading_path = join(path, split) + '.tar'
+    reading_path = join(path, 'finished_files', split) + '.tar'
 
     all_articles = []
 
     with tarfile.open(reading_path) as all_samples_file:
-        for sample_path in all_samples_file:
+        for sample_path in datetime_tqdm(all_samples_file.getnames(), desc='Reading dataset files...'):
             with all_samples_file.extractfile(sample_path) as sample_file:
                 article_data = json.load(sample_file)
 
@@ -88,7 +89,6 @@ class Text:
         sents = [s[:tokens_per_sent] for s in sents]
         sents = [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
         return [' '.join(sent) for sent in sents]
-
 
 
 class CnnDmArticle(Text):
@@ -147,6 +147,5 @@ if __name__ == '__main__':
 
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('dev')
-    cnn_dm_dataset.analysis_report()
+    cnn_dm_dataset = CnnDmDataset('val')
     cnn_dm_dataset.preprocess(emb)
