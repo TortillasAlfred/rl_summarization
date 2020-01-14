@@ -16,7 +16,7 @@ class RepeatingBatchSampler(BatchSampler):
     def __iter__(self):
         batch = []
         for idx, sample in enumerate(self.sampler):
-            batch.extend([sample] * self._batch_format[idx])
+            batch.extend([sample] * self._batch_format[idx % len(self._batch_format)])
             if len(batch) == self.batch_size:
                 yield batch
                 batch = []
@@ -49,3 +49,4 @@ if __name__ == '__main__':
     loader = get_repeating_data_loader(cnn_dm_dataset, 3, 8)
     for batch in loader:
         print(len(batch))
+        print(loader.batch_sampler._batch_format)
