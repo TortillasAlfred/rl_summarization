@@ -24,13 +24,14 @@ class PretrainedEmbeddings:
         self.words_mapping = {}
         self.idx_mapping = {}
 
-        embeddings = np.loadtxt(input_path, dtype='str', comments=None)
-
-        for idx, word in enumerate(embeddings[:, 0]):
-            self._add_token_idx_pair(word, idx)
-
-        self.word_vectors = embeddings[:, 1:].astype('float')
+        self.word_vectors = np.loadtxt(strip_first_col(
+            input_path), dtype=float, comments=None)
         self.emb_dim = self.word_vectors.shape[1]
+
+        words = np.loadtxt(input_path, dtype=str, usecols=0, comments=None)
+
+        for idx, word in enumerate(words):
+            self._add_token_idx_pair(word, idx)
 
         self._add_preprocessing_tokens()
 
@@ -123,8 +124,17 @@ class PretrainedEmbeddings:
             return self.idx_mapping[item]
 
 
+def strip_first_col(fname, delimiter=None):
+    with open(fname, 'r') as fin:
+        for line in fin:
+            try:
+                yield line.split(delimiter, 1)[1]
+            except IndexError:
+                continue
+
+
 if __name__ == '__main__':
-    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
+    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.300d.txt')
 
     import pickle
 
