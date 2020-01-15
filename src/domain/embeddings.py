@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pickle
+import logging
 
 from collections import defaultdict
 
@@ -21,6 +22,8 @@ class PretrainedEmbeddings:
         return output_dir
 
     def load_from_input(self, input_path, save_path):
+        logging.info(
+            f'No presaved custom embeddings found. Reading input from {input_path}')
         self.words_mapping = {}
         self.idx_mapping = {}
 
@@ -35,9 +38,11 @@ class PretrainedEmbeddings:
 
         self._add_preprocessing_tokens()
 
+        logging.info('Reading and preparation done.')
         self._save(save_path)
 
     def _save(self, save_path):
+        logging.info(f'Saving custom embeddings to {save_path} folder.')
         os.makedirs(save_path)
 
         word_vectors_path = os.path.join(save_path, 'word_vectors.npy')
@@ -54,6 +59,7 @@ class PretrainedEmbeddings:
                         protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_from_saved(self, save_path):
+        logging.info(f'Loading custom embeddings from folder {save_path}.')
         word_vectors_path = os.path.join(save_path, 'word_vectors.npy')
         self.word_vectors = np.load(word_vectors_path)
         self.emb_dim = self.word_vectors.shape[1]
