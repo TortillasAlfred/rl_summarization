@@ -15,7 +15,8 @@ class PretrainedEmbeddings:
         else:
             self.load_from_saved(save_path)
 
-        assert len(words) == len(self.word_vectors)
+        assert len(self.words_mapping) == len(self.word_vectors)
+        assert len(self.idx_mapping) == len(self.word_vectors)
 
     def _get_save_path(self, input_path):
         output_dir = os.path.splitext(input_path)[0]
