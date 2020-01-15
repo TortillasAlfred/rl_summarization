@@ -1,4 +1,5 @@
 from utils import configure_logging, datetime_tqdm
+from embeddings import PretrainedEmbeddings
 
 import pickle
 import os
@@ -11,16 +12,13 @@ from collections import Counter
 
 class Analyzer:
 
-    def analyze_dataset_embeddings_pair(self, dataset, embeddings):
+    def analyze_dataset_embeddings_pair(self, dataset, embeddings_path):
         logging.info('Beginning analysis')
         self.save_path = os.path.join(dataset.path, 'analysis')
         os.makedirs(self.save_path, exist_ok=True)
 
         texts_analysis = list(map(self.analyze_text, datetime_tqdm(
             dataset, desc='Analyzing dataset texts...')))
-
-        vocab, vocab_path = self._build_save_vocab(texts_analysis)
-        unk_words = embeddings.fit_to_vocab(vocab, return_unk_words=True)
 
         self.report_path = os.path.join(self.save_path, 'report.txt')
 
@@ -31,11 +29,11 @@ class Analyzer:
 
         self.overview_section(texts_analysis)
         self.article_stats_section(texts_analysis)
-        self.vocab_stats(texts_analysis, vocab, vocab_path, unk_words)
+        self.vocab_stats(texts_analysis, embeddings_path)
         logging.info(
             f'Analysis done. A detailed report can be found in {self.report_path}')
 
-    def _n_most_least_frequent(self, occurences_dict, n):
+    def _n_most_frequent(self, occurences_dict, n):
         text = f'\n\nHere are the {n} most frequent ones:\n\n'
 
         most_frequent = occurences_dict.most_common(n)
@@ -53,7 +51,7 @@ class Analyzer:
         n_total = sum(total.values())
         n_unique = len(total)
         section += f"The dataset is made of {n_total} tokens, of which are {n_unique} unique."
-        section += self._n_most_least_frequent(total, 25)
+        section += self._n_most_frequent(total, 25)
 
         with open(self.report_path, 'a') as f:
             f.write(section)
@@ -98,8 +96,26 @@ class Analyzer:
         with open(self.report_path, 'a') as f:
             f.write(section)
 
-    def vocab_stats(self, texts_analysis, vocab, vocab_path, unk_words):
-        pass
+    def vocab_stats(self, texts_analysis, embeddings_path):
+        logging.info('Begin Vocabulary Stats Section')
+
+        vocab, vocab_path = self._build_save_vocab(texts_analysis)
+        embeddings = PretrainedEmbeddings(embeddings_path)
+        original_size = len(embeddings)
+        unk_words = embeddings.fit_to_vocab(vocab, return_unk_words=True)
+        post_size = len(embeddings)
+
+        section = '\n\n***Vocabulary Statistics***\n\n'
+
+        section += f'A vocabulary counter dictionary for the dataset has been saved to {vocab_path}\n\n'
+        section += f'The embeddings used for the following analysis were loaded from {embeddings_path}\n\n'
+        section += f'The embeddings countain a total of {original_size} individual tokens. Out of them, a subset of {post_size} are present in the dataset and are to be retained.'
+        section += f'A total of {len(unk_words)} unique tokens were present in the dataset but not in the embeddings words.'
+        unk_words = Counter({word: vocab[word] for word in iter(unk_words)})
+        section += self._n_most_frequent(unk_words, 25)
+
+        with open(self.report_path, 'a') as f:
+            f.write(section)
 
     def _build_save_vocab(self, texts_analysis):
         logging.info('Building vocabulary...')
@@ -155,11 +171,9 @@ class Analyzer:
 if __name__ == '__main__':
     configure_logging()
 
-    from embeddings import PretrainedEmbeddings
     from dataset import CnnDmDataset
-
-    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
     cnn_dm_dataset = CnnDmDataset('dev')
     analyzer = Analyzer()
-    analyzer.analyze_dataset_embeddings_pair(cnn_dm_dataset, emb)
+    analyzer.analyze_dataset_embeddings_pair(
+        cnn_dm_dataset, './data/embeddings/glove/glove.6B.50d.txt')
