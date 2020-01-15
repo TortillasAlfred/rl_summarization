@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
     from dataset import CnnDmDataset
 
-    cnn_dm_dataset = CnnDmDataset('dev')
+    cnn_dm_dataset = CnnDmDataset('train')
     analyzer = Analyzer()
     analyzer.analyze_dataset_embeddings_pair(
         cnn_dm_dataset, './data/embeddings/glove/glove.6B.50d.txt')
