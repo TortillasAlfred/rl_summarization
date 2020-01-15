@@ -4,6 +4,7 @@ import pickle
 import os
 import logging
 import numpy as np
+import matplotlib.pyplot as plt
 
 from collections import Counter
 
@@ -44,6 +45,7 @@ class Analyzer:
         return text
 
     def overview_section(self, texts_analysis):
+        logging.info('Begin Overview Section')
         section = '***Dataset overview***\n\n'
 
         total = Counter(
@@ -65,11 +67,19 @@ class Analyzer:
         text += f'Min : {stat_array.min()}\n'
         text += f'Max : {stat_array.max()}\n'
 
-        # Do hist
+        hist_name = stat_name.replace(' ', '_') + '.png'
+        hist_path = os.path.join(self.save_path, hist_name)
+        _ = plt.hist(stat_array, bins='auto')
+        plt.title(stat_name)
+        plt.savefig(hist_path)
+        plt.close()
+
+        text += f'An histogram of the statistics has been saved to {hist_path}\n'
 
         return text
 
     def article_stats_section(self, texts_analysis):
+        logging.info('Begin Article Stats Section')
         section = '\n\n***Statistics per article***'
 
         section += self._per_article_stat([t['n_tokens_content']
