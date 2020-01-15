@@ -102,6 +102,7 @@ class PretrainedEmbeddings:
         self.pad = self.words_mapping['<PAD>']
 
     def fit_to_vocab(self, vocab, return_unk_words=False):
+        logging.info('Fitting embeddings to vocabulary...')
         vocab_uniques = set(vocab)
         embeddings_uniques = set(self.words_mapping.keys())
 

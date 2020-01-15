@@ -2,10 +2,12 @@ import os
 import tarfile
 import json
 import logging
+import pickle
 
 from os.path import join
 from torch.utils.data import Dataset
 from utils import datetime_tqdm
+from collections import Counter
 
 
 DEFAULT_MAX_SENT_LENGTH = 80
@@ -18,11 +20,49 @@ class SummarizationDataset(Dataset):
         self.texts_fetcher = data_fetcher
         self.path = path
         self.split = split
-        self.texts = self.texts_fetcher(self.path, self.split)
+        self.texts = self.texts_fetcher(self._files_path(), self.split)
+        self._load_vocab()
 
     def preprocess(self, embeddings):
+        emb.fit_to_vocab(self.vocab)
         self.texts = list(map(lambda text: text.preprocess(embeddings), datetime_tqdm(
             self.texts, desc='Preprocessing dataset texts...')))
+
+    def _load_vocab(self):
+        if not os.path.isfile(self._vocab_path()):
+            logging.info(f'No saved vocabulary found in {self._vocab_path()}.')
+            self.compute_save_vocab(self._vocab_path())
+
+        with open(self._vocab_path(), 'rb') as f:
+            self.vocab = pickle.load(f)
+
+    def _files_path(self):
+        return join(self.path, 'finished_files')
+
+    def _vocab_path(self):
+        return join(self._files_path(), 'vocab_cnt.pkl')
+
+    def compute_save_vocab(self, save_path):
+        if self.split is not 'train':
+            raise ValueError(
+                f'Vocabulary can only be computed for train split, not {self.split} !')
+
+        logging.info('Building vocabulary...')
+
+        vocab = Counter()
+        for text in datetime_tqdm(self.texts, desc='Reading dataset texts...'):
+            text_vocab = []
+            for sentences in [text.abstract, text.content]:
+                for sent in sentences:
+                    text_vocab.extend(sent.split())
+
+            vocab.update(text_vocab)
+
+        logging.info(f'Vocabulary done. Saving to {save_path}')
+        with open(save_path, 'wb') as f:
+            pickle.dump(vocab, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return vocab
 
     def __getitem__(self, index):
         return self.texts[index]
@@ -40,14 +80,13 @@ class CnnDmDataset(SummarizationDataset):
 
 # Fetchers
 def cnn_dm_fetcher(path, split):
-    base_path = join(path, 'finished_files')
-    reading_path = join(base_path, split)
+    reading_path = join(path, split)
 
     if not os.path.isdir(reading_path):
         with tarfile.open(reading_path + '.tar') as tar:
             logging.info(
                 f'Split {split} is not yet extracted to {reading_path}. Doing it now.')
-            tar.extractall(base_path)
+            tar.extractall(path)
 
     all_articles = []
 
@@ -152,10 +191,12 @@ def build_max_dataset(out_file='./data/cnn_dailymail/finished_files/max.tar'):
 if __name__ == '__main__':
     # build_dev_dataset()
     # build_max_dataset()
-
+    from utils import configure_logging
     from embeddings import PretrainedEmbeddings
+
+    configure_logging()
 
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('train')
+    cnn_dm_dataset = CnnDmDataset('dev')
     cnn_dm_dataset.preprocess(emb)

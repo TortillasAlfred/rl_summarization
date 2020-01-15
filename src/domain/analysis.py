@@ -29,7 +29,7 @@ class Analyzer:
 
         self.overview_section(texts_analysis)
         self.article_stats_section(texts_analysis)
-        self.vocab_stats(texts_analysis, embeddings_path)
+        self.vocab_stats(texts_analysis, embeddings_path, dataset.vocab)
         logging.info(
             f'Analysis done. A detailed report can be found in {self.report_path}')
 
@@ -96,10 +96,9 @@ class Analyzer:
         with open(self.report_path, 'a') as f:
             f.write(section)
 
-    def vocab_stats(self, texts_analysis, embeddings_path):
+    def vocab_stats(self, texts_analysis, embeddings_path, vocab):
         logging.info('Begin Vocabulary Stats Section')
 
-        vocab, vocab_path = self._build_save_vocab(texts_analysis)
         embeddings = PretrainedEmbeddings(embeddings_path)
         original_size = len(embeddings)
         unk_words = embeddings.fit_to_vocab(vocab, return_unk_words=True)
@@ -107,7 +106,6 @@ class Analyzer:
 
         section = '\n\n***Vocabulary Statistics***\n\n'
 
-        section += f'A vocabulary counter dictionary for the dataset has been saved to {vocab_path}\n\n'
         section += f'The embeddings used for the following analysis were loaded from {embeddings_path}\n\n'
         section += f'The embeddings countain a total of {original_size} individual tokens. Out of them, a subset of {post_size} are present in the dataset and are to be retained.'
         section += f'A total of {len(unk_words)} unique tokens were present in the dataset but not in the embeddings words.'
@@ -116,19 +114,6 @@ class Analyzer:
 
         with open(self.report_path, 'a') as f:
             f.write(section)
-
-    def _build_save_vocab(self, texts_analysis):
-        logging.info('Building vocabulary...')
-
-        vocab = Counter(
-            [word for analysis in texts_analysis for word in analysis['all_tokens']])
-
-        vocab_path = os.path.join(self.save_path, 'vocab_cnt.pkl')
-        logging.info(f'Vocabulary done. Saving to {vocab_path}')
-        with open(vocab_path, 'wb') as f:
-            pickle.dump(vocab, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        return vocab, vocab_path
 
     def analyze_text(self, text):
         analysis_report = {}
@@ -173,7 +158,7 @@ if __name__ == '__main__':
 
     from dataset import CnnDmDataset
 
-    cnn_dm_dataset = CnnDmDataset('train')
+    cnn_dm_dataset = CnnDmDataset('dev')
     analyzer = Analyzer()
     analyzer.analyze_dataset_embeddings_pair(
         cnn_dm_dataset, './data/embeddings/glove/glove.6B.50d.txt')
