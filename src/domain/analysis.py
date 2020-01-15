@@ -1,10 +1,10 @@
-from utils import configure_logging
+from utils import configure_logging, datetime_tqdm
 
 import pickle
 import os
 import logging
+import numpy as np
 
-from utils import datetime_tqdm
 from collections import Counter
 
 
@@ -56,8 +56,37 @@ class Analyzer:
         with open(self.report_path, 'a') as f:
             f.write(section)
 
+    def _per_article_stat(self, stat_array, stat_name):
+        text = f'\n\nFor the {stat_name}, the statistics are :\n\n'
+
+        stat_array = np.asarray(stat_array)
+        text += f'Mean : {stat_array.mean():.2f}\n'
+        text += f'Std : {stat_array.std():.2f}\n'
+        text += f'Min : {stat_array.min()}\n'
+        text += f'Max : {stat_array.max()}\n'
+
+        # Do hist
+
+        return text
+
     def article_stats_section(self, texts_analysis):
-        pass
+        section = '\n\n***Statistics per article***'
+
+        section += self._per_article_stat([t['n_tokens_content']
+                                           for t in texts_analysis], 'number of tokens per content')
+        section += self._per_article_stat([t['n_sents_content']
+                                           for t in texts_analysis], 'number of sentences per content')
+        section += self._per_article_stat([sent_len for t in texts_analysis for sent_len in t['n_tokens_sent_content']],
+                                          'number of tokens per sentence in content')
+        section += self._per_article_stat([t['n_tokens_abstract']
+                                           for t in texts_analysis], 'number of tokens per abstract')
+        section += self._per_article_stat([t['n_sents_abstract']
+                                           for t in texts_analysis], 'number of sentences per abstract')
+        section += self._per_article_stat([sent_len for t in texts_analysis for sent_len in t['n_tokens_sent_abstract']],
+                                          'number of tokens per sentence in abstract')
+
+        with open(self.report_path, 'a') as f:
+            f.write(section)
 
     def vocab_stats(self, texts_analysis, vocab, vocab_path, unk_words):
         pass
@@ -82,10 +111,14 @@ class Analyzer:
         split_abstract = [sent.split() for sent in text.abstract]
 
         # Number of total tokens
+        analysis_report['n_tokens_sent_content'] = [
+            len(sent) for sent in split_content]
         analysis_report['n_tokens_content'] = sum(
-            [len(sent) for sent in split_content])
+            analysis_report['n_tokens_sent_content'])
+        analysis_report['n_tokens_sent_abstract'] = [
+            len(sent) for sent in split_abstract]
         analysis_report['n_tokens_abstract'] = sum(
-            [len(sent) for sent in split_abstract])
+            analysis_report['n_tokens_sent_abstract'])
         analysis_report['n_tokens_total'] = analysis_report['n_tokens_content'] + \
             analysis_report['n_tokens_abstract']
         analysis_report['all_tokens'] = [word for text in [
