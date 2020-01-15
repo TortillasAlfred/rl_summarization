@@ -129,6 +129,9 @@ class PretrainedEmbeddings:
         else:
             return self.idx_mapping[item]
 
+    def __len__(self):
+        return len(self.word_vectors)
+
 
 def strip_first_col(fname, delimiter=None):
     with open(fname, 'r') as fin:
