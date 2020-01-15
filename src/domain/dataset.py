@@ -1,6 +1,7 @@
 import os
 import tarfile
 import json
+import logging
 
 from os.path import join
 from torch.utils.data import Dataset
@@ -39,16 +40,24 @@ class CnnDmDataset(SummarizationDataset):
 
 # Fetchers
 def cnn_dm_fetcher(path, split):
-    reading_path = join(path, 'finished_files', split) + '.tar'
+    base_path = join(path, 'finished_files')
+    reading_path = join(base_path, split)
+
+    if not os.path.isdir(reading_path):
+        with tarfile.open(reading_path + '.tar') as tar:
+            logging.info(
+                f'Split {split} is not yet extracted to {reading_path}. Doing it now.')
+            tar.extractall(base_path)
 
     all_articles = []
 
-    with tarfile.open(reading_path) as all_samples_file:
-        for sample_path in datetime_tqdm(all_samples_file.getnames(), desc='Reading dataset files...'):
-            with all_samples_file.extractfile(sample_path) as sample_file:
-                article_data = json.load(sample_file)
+    for fname in datetime_tqdm(os.listdir(reading_path), desc='Reading dataset files...'):
+        with open(join(reading_path, fname), 'r') as f:
+            article_data = json.loads(f.read())
+            article = CnnDmArticle(article_data)
 
-                all_articles.append((CnnDmArticle(article_data)))
+            if article.is_valid:
+                all_articles.append(article)
 
     return all_articles
 
@@ -58,6 +67,7 @@ class Text:
         self.content = content
         self.abstract = abstract
         self.id = id
+        self.is_valid = len(self.content) > 0 and len(self.abstract) > 0
 
     def preprocess(self, embeddings, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
         if apply_padding:
@@ -147,5 +157,5 @@ if __name__ == '__main__':
 
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('val')
+    cnn_dm_dataset = CnnDmDataset('train')
     cnn_dm_dataset.preprocess(emb)
