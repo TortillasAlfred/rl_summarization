@@ -15,6 +15,8 @@ class PretrainedEmbeddings:
         else:
             self.load_from_saved(save_path)
 
+        assert len(words) == len(self.word_vectors)
+
     def _get_save_path(self, input_path):
         output_dir = os.path.splitext(input_path)[0]
         output_dir = os.path.join(output_dir, 'saved')
@@ -31,7 +33,7 @@ class PretrainedEmbeddings:
             input_path), dtype=float, comments=None)
         self.emb_dim = self.word_vectors.shape[1]
 
-        words = np.loadtxt(input_path, dtype=str, usecols=0, comments=None)
+        words = np.genfromtxt(input_path, dtype=str, usecols=0, comments=None)
 
         for idx, word in enumerate(words):
             self._add_token_idx_pair(word, idx)
@@ -143,7 +145,7 @@ def strip_first_col(fname, delimiter=None):
 
 
 if __name__ == '__main__':
-    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.300d.txt')
+    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
     import pickle
 
