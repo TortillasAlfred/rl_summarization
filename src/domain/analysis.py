@@ -22,14 +22,39 @@ class Analyzer:
         unk_words = embeddings.fit_to_vocab(vocab, return_unk_words=True)
 
         self.report_path = os.path.join(self.save_path, 'report.txt')
+
+        if os.path.isfile(self.report_path):
+            logging.info(
+                f'A preexisting report was found in {self.report_path}. Overriding it.')
+            os.remove(self.report_path)
+
         self.overview_section(texts_analysis)
         self.article_stats_section(texts_analysis)
         self.vocab_stats(texts_analysis, vocab, vocab_path, unk_words)
         logging.info(
             f'Analysis done. A detailed report can be found in {self.report_path}')
 
+    def _n_most_least_frequent(self, occurences_dict, n):
+        text = f'\n\nHere are the {n} most frequent ones:\n\n'
+
+        most_frequent = occurences_dict.most_common(n)
+        for idx, (word, occ) in enumerate(most_frequent):
+            text += f'{idx + 1} - {word} : {occ} occurences.\n'
+
+        return text
+
     def overview_section(self, texts_analysis):
-        pass
+        section = '***Dataset overview***\n\n'
+
+        total = Counter(
+            [word for t in texts_analysis for word in t['all_tokens']])
+        n_total = sum(total.values())
+        n_unique = len(total)
+        section += f"The dataset is made of {n_total} tokens, of which are {n_unique} unique."
+        section += self._n_most_least_frequent(total, 25)
+
+        with open(self.report_path, 'a') as f:
+            f.write(section)
 
     def article_stats_section(self, texts_analysis):
         pass
@@ -92,6 +117,6 @@ if __name__ == '__main__':
 
     emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
 
-    cnn_dm_dataset = CnnDmDataset('val')
+    cnn_dm_dataset = CnnDmDataset('dev')
     analyzer = Analyzer()
     analyzer.analyze_dataset_embeddings_pair(cnn_dm_dataset, emb)
