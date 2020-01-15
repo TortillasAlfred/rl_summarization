@@ -1,0 +1,7 @@
+md5: 83f5e5fa668427581dcb38d52a4ff0ca
+outs:
+- md5: dd7f3ad906768166883176d69cc028de
+  path: glove.6B.100d.txt
+  cache: true
+  metric: false
+  persist: false
