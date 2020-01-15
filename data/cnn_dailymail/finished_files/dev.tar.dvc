@@ -1,0 +1,7 @@
+md5: e5f71ae262d427ebaed3f9036984fc9d
+outs:
+- md5: 6ccaf67504edb6ac7e1298d1cd39ace3
+  path: dev.tar
+  cache: true
+  metric: false
+  persist: false
