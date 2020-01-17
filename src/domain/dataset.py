@@ -103,8 +103,8 @@ def cnn_dm_fetcher(path, split):
 
 class Text:
     def __init__(self, content, abstract, id):
-        self.content = content
-        self.abstract = abstract
+        self.content = [sent.split() for sent in content]
+        self.abstract = [sent.split() for sent in abstract]
         self.id = id
         self.is_valid = len(self.content) > 0 and len(self.abstract) > 0
 
@@ -119,7 +119,7 @@ class Text:
             abstract_to_parse = self.abstract
 
         def convert_sent(sent):
-            return list(map(lambda word: embeddings.find(word), sent.split()))
+            return list(map(lambda word: embeddings.find(word), ))
 
         self.idx_content = list(map(convert_sent, content_to_parse))
         self.idx_abstract = list(map(convert_sent, abstract_to_parse))
@@ -128,7 +128,6 @@ class Text:
 
     def _apply_padding(self, sents, max_sent_length, max_sent_number, enclose=True):
         sents = sents[:max_sent_number]
-        sents = [sent.split() for sent in sents]
 
         if enclose:
             sents = [['<BOS>'] + s + ['<EOS>'] for s in sents]
@@ -136,8 +135,7 @@ class Text:
         tokens_per_sent = min(max([len(s)
                                    for s in sents]), max_sent_length)
         sents = [s[:tokens_per_sent] for s in sents]
-        sents = [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
-        return [' '.join(sent) for sent in sents]
+        return [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
 
 
 class CnnDmArticle(Text):
@@ -176,10 +174,9 @@ def build_max_dataset(out_file='./data/cnn_dailymail/finished_files/max.tar'):
         for idx in range(100):
             js_example = {}
             js_example['id'] = idx
-            js_example['article'] = [
-                ' '.join(['<PAD>'] * DEFAULT_MAX_SENT_LENGTH)] * DEFAULT_MAX_SENT_NUMBER
-            js_example['abstract'] = [
-                ' '.join(['<PAD>'] * DEFAULT_MAX_SENT_LENGTH)] * 3
+            js_example['article'] = [['<PAD>'] *
+                                     DEFAULT_MAX_SENT_LENGTH] * DEFAULT_MAX_SENT_NUMBER
+            js_example['abstract'] = [['<PAD>'] * DEFAULT_MAX_SENT_LENGTH] * 3
             js_serialized = json.dumps(js_example, indent=4).encode()
             save_file = io.BytesIO(js_serialized)
             tar_info = tarfile.TarInfo('{}/{}.json'.format(
@@ -191,6 +188,7 @@ def build_max_dataset(out_file='./data/cnn_dailymail/finished_files/max.tar'):
 if __name__ == '__main__':
     # build_dev_dataset()
     # build_max_dataset()
+
     from utils import configure_logging
     from embeddings import PretrainedEmbeddings
 
