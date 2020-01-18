@@ -1,6 +1,6 @@
 
 ['remote "gdrive"']
-url = gdrive://121aSpbfIBaHmgfe5ssZZAurouKbocRBc/my-dvc-root
+url = gdrive://121aSpbfIBaHmgfe5ssZZAurouKbocRBc
 gdrive_client_secret = akcVKh8TJ1HW-ay-JqtZNdhr
 gdrive_client_id = 326797377925-m28755k83rhj2t0siqt1d89reu09ua8q.apps.googleusercontent.com
 [core]
