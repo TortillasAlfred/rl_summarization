@@ -1,3 +1,5 @@
+from src.domain.utils import datetime_tqdm
+
 import os
 import tarfile
 import json
@@ -6,7 +8,6 @@ import pickle
 
 from os.path import join
 from torch.utils.data import Dataset
-from utils import datetime_tqdm
 from collections import Counter
 
 
@@ -24,7 +25,7 @@ class SummarizationDataset(Dataset):
         self._load_vocab()
 
     def preprocess(self, embeddings):
-        emb.fit_to_vocab(self.vocab)
+        embeddings.fit_to_vocab(self.vocab)
         self.texts = list(map(lambda text: text.preprocess(embeddings), datetime_tqdm(
             self.texts, desc='Preprocessing dataset texts...')))
 
@@ -119,7 +120,7 @@ class Text:
             abstract_to_parse = self.abstract
 
         def convert_sent(sent):
-            return list(map(lambda word: embeddings.find(word), ))
+            return list(map(lambda word: embeddings.find(word), sent))
 
         self.idx_content = list(map(convert_sent, content_to_parse))
         self.idx_abstract = list(map(convert_sent, abstract_to_parse))
@@ -189,8 +190,8 @@ if __name__ == '__main__':
     # build_dev_dataset()
     # build_max_dataset()
 
-    from utils import configure_logging
-    from embeddings import PretrainedEmbeddings
+    from src.domain.utils import configure_logging
+    from src.domain.embeddings import PretrainedEmbeddings
 
     configure_logging()
 

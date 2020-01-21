@@ -38,7 +38,7 @@ def get_repeating_data_loader(dataset, num_samples_per_batch=1, batch_size=1, dr
 
 
 if __name__ == '__main__':
-    from dataset import CnnDmDataset
+    from src.domain.dataset import CnnDmDataset
 
     cnn_dm_dataset = CnnDmDataset('dev')
 

@@ -1,0 +1,7 @@
+md5: baaf293a942073834f242db4c6e772fc
+outs:
+- md5: 7852edf4e57e38bacae8ca8378b66f24
+  path: test.tgz
+  cache: true
+  metric: false
+  persist: false

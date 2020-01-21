@@ -1,7 +1,0 @@
-md5: 7cc6f443de0e8337b9f1aed6c8a657bc
-outs:
-- md5: f479fbaa08e5bc091bc70c481b261d0c
-  path: train.tar
-  cache: true
-  metric: false
-  persist: false

@@ -1,7 +1,0 @@
-md5: 99997f6b8876b68d2cc8e69765b8827f
-outs:
-- md5: b78f53fb56ec1ce9edc367d2e6186ba4
-  path: glove.6B.300d.txt
-  cache: true
-  metric: false
-  persist: false

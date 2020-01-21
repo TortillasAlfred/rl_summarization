@@ -1,5 +1,5 @@
-from utils import configure_logging, datetime_tqdm
-from embeddings import PretrainedEmbeddings
+from src.domain.utils import configure_logging, datetime_tqdm
+from src.domain.embeddings import PretrainedEmbeddings
 
 import pickle
 import os
@@ -156,7 +156,7 @@ class Analyzer:
 if __name__ == '__main__':
     configure_logging()
 
-    from dataset import CnnDmDataset
+    from src.domain.dataset import CnnDmDataset
 
     cnn_dm_dataset = CnnDmDataset('dev')
     analyzer = Analyzer()

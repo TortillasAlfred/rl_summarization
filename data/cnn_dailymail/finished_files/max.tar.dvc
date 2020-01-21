@@ -1,7 +1,0 @@
-md5: 298b5d2a57a89139d30e0c69ff9eecbb
-outs:
-- md5: 9d4cf8f46dbbe22644b5a1b45d63fed6
-  path: max.tar
-  cache: true
-  metric: false
-  persist: false
