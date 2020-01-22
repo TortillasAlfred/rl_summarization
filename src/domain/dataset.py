@@ -6,20 +6,31 @@ import os
 import logging
 import json
 
-from torchtext.data import Dataset, Example, Field, RawField, NestedField
+from torchtext.data import Dataset, Example, Field, RawField, NestedField, BucketIterator
 
 configure_logging()
 
 
 class SummarizationDataset(Dataset):
-    def __init__(self, train, val, test, fields, vectors, vectors_cache):
-        self.train = Dataset(train, fields)
-        self.val = Dataset(val, fields)
-        self.test = Dataset(test, fields)
+    def __init__(self,
+                 train,
+                 val,
+                 test,
+                 fields,
+                 vectors,
+                 vectors_cache,
+                 filter_pred=None):
+        self.train = Dataset(train, fields, filter_pred)
+        self.val = Dataset(val, fields, filter_pred)
+        self.test = Dataset(test, fields, filter_pred)
         self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
         raise NotImplementedError()
+
+
+def not_empty_example(example):
+    return not (len(example.content) == 0 or len(example.abstract) == 0)
 
 
 class CnnDailyMailDataset(SummarizationDataset):
@@ -30,24 +41,25 @@ class CnnDailyMailDataset(SummarizationDataset):
                  dev=False,
                  vectors_cache='./data/embeddings',
                  max_tokens_per_sent=80,
-                 max_sents_per_article=50):
+                 max_sents_per_article=50,
+                 filter_pred=not_empty_example):
         self.path = path
         self._build_fields()
         self.max_tokens_per_sent = max_tokens_per_sent
         self.max_sents_per_article = max_sents_per_article
         train, val, test = self._load_all(dev)
-        super(CnnDailyMailDataset, self).__init__(train, val, test,
-                                                  self.fields.values(),
-                                                  vectors, vectors_cache)
+        super(CnnDailyMailDataset,
+              self).__init__(train, val, test, self.fields.values(), vectors,
+                             vectors_cache, filter_pred)
 
     def _build_fields(self):
         self.raw_field = RawField()
-        self.content_field = NestedField(Field())
-        self.abstract_field = NestedField(Field(is_target=True))
+        self.content = NestedField(Field())
+        self.abstract = NestedField(Field(is_target=True))
         self.fields = {
             'id': ('id', self.raw_field),
-            'article': ('content', self.content_field),
-            'abstract': ('abstract', self.abstract_field)
+            'article': ('content', self.content),
+            'abstract': ('abstract', self.abstract)
         }
 
     def _load_all(self, dev):
@@ -109,9 +121,9 @@ class CnnDailyMailDataset(SummarizationDataset):
     def _build_vocabs(self, vectors, vectors_cache):
         logging.info('Building vocab from the train set.')
 
-        self.content_field.build_vocab(self.train,
-                                       vectors=vectors,
-                                       vectors_cache=vectors_cache)
+        self.content.build_vocab(self.train,
+                                 vectors=vectors,
+                                 vectors_cache=vectors_cache)
 
 
 if __name__ == '__main__':
