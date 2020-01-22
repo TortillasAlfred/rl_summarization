@@ -1,7 +1,9 @@
 
 ['remote "gdrive"']
-url = gdrive://root/dvc
-gdrive_client_secret = akcVKh8TJ1HW-ay-JqtZNdhr
-gdrive_client_id = 326797377925-m28755k83rhj2t0siqt1d89reu09ua8q.apps.googleusercontent.com
+url = gdrive://root/dvc/summarization-datasets/
+gdrive_client_id = 326797377925-13ov2j29asmd787l06alqcs4nl5kuh1i.apps.googleusercontent.com
+gdrive_client_secret = lBt_rF6SS0DUhuODE7_p6XLE
 [core]
-remote = gdrive
+remote = gc
+['remote "gc"']
+url = gs://summarization-datasets
