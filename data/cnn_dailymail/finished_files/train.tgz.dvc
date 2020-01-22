@@ -1,7 +1,0 @@
-md5: 86511c21385c33c4e9f3b89238c95e9f
-outs:
-- md5: 82a829ad3253ed65da44586de97f81b4
-  path: train.tgz
-  cache: true
-  metric: false
-  persist: false

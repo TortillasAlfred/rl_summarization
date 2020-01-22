@@ -1,201 +1,124 @@
-from src.domain.utils import datetime_tqdm
+from src.domain.utils import configure_logging, datetime_tqdm
 
-import os
 import tarfile
-import json
+import io
+import os
 import logging
-import pickle
+import json
 
-from os.path import join
-from torch.utils.data import Dataset
-from collections import Counter
+from torchtext.data import Dataset, Example, Field, RawField, NestedField
 
-
-DEFAULT_MAX_SENT_LENGTH = 80
-DEFAULT_MAX_SENT_NUMBER = 50
+configure_logging()
 
 
 class SummarizationDataset(Dataset):
-    def __init__(self, split, path, data_fetcher):
-        super(SummarizationDataset, self).__init__()
-        self.texts_fetcher = data_fetcher
+    def __init__(self, train, val, test, fields, vectors, vectors_cache):
+        self.train = Dataset(train, fields)
+        self.val = Dataset(val, fields)
+        self.test = Dataset(test, fields)
+        self._build_vocabs(vectors, vectors_cache)
+
+    def _build_vocabs(self):
+        raise NotImplementedError()
+
+
+class CnnDailyMailDataset(SummarizationDataset):
+    def __init__(self,
+                 path,
+                 vectors,
+                 *,
+                 dev=False,
+                 vectors_cache='./data/embeddings',
+                 max_tokens_per_sent=80,
+                 max_sents_per_article=50):
         self.path = path
-        self.split = split
-        self.texts = self.texts_fetcher(self._files_path(), self.split)
-        self._load_vocab()
+        self._build_fields()
+        self.max_tokens_per_sent = max_tokens_per_sent
+        self.max_sents_per_article = max_sents_per_article
+        train, val, test = self._load_all(dev)
+        super(CnnDailyMailDataset, self).__init__(train, val, test,
+                                                  self.fields.values(),
+                                                  vectors, vectors_cache)
 
-    def preprocess(self, embeddings):
-        embeddings.fit_to_vocab(self.vocab)
-        self.texts = list(map(lambda text: text.preprocess(embeddings), datetime_tqdm(
-            self.texts, desc='Preprocessing dataset texts...')))
+    def _build_fields(self):
+        self.raw_field = RawField()
+        self.content_field = NestedField(Field())
+        self.abstract_field = NestedField(Field(is_target=True))
+        self.fields = {
+            'id': ('id', self.raw_field),
+            'article': ('content', self.content_field),
+            'abstract': ('abstract', self.abstract_field)
+        }
 
-    def _load_vocab(self):
-        if not os.path.isfile(self._vocab_path()):
-            logging.info(f'No saved vocabulary found in {self._vocab_path()}.')
-            self.compute_save_vocab(self._vocab_path())
+    def _load_all(self, dev):
+        val_set = self._load_split('val')
+        test_set = self._load_split('test')
 
-        with open(self._vocab_path(), 'rb') as f:
-            self.vocab = pickle.load(f)
-
-    def _files_path(self):
-        return join(self.path, 'finished_files')
-
-    def _vocab_path(self):
-        return join(self._files_path(), 'vocab_cnt.pkl')
-
-    def compute_save_vocab(self, save_path):
-        if self.split is not 'train':
-            raise ValueError(
-                f'Vocabulary can only be computed for train split, not {self.split} !')
-
-        logging.info('Building vocabulary...')
-
-        vocab = Counter()
-        for text in datetime_tqdm(self.texts, desc='Reading dataset texts...'):
-            text_vocab = []
-            for sentences in [text.abstract, text.content]:
-                for sent in sentences:
-                    text_vocab.extend(sent.split())
-
-            vocab.update(text_vocab)
-
-        logging.info(f'Vocabulary done. Saving to {save_path}')
-        with open(save_path, 'wb') as f:
-            pickle.dump(vocab, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        return vocab
-
-    def __getitem__(self, index):
-        return self.texts[index]
-
-    def __len__(self):
-        return len(self.texts)
-
-
-class CnnDmDataset(SummarizationDataset):
-    DEFAULT_CNN_DM_PATH = './data/cnn_dailymail/'
-
-    def __init__(self, split, path=DEFAULT_CNN_DM_PATH):
-        super(CnnDmDataset, self).__init__(split, path, cnn_dm_fetcher)
-
-
-# Fetchers
-def cnn_dm_fetcher(path, split):
-    reading_path = join(path, split)
-
-    if not os.path.isdir(reading_path):
-        with tarfile.open(reading_path + '.tar') as tar:
-            logging.info(
-                f'Split {split} is not yet extracted to {reading_path}. Doing it now.')
-            tar.extractall(path)
-
-    all_articles = []
-
-    for fname in datetime_tqdm(os.listdir(reading_path), desc='Reading dataset files...'):
-        with open(join(reading_path, fname), 'r') as f:
-            article_data = json.loads(f.read())
-            article = CnnDmArticle(article_data)
-
-            if article.is_valid:
-                all_articles.append(article)
-
-    return all_articles
-
-
-class Text:
-    def __init__(self, content, abstract, id):
-        self.content = [sent.split() for sent in content]
-        self.abstract = [sent.split() for sent in abstract]
-        self.id = id
-        self.is_valid = len(self.content) > 0 and len(self.abstract) > 0
-
-    def preprocess(self, embeddings, apply_padding=True, max_sent_length=DEFAULT_MAX_SENT_LENGTH, max_sent_number=DEFAULT_MAX_SENT_NUMBER):
-        if apply_padding:
-            content_to_parse = self._apply_padding(
-                self.content, max_sent_length, max_sent_number)
-            abstract_to_parse = self._apply_padding(
-                self.abstract, max_sent_length, max_sent_number, enclose=False)
+        if dev:
+            dev_set = self._check_dev_set(test_set)
+            return dev_set, val_set, test_set
         else:
-            content_to_parse = self.content
-            abstract_to_parse = self.abstract
+            train_set = self._load_split('train')
+            return train_set, val_set, test_set
 
-        def convert_sent(sent):
-            return list(map(lambda word: embeddings.find(word), sent))
+    def _check_dev_set(self, test_set):
+        reading_path = os.path.join(self.path, 'finished_files', 'dev')
 
-        self.idx_content = list(map(convert_sent, content_to_parse))
-        self.idx_abstract = list(map(convert_sent, abstract_to_parse))
+        if not os.path.isdir(reading_path):
+            logging.info(
+                'No dev set built yet. Building it from the test set now.')
 
-        return self
+            out_file = reading_path + '.tar'
 
-    def _apply_padding(self, sents, max_sent_length, max_sent_number, enclose=True):
-        sents = sents[:max_sent_number]
+            with tarfile.open(out_file, 'w') as writer:
+                for idx in range(100):
+                    article = test_set[idx]
+                    js_example = {}
+                    js_example['id'] = article.id
+                    js_example['article'] = article.content
+                    js_example['abstract'] = article.abstract
+                    js_serialized = json.dumps(js_example, indent=4).encode()
+                    save_file = io.BytesIO(js_serialized)
+                    tar_info = tarfile.TarInfo('{}/{}.json'.format(
+                        os.path.basename(out_file).replace('.tar', ''), idx))
+                    tar_info.size = len(js_serialized)
+                    writer.addfile(tar_info, save_file)
 
-        if enclose:
-            sents = [['<BOS>'] + s + ['<EOS>'] for s in sents]
+        return self._load_split('dev')
 
-        tokens_per_sent = min(max([len(s)
-                                   for s in sents]), max_sent_length)
-        sents = [s[:tokens_per_sent] for s in sents]
-        return [s + (tokens_per_sent - len(s)) * ['<PAD>'] for s in sents]
+    def _load_split(self, split):
+        finished_path = os.path.join(self.path, 'finished_files')
+        reading_path = os.path.join(finished_path, split)
 
+        if not os.path.isdir(reading_path):
+            with tarfile.open(reading_path + '.tar') as tar:
+                logging.info(
+                    f'Split {split} is not yet extracted to {reading_path}. Doing it now.'
+                )
+                tar.extractall(finished_path)
 
-class CnnDmArticle(Text):
-    def __init__(self, json_data):
-        super(CnnDmArticle, self).__init__(json_data['article'],
-                                           json_data['abstract'],
-                                           json_data['id'])
+        all_articles = []
 
+        for fname in datetime_tqdm(os.listdir(reading_path),
+                                   desc=f'Reading {split} files...'):
+            with open(os.path.join(reading_path, fname), 'r') as data:
+                all_articles.append(Example.fromJSON(data.read(), self.fields))
 
-def build_dev_dataset(out_file='./data/cnn_dailymail/finished_files/dev.tar'):
-    import tarfile
-    import io
+        return all_articles
 
-    cnn_dm_dataset = CnnDmDataset('val')
+    def _build_vocabs(self, vectors, vectors_cache):
+        logging.info('Building vocab from the train set.')
 
-    with tarfile.open(out_file, 'w') as writer:
-        for idx in range(100):
-            article = cnn_dm_dataset[idx]
-            js_example = {}
-            js_example['id'] = article.id
-            js_example['article'] = article.content
-            js_example['abstract'] = article.abstract
-            js_serialized = json.dumps(js_example, indent=4).encode()
-            save_file = io.BytesIO(js_serialized)
-            tar_info = tarfile.TarInfo('{}/{}.json'.format(
-                os.path.basename(out_file).replace('.tar', ''), idx))
-            tar_info.size = len(js_serialized)
-            writer.addfile(tar_info, save_file)
-
-
-def build_max_dataset(out_file='./data/cnn_dailymail/finished_files/max.tar'):
-    import tarfile
-    import io
-
-    with tarfile.open(out_file, 'w') as writer:
-        for idx in range(100):
-            js_example = {}
-            js_example['id'] = idx
-            js_example['article'] = [['<PAD>'] *
-                                     DEFAULT_MAX_SENT_LENGTH] * DEFAULT_MAX_SENT_NUMBER
-            js_example['abstract'] = [['<PAD>'] * DEFAULT_MAX_SENT_LENGTH] * 3
-            js_serialized = json.dumps(js_example, indent=4).encode()
-            save_file = io.BytesIO(js_serialized)
-            tar_info = tarfile.TarInfo('{}/{}.json'.format(
-                os.path.basename(out_file).replace('.tar', ''), idx))
-            tar_info.size = len(js_serialized)
-            writer.addfile(tar_info, save_file)
+        self.content_field.build_vocab(self.train,
+                                       vectors=vectors,
+                                       vectors_cache=vectors_cache)
 
 
 if __name__ == '__main__':
-    # build_dev_dataset()
-    # build_max_dataset()
+    logging.info('Begin')
 
-    from src.domain.utils import configure_logging
-    from src.domain.embeddings import PretrainedEmbeddings
+    dataset = CnnDailyMailDataset('./data/cnn_dailymail',
+                                  'glove.6B.300d',
+                                  dev=True)
 
-    configure_logging()
-
-    emb = PretrainedEmbeddings('./data/embeddings/glove/glove.6B.50d.txt')
-
-    cnn_dm_dataset = CnnDmDataset('dev')
-    cnn_dm_dataset.preprocess(emb)
+    logging.info('Done')
