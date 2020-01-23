@@ -28,6 +28,12 @@ class SummarizationDataset(Dataset):
     def _build_vocabs(self):
         raise NotImplementedError()
 
+    def get_loaders(self, batch_sizes=None, batch_size=1, device=None):
+        return BucketIterator.splits((self.train, self.val, self.test),
+                                     batch_sizes=batch_sizes,
+                                     batch_size=batch_size,
+                                     device=device)
+
 
 def not_empty_example(example):
     return not (len(example.content) == 0 or len(example.abstract) == 0)
@@ -53,11 +59,10 @@ class CnnDailyMailDataset(SummarizationDataset):
                              vectors_cache, filter_pred)
 
     def _build_fields(self):
-        self.raw_field = RawField()
         self.content = NestedField(Field())
-        self.abstract = NestedField(Field(is_target=True))
+        self.abstract = NestedField(Field())
+        self.abstract.is_target = True
         self.fields = {
-            'id': ('id', self.raw_field),
             'article': ('content', self.content),
             'abstract': ('abstract', self.abstract)
         }
@@ -119,11 +124,16 @@ class CnnDailyMailDataset(SummarizationDataset):
         return all_articles
 
     def _build_vocabs(self, vectors, vectors_cache):
-        logging.info('Building vocab from the train set.')
+        logging.info('Building vocab from the whole dataset.')
 
-        self.content.build_vocab(self.train,
-                                 vectors=vectors,
-                                 vectors_cache=vectors_cache)
+        self.content.build_vocab(
+            (self.train.content, self.train.abstract, self.val.content,
+             self.val.abstract, self.test.content, self.test.abstract),
+            vectors=vectors,
+            vectors_cache=vectors_cache)
+
+        self.abstract.vocab = self.content.vocab
+        self.abstract.nesting_field.vocab = self.content.vocab
 
 
 if __name__ == '__main__':
@@ -133,4 +143,7 @@ if __name__ == '__main__':
                                   'glove.6B.300d',
                                   dev=True)
 
-    logging.info('Done')
+    train_loader, val_loader, test_loader = dataset.get_loaders()
+
+    for batch in train_loader:
+        print('hihi')
