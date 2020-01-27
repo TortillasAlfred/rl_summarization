@@ -27,6 +27,7 @@ from __future__ import division, print_function, unicode_literals
 import itertools
 
 from copy import deepcopy
+import torch
 
 
 class Ngrams(object):
@@ -88,7 +89,7 @@ def _get_ngrams(n, text, exclusive=True):
     text_length = len(text)
     max_index_ngram_start = text_length - n
     for i in range(max_index_ngram_start + 1):
-        ngram_set.add(tuple(text[i:i + n].tolist()))
+        ngram_set.add(tuple(text[i:i + n]))
     return ngram_set
 
 
@@ -133,7 +134,12 @@ def _lcs(x, y):
     return table
 
 
-def multi_rouge_multi_n(sequences, scores_ids, max_n=2, exclusive=True):
+def multi_rouge_multi_n(sequences,
+                        scores_ids,
+                        pad_idx,
+                        max_n=2,
+                        exclusive=True):
+    sequences = merge_sentences(sequences, pad_idx)
     return [
         multi_rouge_n(sequences, scores_ids, n=n, exclusive=exclusive)
         for n in range(1, max_n + 1)
@@ -239,6 +245,34 @@ def f_r_p_rouge_n(evaluated_count, reference_count, overlapping_count):
     return f1_score
 
 
+def _recon_lcs(x, y, exclusive=True):
+    """
+    Returns the Longest Subsequence between x and y.
+    Source: http://www.algorithmist.com/index.php/Longest_Common_Subsequence
+    Args:
+      x: sequence of words
+      y: sequence of words
+    Returns:
+      sequence: LCS of x and y
+    """
+    i, j = len(x), len(y)
+    table = _lcs(x, y)
+
+    def _recon(i, j):
+        """private recon calculation"""
+        if i == 0 or j == 0:
+            return []
+        elif x[i - 1] == y[j - 1]:
+            return _recon(i - 1, j - 1) + [(x[i - 1], i)]
+        elif table[i - 1, j] > table[i, j - 1]:
+            return _recon(i - 1, j)
+        else:
+            return _recon(i, j - 1)
+
+    recon_list = list(map(lambda x: x[0], _recon(i, j)))
+    return Ngrams(recon_list, exclusive=exclusive)
+
+
 def _union_lcs(evaluated_sentences,
                reference_sentence,
                prev_union=None,
@@ -269,11 +303,11 @@ def _union_lcs(evaluated_sentences,
 
     lcs_union = prev_union
     prev_count = len(prev_union)
-    reference_words = _split_into_words([reference_sentence])
+    reference_words = reference_sentence
 
     combined_lcs_length = 0
     for eval_s in evaluated_sentences:
-        evaluated_words = _split_into_words([eval_s])
+        evaluated_words = eval_s
         lcs = _recon_lcs(reference_words, evaluated_words, exclusive=exclusive)
         combined_lcs_length += len(lcs)
         lcs_union = lcs_union.union(lcs)
@@ -285,7 +319,7 @@ def _union_lcs(evaluated_sentences,
 def rouge_l_summary_level(evaluated_sentences,
                           reference_sentences,
                           raw_results=False,
-                          exclusive=False,
+                          exclusive=True,
                           **_):
     """
     Computes ROUGE-L (summary level) of two text collections of sentences.
@@ -314,12 +348,10 @@ def rouge_l_summary_level(evaluated_sentences,
         raise ValueError("Collections must contain at least 1 sentence.")
 
     # total number of words in reference sentences
-    m = len(Ngrams(_split_into_words(reference_sentences),
-                   exclusive=exclusive))
+    m = len(set([w for s in reference_sentences for w in s]))
 
     # total number of words in evaluated sentences
-    n = len(Ngrams(_split_into_words(evaluated_sentences),
-                   exclusive=exclusive))
+    n = len(set([w for s in evaluated_sentences for w in s]))
 
     # print("m,n %d %d" % (m, n))
     union_lcs_sum_across_all_references = 0
@@ -344,34 +376,41 @@ def rouge_l_summary_level(evaluated_sentences,
         return f_lcs
 
 
-def merge_filter_sentences(texts, pad_idx):
-    texts = texts.view((texts.shape[0], -1))
+def multi_rouge_l(sequences, scores_ids):
+    scores = []
 
-    return [text[text != pad_idx] for text in texts]
+    for hyp_id, ref_id in scores_ids:
+        scores.append(
+            rouge_l_summary_level(sequences[hyp_id], sequences[ref_id]))
+
+    return scores
 
 
-def rouge_reward(hypothesis, references, pad_idx, max_n=2, scores_ids=None):
-    hypothesis = merge_filter_sentences(hypothesis, pad_idx)
-    references = merge_filter_sentences(references, pad_idx)
+def merge_sentences(texts, pad_idx):
+    return [[w for s in text for w in s] for text in texts]
 
-    if scores_ids:
-        hypothesis.extend(references)
 
-        return multi_rouge_multi_n(hypothesis,
-                                   max_n=max_n,
-                                   scores_ids=scores_ids)
-    else:
-        n_pairs = len(hypothesis)
-        sequences = []
-        scores_ids = []
+def filter_sequences(texts, pad_idx):
+    texts = [[[w for w in s if w is not pad_idx] for s in text]
+             for text in texts]
 
-        for i in range(n_pairs):
-            sequences.append(hypothesis[i])
-            sequences.append(references[i])
-            scores_ids.append((i * 2, i * 2 + 1))
-        return multi_rouge_multi_n(sequences,
-                                   max_n=max_n,
-                                   scores_ids=scores_ids)
+    return [[s for s in text if len(s) > 0] for text in texts]
+
+
+def rouge_reward(sequences, pad_idx, max_n=2, scores_ids=None):
+    scores = []
+
+    sequences = filter_sequences(sequences, pad_idx)
+
+    scores.append(multi_rouge_l(sequences, scores_ids))
+
+    scores.extend(
+        multi_rouge_multi_n(sequences,
+                            max_n=max_n,
+                            scores_ids=scores_ids,
+                            pad_idx=pad_idx))
+
+    return torch.tensor(scores).mean(dim=0)
 
 
 if __name__ == '__main__':
@@ -388,8 +427,14 @@ if __name__ == '__main__':
 
     for batch in train_loader:
         contents, refs = batch
-        contents.cuda()
-        refs.cuda()
         l3 = contents[:, :3]
 
-        print(rouge_reward(l3, refs, dataset.content.vocab.stoi['<pad>']))
+        n = len(batch)
+        scores_ids = [(i, i + n) for i in range(n)]
+        seqs = l3.tolist()
+        seqs.extend(refs.tolist())
+
+        logging.info(
+            rouge_reward(seqs,
+                         scores_ids=scores_ids,
+                         pad_idx=dataset.content.vocab.stoi['<pad>']))
