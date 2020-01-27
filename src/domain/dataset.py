@@ -109,6 +109,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
         self.abstract.vocab = self.content.vocab
         self.abstract.nesting_field.vocab = self.content.vocab
+        self.pad_idx = self.content.vocab.stoi['<pad>']
 
 
 if __name__ == '__main__':
