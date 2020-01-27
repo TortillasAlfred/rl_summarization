@@ -53,6 +53,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         self._build_fields()
         self.max_tokens_per_sent = max_tokens_per_sent
         self.max_sents_per_article = max_sents_per_article
+        self._build_fields()
         train, val, test = self._load_all(dev)
         super(CnnDailyMailDataset,
               self).__init__(train, val, test, self.fields.values(), vectors,
