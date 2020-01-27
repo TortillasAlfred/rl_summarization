@@ -59,8 +59,10 @@ class CnnDailyMailDataset(SummarizationDataset):
                              vectors_cache, filter_pred)
 
     def _build_fields(self):
-        self.content = NestedField(Field())
-        self.abstract = NestedField(Field())
+        self.content = NestedField(Field(fix_length=self.max_tokens_per_sent),
+                                   fix_length=self.max_sents_per_article)
+        self.abstract = NestedField(Field(fix_length=self.max_tokens_per_sent),
+                                    fix_length=self.max_sents_per_article)
         self.abstract.is_target = True
         self.fields = {
             'article': ('content', self.content),
