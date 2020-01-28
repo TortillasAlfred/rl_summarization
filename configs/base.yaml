@@ -1,0 +1,32 @@
+#####################
+### MISCELLANEOUS ###
+#####################
+seed: 42 # Random seed
+dev: False
+
+##################
+### MODEL ARGS ###
+##################
+model: "lead3" # One of ['lead3']
+
+####################
+### DATASET ARGS ###
+####################
+dataset: "cnn_dailymail" # One of ['cnn_dailymail']
+data_path: "./data/cnn_dailymail" # Argument to the Dataset object
+embeddings: "glove.6B.100d"
+embeddings_location: "./data/embeddings"
+sets: ["train", "val", "test"] # List containing combination of ['train', 'val', 'test']. If present, 'train' must be first
+max_tokens_per_sent: 80
+max_sents_per_article: 50
+
+###################
+### REWARD ARGS ###
+###################
+reward: "rouge" # One of ['rouge']
+rouge_jobs: -1
+
+####################
+### TRAINER ARGS ###
+####################
+trainer: "gradient_free" # One of ['gradient_free']

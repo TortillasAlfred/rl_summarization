@@ -136,6 +136,16 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.itos = self.content.vocab.itos
         self.stoi = self.content.vocab.stoi
 
+    @staticmethod
+    def from_config(config):
+        return CnnDailyMailDataset(
+            config['data_path'],
+            config['embeddings'],
+            sets=config['sets'],
+            dev=config['dev'],
+            vectors_cache=config['embeddings_location'],
+            max_sents_per_article=config['max_sents_per_article'],
+            max_tokens_per_sent=config['max_tokens_per_sent'])
 
 
 if __name__ == '__main__':
