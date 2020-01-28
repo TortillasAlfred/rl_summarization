@@ -7,7 +7,7 @@ import logging
 import json
 
 from collections import OrderedDict
-from torchtext.data import Dataset, Example, Field, RawField, NestedField, BucketIterator
+from torchtext.data import Dataset, Example, RawField, Field, NestedField, BucketIterator
 
 
 class SummarizationDataset(Dataset):
@@ -30,12 +30,14 @@ class SummarizationDataset(Dataset):
                     shuffle=True,
                     sort=False,
                     device=None):
-        return BucketIterator.splits(tuple(self.subsets.values()),
-                                     batch_sizes=batch_sizes,
-                                     batch_size=batch_size,
-                                     device=device,
-                                     sort=sort,
-                                     shuffle=shuffle)
+        loaders = BucketIterator.splits(tuple(self.subsets.values()),
+                                        batch_sizes=batch_sizes,
+                                        batch_size=batch_size,
+                                        device=device,
+                                        sort=sort,
+                                        shuffle=shuffle)
+
+        return dict(zip(self.subsets.keys(), loaders))
 
 
 def not_empty_example(example):
@@ -56,21 +58,24 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.path = path
         self.max_tokens_per_sent = max_tokens_per_sent
         self.max_sents_per_article = max_sents_per_article
-        self._build_fields()
+        self._build_reading_fields()
         subsets = self._load_all(sets, dev)
         super(CnnDailyMailDataset,
-              self).__init__(subsets, self.fields.values(), vectors,
-                             vectors_cache, filter_pred)
+              self).__init__(subsets, self.fields, vectors, vectors_cache,
+                             filter_pred)
 
-    def _build_fields(self):
-        self.content = NestedField(Field(fix_length=self.max_tokens_per_sent),
-                                   fix_length=self.max_sents_per_article)
-        self.abstract = NestedField(Field(fix_length=self.max_tokens_per_sent),
-                                    fix_length=self.max_sents_per_article)
+    def _build_reading_fields(self):
+        self.raw_content = RawField()
+        self.raw_abstract = RawField(is_target=True)
+        self.content = NestedField(Field())
+        self.abstract = NestedField(Field())
         self.abstract.is_target = True
+
         self.fields = {
-            'article': ('content', self.content),
-            'abstract': ('abstract', self.abstract)
+            'article': [('raw_content', self.raw_content),
+                        ('content', self.content)],
+            'abstract': [('raw_abstract', self.raw_abstract),
+                         ('abstract', self.abstract)]
         }
 
     def _load_all(self, sets, dev):
@@ -83,6 +88,11 @@ class CnnDailyMailDataset(SummarizationDataset):
 
         for split in sets:
             loaded_sets.append((split, self._load_split(split, dev)))
+
+        self.fields = [
+            field for field_list in self.fields.values()
+            for field in field_list
+        ]
 
         return loaded_sets
 
@@ -123,6 +133,9 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.abstract.vocab = self.content.vocab
         self.abstract.nesting_field.vocab = self.content.vocab
         self.pad_idx = self.content.vocab.stoi['<pad>']
+        self.itos = self.content.vocab.itos
+        self.stoi = self.content.vocab.stoi
+
 
 
 if __name__ == '__main__':
@@ -135,7 +148,7 @@ if __name__ == '__main__':
                                   'glove.6B.300d',
                                   dev=True)
 
-    train_loader, val_loader, test_loader = dataset.get_loaders()
+    train_loader = dataset.get_loaders(device='cuda:0')['train']
 
     for batch in train_loader:
         print('hihi')
