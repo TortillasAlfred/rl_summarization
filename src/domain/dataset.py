@@ -1,4 +1,4 @@
-from src.domain.utils import configure_logging, datetime_tqdm
+from src.domain.utils import datetime_tqdm
 
 import tarfile
 import io
@@ -6,33 +6,36 @@ import os
 import logging
 import json
 
+from collections import OrderedDict
 from torchtext.data import Dataset, Example, Field, RawField, NestedField, BucketIterator
-
-configure_logging()
 
 
 class SummarizationDataset(Dataset):
     def __init__(self,
-                 train,
-                 val,
-                 test,
+                 subsets,
                  fields,
                  vectors,
                  vectors_cache,
                  filter_pred=None):
-        self.train = Dataset(train, fields, filter_pred)
-        self.val = Dataset(val, fields, filter_pred)
-        self.test = Dataset(test, fields, filter_pred)
+        self.subsets = OrderedDict([(key, Dataset(subset, fields, filter_pred))
+                                    for key, subset in subsets])
         self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
         raise NotImplementedError()
 
-    def get_loaders(self, batch_sizes=None, batch_size=1, device=None):
-        return BucketIterator.splits((self.train, self.val, self.test),
+    def get_loaders(self,
+                    batch_sizes=None,
+                    batch_size=1,
+                    shuffle=True,
+                    sort=False,
+                    device=None):
+        return BucketIterator.splits(tuple(self.subsets.values()),
                                      batch_sizes=batch_sizes,
                                      batch_size=batch_size,
-                                     device=device)
+                                     device=device,
+                                     sort=sort,
+                                     shuffle=shuffle)
 
 
 def not_empty_example(example):
@@ -44,19 +47,19 @@ class CnnDailyMailDataset(SummarizationDataset):
                  path,
                  vectors,
                  *,
+                 sets=['train', 'val', 'test'],
                  dev=False,
                  vectors_cache='./data/embeddings',
                  max_tokens_per_sent=80,
                  max_sents_per_article=50,
                  filter_pred=not_empty_example):
         self.path = path
-        self._build_fields()
         self.max_tokens_per_sent = max_tokens_per_sent
         self.max_sents_per_article = max_sents_per_article
         self._build_fields()
-        train, val, test = self._load_all(dev)
+        subsets = self._load_all(sets, dev)
         super(CnnDailyMailDataset,
-              self).__init__(train, val, test, self.fields.values(), vectors,
+              self).__init__(subsets, self.fields.values(), vectors,
                              vectors_cache, filter_pred)
 
     def _build_fields(self):
@@ -70,12 +73,18 @@ class CnnDailyMailDataset(SummarizationDataset):
             'abstract': ('abstract', self.abstract)
         }
 
-    def _load_all(self, dev):
-        train_set = self._load_split('train', dev)
-        val_set = self._load_split('val', dev)
-        test_set = self._load_split('test', dev)
+    def _load_all(self, sets, dev):
+        if 'train' in sets and sets.index('train') != 0:
+            raise ValueError(
+                'If loading the training dataset, it must be first in the sets list.'
+            )
 
-        return train_set, val_set, test_set
+        loaded_sets = []
+
+        for split in sets:
+            loaded_sets.append((split, self._load_split(split, dev)))
+
+        return loaded_sets
 
     def _load_split(self, split, dev):
         finished_path = os.path.join(self.path, 'finished_files')
@@ -104,11 +113,12 @@ class CnnDailyMailDataset(SummarizationDataset):
     def _build_vocabs(self, vectors, vectors_cache):
         logging.info('Building vocab from the whole dataset.')
 
-        self.content.build_vocab(
-            (self.train.content, self.train.abstract, self.val.content,
-             self.val.abstract, self.test.content, self.test.abstract),
-            vectors=vectors,
-            vectors_cache=vectors_cache)
+        self.content.build_vocab([
+            field for subset in self.subsets.values()
+            for field in [subset.content, subset.abstract]
+        ],
+                                 vectors=vectors,
+                                 vectors_cache=vectors_cache)
 
         self.abstract.vocab = self.content.vocab
         self.abstract.nesting_field.vocab = self.content.vocab
@@ -116,6 +126,9 @@ class CnnDailyMailDataset(SummarizationDataset):
 
 
 if __name__ == '__main__':
+    from src.domain.utils import configure_logging
+    configure_logging()
+
     logging.info('Begin')
 
     dataset = CnnDailyMailDataset('./data/cnn_dailymail',
