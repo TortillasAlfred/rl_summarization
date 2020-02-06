@@ -7,7 +7,16 @@ dev: False
 ##################
 ### MODEL ARGS ###
 ##################
-model: "lead3" # One of ['lead3']
+model: "banditsum" # One of ['lead3', 'banditsum']
+items_per_epoch: 50000
+train_batch_size: 1
+test_batch_size: 32
+hidden_dim: 200
+decoder_dim: 100
+n_repeats_per_sample: 20
+learning_rate: 0.0005
+epsilon: 0.1
+n_sents_per_summary: 3
 
 ####################
 ### DATASET ARGS ###
@@ -17,8 +26,6 @@ data_path: "./data/cnn_dailymail" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "./data/embeddings"
 sets: ["train", "val", "test"] # List containing combination of ['train', 'val', 'test']. If present, 'train' must be first
-max_tokens_per_sent: 80
-max_sents_per_article: 50
 
 ###################
 ### REWARD ARGS ###
@@ -29,4 +36,12 @@ rouge_jobs: -1
 ####################
 ### TRAINER ARGS ###
 ####################
-trainer: "gradient_free" # One of ['gradient_free']
+trainer: "pl" # One of ['gradient_free', 'pl']
+save_path: "."
+gradient_clip_val: 1
+gpus: 1
+fast_dev_run: False
+overfit_pct: 0.01
+max_epochs: 30
+distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
+use_amp: False
