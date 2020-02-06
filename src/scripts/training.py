@@ -11,8 +11,9 @@ import argparse
 
 def main(_config):
     configure_logging()
+    set_random_seed(_config['seed'])
 
-    logging.info('Beginning training script with following config :')
+    logging.info("Beginning training script with following config :")
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)
@@ -23,28 +24,28 @@ def main(_config):
     trainer.fit(model)
     trainer.test(model)
 
-    logging.info('Done')
+    logging.info("Done")
 
 
-if __name__ == '__main__':
-    base_configs = yaml.load(open('./configs/base.yaml'),
-                             Loader=yaml.FullLoader)
+if __name__ == "__main__":
+    base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
     argument_parser = argparse.ArgumentParser()
     for config, value in base_configs.items():
         if type(value) is bool:
             # Hack as per https://stackoverflow.com/a/46951029
             argument_parser.add_argument(
-                '--{}'.format(config),
-                type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
-                default=value)
+                "--{}".format(config),
+                type=lambda x: (str(x).lower() in ["true", "1", "yes"]),
+                default=value,
+            )
         elif type(value) is list:
-            argument_parser.add_argument('--{}'.format(config),
-                                         nargs='+',
-                                         default=value)
+            argument_parser.add_argument(
+                "--{}".format(config), nargs="+", default=value
+            )
         else:
-            argument_parser.add_argument('--{}'.format(config),
-                                         type=type(value),
-                                         default=value)
+            argument_parser.add_argument(
+                "--{}".format(config), type=type(value), default=value
+            )
     options = argument_parser.parse_args()
     configs = vars(options)
     main(configs)

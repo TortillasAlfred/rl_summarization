@@ -21,14 +21,14 @@ def configure_logging():
 
 
 def default_formatter():
-    return logging.Formatter('%(asctime)s : %(levelname)s : %(message)s')
+    return logging.Formatter("%(asctime)s : %(levelname)s : %(message)s")
 
 
-def get_formatted_desc(desc=''):
+def get_formatted_desc(desc=""):
     return f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]} : INFO : {desc}"
 
 
-def datetime_tqdm(iterable, *, desc='', **kwargs):
+def datetime_tqdm(iterable, *, desc="", **kwargs):
     return tqdm(iterable, desc=get_formatted_desc(desc), **kwargs)
 
 
