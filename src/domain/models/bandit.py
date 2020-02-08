@@ -7,6 +7,7 @@ from torch.distributions.uniform import Uniform
 from torch.distributions.categorical import Categorical
 import numpy as np
 from torchtext.data import BucketIterator
+import torch.nn.functional as F
 
 
 class BanditSum(pl.LightningModule):
@@ -38,7 +39,7 @@ class BanditSum(pl.LightningModule):
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
             hidden_size=hidden_dim,
-            num_layers=1,
+            num_layers=2,
             bidirectional=True,
             batch_first=True,
         )
@@ -57,106 +58,93 @@ class BanditSum(pl.LightningModule):
         )
 
     def __word_level_encoding(self, contents):
-        pad_tokens = ~(contents == self.pad_idx)
+        valid_tokens = ~(contents == self.pad_idx)
+        sentences_len = valid_tokens.sum(dim=-1)
+        valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
-        b_size, n_sents, n_tokens, emb_dim = contents.shape
-        tokens_mask = pad_tokens.sum(-1).unsqueeze(-1)
-        sentences_mask = tokens_mask == 0
-        contents = contents.reshape(-1, n_tokens, emb_dim)
-        contents, _ = self.wl_encoder(contents)
-        contents = contents.reshape(b_size, n_sents, n_tokens, -1)
-        contents = contents.mean(-2) / tokens_mask
-        contents[sentences_mask.expand_as(contents)] = 0
-        return contents, ~sentences_mask.squeeze(-1)
+        contents = torch.cat([self.wl_encoder(content)[0] for content in contents])
+        contents = contents * valid_tokens.unsqueeze(-1)
+        contents = contents.sum(-2)
+        word_level_encodings = torch.zeros_like(contents)
+        word_level_encodings[valid_sentences] = contents[
+            valid_sentences
+        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        return word_level_encodings, valid_sentences
 
     def __sentence_level_encoding(self, contents):
-        contents, _ = self.sl_encoder(contents)
-        return contents
+        return self.sl_encoder(contents)[0]
 
     def __decoding(self, contents):
-        b_size, n_sents, input_dim = contents.shape
-        contents = contents.reshape(-1, input_dim)
-        contents = self.decoder(contents)
-        return contents.reshape(b_size, n_sents)
+        return self.decoder(contents).squeeze(-1)
 
     def __produce_affinities(self, contents):
-        contents, sentences_mask = self.__word_level_encoding(contents)
+        contents, valid_sentences = self.__word_level_encoding(contents)
         contents = self.__sentence_level_encoding(contents)
         contents = self.__decoding(contents)
-        contents = contents * sentences_mask
+        contents = contents * valid_sentences
 
-        return contents, sentences_mask
+        return contents, valid_sentences
 
-    def select_idxs(self, affinities, available_sentences_mask):
-        affinities = affinities.expand(self.n_repeats_per_sample, -1, -1).permute(
-            1, 0, 2
-        )
-        available_sentences_mask = available_sentences_mask.expand(
-            self.n_repeats_per_sample, -1, -1
-        ).permute(1, 0, 2)
-        sample_size = affinities.shape[:-1]
+    def select_idxs(self, affinities, valid_sentences):
+        n_docs = affinities.shape[0]
         idxs = torch.zeros(
-            (sample_size[0], self.n_repeats_per_sample, self.n_sents_per_summary),
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
             dtype=torch.int,
             device=affinities.device,
         )
         logits = torch.zeros(
-            (sample_size[0], self.n_repeats_per_sample, self.n_sents_per_summary),
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
             dtype=torch.float,
             device=affinities.device,
         )
         uniform_sampler = Uniform(0, 1)
-        for i in range(self.n_sents_per_summary):
-            exploring_idxs = uniform_sampler.rsample(sample_size)
-            exploring_idxs = exploring_idxs < self.epsilon
-            masked_affinities = affinities.clone()
-            masked_affinities[exploring_idxs, :] = 1
-            masked_affinities = masked_affinities * available_sentences_mask
-            dist = Categorical(probs=masked_affinities)
-            retained_idxs = dist.sample().unsqueeze(-1)
-            probs = dist.probs
-            retained_probs = probs.gather(-1, retained_idxs).squeeze(-1)
-            logit = (
-                self.epsilon / available_sentences_mask.sum(-1).float()
-                + (1 - self.epsilon) * retained_probs
-            ).log()
-            logits[:, :, i] = logit
-            idxs[:, :, i] = retained_idxs.squeeze(-1)
-            available_sentences_mask = available_sentences_mask.scatter(
-                -1, retained_idxs, 0
-            )
+        for doc in range(n_docs):
+            for repeat in range(self.n_repeats_per_sample):
+                probs = affinities[doc].clone()
+                val_sents = valid_sentences[doc].clone()
+                for sent in range(self.n_sents_per_summary):
+                    probs = F.softmax(probs, dim=-1)
+                    probs = probs * val_sents
+                    probs = probs / probs.sum()
+                    if uniform_sampler.sample() <= self.epsilon:
+                        idx = Categorical(val_sents.float()).sample()
+                    else:
+                        idx = Categorical(probs).sample()
+                    logit = (
+                        self.epsilon / val_sents.sum()
+                        + (1 - self.epsilon) * probs[idx] / probs.sum()
+                    ).log()
+                    val_sents = val_sents.clone()
+                    val_sents[idx] = 0
+                    idxs[doc, repeat, sent] = idx
+                    logits[doc, repeat, sent] = logit
 
         return idxs, logits.sum(-1)
 
     def forward(self, input_texts, train=False):
         raw_contents, contents = input_texts
-        affinities, sentences_mask = self.__produce_affinities(contents)
+        affinities, valid_sentences = self.__produce_affinities(contents)
         greedy_idxs = affinities.argsort(descending=True)[:, : self.n_sents_per_summary]
-        # for idxs, content in zip(greedy_idxs, raw_contents):
-        #     logging.info(f"***CONTENT LEN***:{len(content)}")
-        #     logging.info(f"max idx attempt: {max(idxs.tolist())}")
 
         greedy_summaries = [
-            [content[i] for i in idxs]
+            [content[i] for i in idxs if i < len(content)]
             for content, idxs in zip(raw_contents, greedy_idxs)
         ]
 
         if train:
-            idxs, logits = self.select_idxs(affinities, sentences_mask)
-
-            # for batch, content in zip(idxs, raw_contents):
-            #     logging.info(f"***CONTENT LEN***:{len(content)}")
-            #     for idx in batch:
-            #         logging.info(f"max idx attempt: {max(idx.tolist())}")
+            idxs, logits = self.select_idxs(affinities, valid_sentences)
 
             return (
                 greedy_summaries,
                 [
-                    [content[i] for i in idx]
+                    [content[i] for i in idx if i < len(content)]
                     for content, batch in zip(raw_contents, idxs)
                     for idx in batch
                 ],
                 logits,
+                affinities,
+                greedy_idxs,
+                idxs,
             )
         else:
             return greedy_summaries
@@ -164,34 +152,48 @@ class BanditSum(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         input_texts, (ref_summaries, _) = batch
 
-        greedy_summaries, hyp_summaries, logits = self.forward(input_texts, train=True)
+        (
+            greedy_summaries,
+            hyp_summaries,
+            logits,
+            affinities,
+            greedy_idxs,
+            idxs,
+        ) = self.forward(input_texts, train=True)
 
         n_hyps = len(hyp_summaries)
         all_summaries = hyp_summaries + greedy_summaries
         all_rewards = self.reward(all_summaries, ref_summaries, input_texts[1].device)
-        rewards = all_rewards[:n_hyps].view(
-            -1, self.n_repeats_per_sample, self.n_sents_per_summary
-        )
+        rewards = all_rewards[:n_hyps].view(-1, self.n_repeats_per_sample, 3)
         greedy_rewards = all_rewards[n_hyps:].unsqueeze(1)
 
-        # loss = (greedy_rewards - rewards).mean(-1) * logits
-        loss = -rewards.mean(-1) * logits
+        # r = (rewards - greedy_rewards).mean(-1)
+        r = rewards.mean(-1)
+        loss = -r * logits
         loss = loss.mean()
+
+        # y = torch.zeros_like(logits)
+        # y[:, : self.n_sents_per_summary] = 1
+        # loss = F.mse_loss(logits, y)
 
         return {
             "train_loss": loss,
             "train_reward": rewards.mean((0, 1)),
             "train_greedy_reward": greedy_rewards.mean((0, 1)),
+            "max_prob": max_prob,
         }
 
     def training_end(self, outputs):
         train_loss = outputs["train_loss"]
         train_reward = outputs["train_reward"]
         train_greedy_reward = outputs["train_greedy_reward"]
+        max_prob = outputs["max_prob"]
 
         tqdm_dict = {
+            "loss": train_loss.item(),
             "train_reward": train_reward.mean().item(),
             "train_greedy_reward": train_greedy_reward.mean().item(),
+            "max_prob": max_prob.item(),
         }
 
         # show train_loss and train_acc in progress bar but only log train_loss
@@ -208,6 +210,7 @@ class BanditSum(pl.LightningModule):
                 "train_greedy_r2": train_greedy_reward[1].item(),
                 "train_greedy_rL": train_greedy_reward[2].item(),
                 "train_greedy_reward": train_greedy_reward.mean().item(),
+                "max_prob": max_prob.item(),
             },
         }
 
@@ -311,7 +314,6 @@ class BanditSum(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        logging.info("training data loader called")
         train_split = self.splits["train"]
         n_items = min(self.items_per_epoch, len(train_split))
         begin_idx = self.n_epochs_done * n_items
@@ -331,7 +333,6 @@ class BanditSum(pl.LightningModule):
 
     @pl.data_loader
     def val_dataloader(self):
-        logging.info("val data loader called")
         return BucketIterator(
             self.splits["val"],
             train=False,
@@ -342,7 +343,6 @@ class BanditSum(pl.LightningModule):
 
     @pl.data_loader
     def test_dataloader(self):
-        logging.info("test data loader called")
         return BucketIterator(
             self.splits["test"],
             train=False,

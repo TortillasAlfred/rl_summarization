@@ -30,6 +30,7 @@ class PytorchLightningTrainer(Trainer):
         distributed_backend,
         use_amp,
         overfit_pct,
+        print_nan_grads,
     ):
         super(PytorchLightningTrainer, self).__init__(
             early_stop_callback=False,
@@ -42,6 +43,7 @@ class PytorchLightningTrainer(Trainer):
             distributed_backend=distributed_backend,
             use_amp=use_amp,
             overfit_pct=overfit_pct,
+            print_nan_grads=print_nan_grads,
         )
 
     @staticmethod
@@ -55,4 +57,5 @@ class PytorchLightningTrainer(Trainer):
             config["distributed_backend"],
             config["use_amp"],
             config["overfit_pct"],
+            config["print_nan_grads"],
         )

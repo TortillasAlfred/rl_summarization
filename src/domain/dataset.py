@@ -31,7 +31,7 @@ class SummarizationDataset(Dataset):
 
 
 def not_empty_example(example):
-    return not (len(example.content) == 0 or len(example.abstract) == 0)
+    return not (len(example.content) < 3 or len(example.abstract) == 0)
 
 
 class CnnDailyMailDataset(SummarizationDataset):
@@ -44,8 +44,12 @@ class CnnDailyMailDataset(SummarizationDataset):
         dev=False,
         vectors_cache="./data/embeddings",
         filter_pred=not_empty_example,
+        n_tokens_per_sent=80,
+        n_sents_per_doc=50,
     ):
         self.path = path
+        self.n_tokens_per_sent = n_tokens_per_sent
+        self.n_sents_per_doc = n_sents_per_doc
         self._build_reading_fields()
         subsets = self._load_all(sets, dev)
         super(CnnDailyMailDataset, self).__init__(
@@ -55,7 +59,9 @@ class CnnDailyMailDataset(SummarizationDataset):
     def _build_reading_fields(self):
         self.raw_content = RawField()
         self.raw_abstract = RawField(is_target=True)
-        self.content = NestedField(Field())
+        self.content = NestedField(
+            Field(fix_length=self.n_tokens_per_sent), fix_length=self.n_sents_per_doc
+        )
         self.abstract = NestedField(Field())
         self.abstract.is_target = True
 
