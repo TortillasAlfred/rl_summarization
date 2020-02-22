@@ -535,12 +535,6 @@ class Rouge:
                         hypothesis_count, reference_count, overlapping_ngrams, self.alpha)
                     scores[i].append(score['f'])
 
-        # Compute final score with the average or the the max
-        if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
-            for metric in metrics:
-                for stat in Rouge.STATS:
-                    scores[metric][stat] /= len(all_hypothesis)
-
         return scores
 
     def _get_scores_rouge_l_or_w(self, all_hypothesis, all_references, use_w=False):
@@ -578,11 +572,6 @@ class Rouge:
                     hypothesis_count, reference_count, overlapping_ngrams, self.alpha, self.weight_factor)
 
                 scores.append(score['f'])
-
-        # Compute final score with the average or the the max
-        if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
-            for stat in Rouge.STATS:
-                scores[metric][stat] /= len(all_hypothesis)
 
         return scores
 
