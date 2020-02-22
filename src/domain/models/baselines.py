@@ -2,6 +2,7 @@ from src.domain.utils import datetime_tqdm
 
 import logging
 import torch
+from torchtext.data import BucketIterator
 
 
 class Lead3:
@@ -13,9 +14,15 @@ class Lead3:
         logging.info("No training needed for LEAD-3 baseline.")
 
     def test(self):
-        test_loader = self.dataset.get_loaders(
-            batch_size=64, device="cpu", shuffle=False
-        )["test"]
+        test_split = self.dataset.get_splits()['test']
+        test_loader = BucketIterator(
+            test_split,
+            train=False,
+            batch_size=64,
+            shuffle=False,
+            sort=False,
+            device='cpu',
+        )
 
         all_rewards = []
 
@@ -31,7 +38,7 @@ class Lead3:
                 for content, idxs in zip(raw_contents, selected_idxs)
             ]
 
-            all_rewards.append(self.reward(summaries, raw_abstracts))
+            all_rewards.append(self.reward(summaries, raw_abstracts, 'cpu'))
 
         all_rewards = torch.cat(all_rewards)
         logging.info(f"Max reward : {all_rewards.max(dim=0)}")
