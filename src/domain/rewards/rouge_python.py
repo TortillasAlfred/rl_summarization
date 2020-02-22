@@ -585,37 +585,9 @@ class Rouge:
         Returns:
           Return the preprocessed summary (string)
         """
-        sentences = Rouge.split_into_sentences(
-            summary, self.ensure_compatibility)
+        sentences = Rouge.split_into_sentences(summary, self.ensure_compatibility)
 
-        # Truncate
-        if self.limit_length:
-            # By words
-            if self.length_limit_type == 'words':
-                summary = ' '.join(sentences)
-                all_tokens = summary.split()  # Counting as in the perls script
-                summary = ' '.join(all_tokens[:self.length_limit])
-
-            # By bytes
-            elif self.length_limit_type == 'bytes':
-                summary = ''
-                current_len = 0
-                for sentence in sentences:
-                    sentence = sentence.strip()
-                    sentence_len = len(sentence)
-
-                    if current_len + sentence_len < self.length_limit:
-                        if current_len != 0:
-                            summary += ' '
-                        summary += sentence
-                        current_len += sentence_len
-                    else:
-                        if current_len > 0:
-                            summary += ' '
-                        summary += sentence[:self.length_limit-current_len]
-                        break
-        else:
-            summary = ' '.join(sentences)
+        summary = ' '.join(sentences)
 
         summary = Rouge.REMOVE_CHAR_PATTERN.sub(' ', summary.lower()).strip()
 
@@ -651,38 +623,6 @@ class Rouge:
         """
         sentences = Rouge.split_into_sentences(
             summary, self.ensure_compatibility)
-
-        # Truncate
-        if self.limit_length:
-            final_sentences = []
-            current_len = 0
-            # By words
-            if self.length_limit_type == 'words':
-                for sentence in sentences:
-                    tokens = sentence.strip().split()
-                    tokens_len = len(tokens)
-                    if current_len + tokens_len < self.length_limit:
-                        sentence = ' '.join(tokens)
-                        final_sentences.append(sentence)
-                        current_len += tokens_len
-                    else:
-                        sentence = ' '.join(
-                            tokens[:self.length_limit - current_len])
-                        final_sentences.append(sentence)
-                        break
-            # By bytes
-            elif self.length_limit_type == 'bytes':
-                for sentence in sentences:
-                    sentence = sentence.strip()
-                    sentence_len = len(sentence)
-                    if current_len + sentence_len < self.length_limit:
-                        final_sentences.append(sentence)
-                        current_len += sentence_len
-                    else:
-                        sentence = sentence[:self.length_limit - current_len]
-                        final_sentences.append(sentence)
-                        break
-            sentences = final_sentences
 
         final_sentences = []
         for sentence in sentences:
