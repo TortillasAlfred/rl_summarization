@@ -5,7 +5,7 @@ import torch
 
 
 @delayed
-def rouge_reward(seqs):
+def rouge_reward(seqs, stemming):
     hyp, ref = seqs
     rouge = Pythonrouge(
         summary_file_exist=False,
@@ -16,7 +16,7 @@ def rouge_reward(seqs):
         ROUGE_SU4=False,
         ROUGE_L=True,
         f_measure_only=True,
-        stemming=True,
+        stemming=stemming,
         stopwords=False,
         word_level=True,
         length_limit=False,
@@ -28,14 +28,15 @@ def rouge_reward(seqs):
 
 
 class RougeReward:
-    def __init__(self, n_jobs=-1):
+    def __init__(self, n_jobs=-1, stemming=True):
         self.n_jobs = n_jobs
+        self.stemming = stemming
 
     def __call__(self, hyps, refs, device):
         refs = [[r] for r in refs]
 
         scores = list(
-            Parallel(n_jobs=self.n_jobs)(rouge_reward(seqs) for seqs in zip(hyps, refs))
+            Parallel(n_jobs=self.n_jobs)(rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs))
         )
 
         return torch.tensor(scores).to(device)
