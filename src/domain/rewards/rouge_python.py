@@ -478,18 +478,19 @@ class Rouge:
         if len(hypothesis) != len(references):
             raise ValueError("'hyps' and 'refs' do not have the same length")
 
-        scores = {}
+        scores = []
         has_rouge_n_metric = len(
             [metric for metric in self.metrics if metric.split('-')[-1].isdigit()]) > 0
         if has_rouge_n_metric:
-            scores = {**scores, **
-                      self._get_scores_rouge_n(hypothesis, references)}
+            scores.extend(self._get_scores_rouge_n(hypothesis, references))
 
         has_rouge_l_metric = len(
             [metric for metric in self.metrics if metric.split('-')[-1].lower() == 'l']) > 0
         if has_rouge_l_metric:
-            scores = {
-                **scores, **self._get_scores_rouge_l_or_w(hypothesis, references, False)}
+            scores.append(self._get_scores_rouge_l_or_w(
+                hypothesis, references, False))
+
+        scores = list(map(list, zip(*scores)))  # Transpose results to correct format
 
         return scores
 
@@ -507,12 +508,7 @@ class Rouge:
         metrics = [metric for metric in self.metrics if metric.split(
             '-')[-1].isdigit()]
 
-        if self.apply_avg or self.apply_best:
-            scores = {metric: {stat: 0.0 for stat in Rouge.STATS}
-                      for metric in metrics}
-        else:
-            scores = {metric: [{stat: [] for stat in Rouge.STATS}
-                               for _ in range(len(all_hypothesis))] for metric in metrics}
+        scores = [[] * len(all_hypothesis) for _ in metrics]
 
         for sample_id, (hypothesis, references) in enumerate(zip(all_hypothesis, all_references)):
             assert isinstance(hypothesis, str)
@@ -528,7 +524,7 @@ class Rouge:
                 self._preprocess_summary_as_a_whole(references)]
 
             # Compute scores
-            for metric in metrics:
+            for i, metric in enumerate(metrics):
                 suffix = metric.split('-')[-1]
                 n = int(suffix)
 
@@ -537,8 +533,7 @@ class Rouge:
                         hypothesis, reference, n)
                     score = Rouge._compute_p_r_f_score(
                         hypothesis_count, reference_count, overlapping_ngrams, self.alpha)
-                    for stat in Rouge.STATS:
-                        scores[metric][sample_id][stat].append(score[stat])
+                    scores[i].append(score['f'])
 
         # Compute final score with the average or the the max
         if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
@@ -559,12 +554,8 @@ class Rouge:
         Returns:
           Return precision, recall and f1 score between all hypothesis and references
         """
-        metric = "rouge-w" if use_w else "rouge-l"
-        if self.apply_avg or self.apply_best:
-            scores = {metric: {stat: 0.0 for stat in Rouge.STATS}}
-        else:
-            scores = {metric: [{stat: [] for stat in Rouge.STATS}
-                               for _ in range(len(all_hypothesis))]}
+        metric = "rouge-l"
+        scores = []
 
         for sample_id, (hypothesis_sentences, references_sentences) in enumerate(zip(all_hypothesis, all_references)):
             assert isinstance(hypothesis_sentences, str)
@@ -580,63 +571,13 @@ class Rouge:
             references_sentences = [self._preprocess_summary_per_sentence(reference) for reference in references_sentences] if has_multiple_references else [
                 self._preprocess_summary_per_sentence(references_sentences)]
 
-            # Compute scores
-            # Aggregate
-            if self.apply_avg:
-                # average model
-                total_hypothesis_ngrams_count = 0
-                total_reference_ngrams_count = 0
-                total_ngrams_overlapping_count = 0
-
-                for reference_sentences in references_sentences:
-                    hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams_lcs(
-                        hypothesis_sentences, reference_sentences, self.weight_factor if use_w else 1.0)
-                    total_hypothesis_ngrams_count += hypothesis_count
-                    total_reference_ngrams_count += reference_count
-                    total_ngrams_overlapping_count += overlapping_ngrams
-
+            for reference_sentences in references_sentences:
+                hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams_lcs(
+                    hypothesis_sentences, reference_sentences, self.weight_factor if use_w else 1.0)
                 score = Rouge._compute_p_r_f_score(
-                    total_hypothesis_ngrams_count, total_reference_ngrams_count, total_ngrams_overlapping_count, self.alpha, self.weight_factor)
+                    hypothesis_count, reference_count, overlapping_ngrams, self.alpha, self.weight_factor)
 
-                for stat in Rouge.STATS:
-                    scores[metric][stat] += score[stat]
-            else:
-                # Best model
-                if self.apply_best:
-                    best_current_score = None
-                    best_current_score_wlcs = None
-                    for reference_sentences in references_sentences:
-                        hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams_lcs(
-                            hypothesis_sentences, reference_sentences, self.weight_factor if use_w else 1.0)
-                        score = Rouge._compute_p_r_f_score(
-                            hypothesis_count, reference_count, overlapping_ngrams, self.alpha, self.weight_factor)
-
-                        if use_w:
-                            reference_count_for_score = reference_count ** (
-                                1.0 / self.weight_factor)
-                            overlapping_ngrams_for_score = overlapping_ngrams
-                            score_wlcs = (
-                                overlapping_ngrams_for_score / reference_count_for_score) ** (1.0 / self.weight_factor)
-
-                            if best_current_score_wlcs is None or score_wlcs > best_current_score_wlcs:
-                                best_current_score = score
-                                best_current_score_wlcs = score_wlcs
-                        else:
-                            if best_current_score is None or score['r'] > best_current_score['r']:
-                                best_current_score = score
-
-                    for stat in Rouge.STATS:
-                        scores[metric][stat] += best_current_score[stat]
-                # Keep all
-                else:
-                    for reference_sentences in references_sentences:
-                        hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams_lcs(
-                            hypothesis_sentences, reference_sentences, self.weight_factor if use_w else 1.0)
-                        score = Rouge._compute_p_r_f_score(
-                            hypothesis_count, reference_count, overlapping_ngrams, self.alpha, self.weight_factor)
-
-                        for stat in Rouge.STATS:
-                            scores[metric][sample_id][stat].append(score[stat])
+                scores.append(score['f'])
 
         # Compute final score with the average or the the max
         if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
@@ -795,9 +736,6 @@ class RougeReward:
         hyps = [' . '.join(h) for h in hyps]
         refs = [[' . '.join(r)] for r in refs]
         results = self.evaluator.get_scores(hyps, refs)
-        results = [[pair['f'][0] for pair in results[metric]]
-                   for metric in ['rouge-1', 'rouge-2', 'rouge-l']]
-        results = [[r[i] for r in results] for i in range(len(results[0]))]
         return torch.FloatTensor(results).to(device)
 
     @staticmethod
