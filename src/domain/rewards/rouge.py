@@ -33,7 +33,6 @@ class RougeReward:
 
     def __call__(self, hyps, refs, device):
         refs = [[r] for r in refs]
-        refs = [refs[0] for _ in hyps]
 
         scores = list(
             Parallel(n_jobs=self.n_jobs)(rouge_reward(seqs) for seqs in zip(hyps, refs))
