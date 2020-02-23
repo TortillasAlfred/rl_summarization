@@ -36,7 +36,9 @@ class RougeReward:
         refs = [[r] for r in refs]
 
         scores = list(
-            Parallel(n_jobs=self.n_jobs)(rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs))
+            Parallel(n_jobs=self.n_jobs)(
+                rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs)
+            )
         )
 
         return torch.tensor(scores).to(device)

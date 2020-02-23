@@ -9,26 +9,42 @@ import itertools
 import collections
 import pkg_resources
 
+from joblib import Parallel, delayed
+
 
 class Rouge:
     DEFAULT_METRICS = {"rouge-n", "rouge-l"}
     DEFAULT_N = 2
     STATS = ["f"]
     AVAILABLE_METRICS = {"rouge-n", "rouge-l", "rouge-w"}
-    AVAILABLE_LENGTH_LIMIT_TYPES = {'words', 'bytes'}
-    REMOVE_CHAR_PATTERN = re.compile('[^A-Za-z0-9]')
+    AVAILABLE_LENGTH_LIMIT_TYPES = {"words", "bytes"}
+    REMOVE_CHAR_PATTERN = re.compile("[^A-Za-z0-9]")
 
     # Hack to not tokenize "cannot" to "can not" and consider them different as in the official ROUGE script
-    KEEP_CANNOT_IN_ONE_WORD = re.compile('cannot')
-    KEEP_CANNOT_IN_ONE_WORD_REVERSED = re.compile('_cannot_')
+    KEEP_CANNOT_IN_ONE_WORD = re.compile("cannot")
+    KEEP_CANNOT_IN_ONE_WORD_REVERSED = re.compile("_cannot_")
 
     WORDNET_KEY_VALUE = {}
-    WORDNET_DB_FILEPATH = 'wordnet_key_value.txt'
-    WORDNET_DB_FILEPATH_SPECIAL_CASE = 'wordnet_key_value_special_cases.txt'
-    WORDNET_DB_DELIMITER = '|'
-    STEMMER = nltk.stem.porter.PorterStemmer('ORIGINAL_ALGORITHM')
+    WORDNET_DB_FILEPATH = "wordnet_key_value.txt"
+    WORDNET_DB_FILEPATH_SPECIAL_CASE = "wordnet_key_value_special_cases.txt"
+    WORDNET_DB_DELIMITER = "|"
+    STEMMER = nltk.stem.porter.PorterStemmer("ORIGINAL_ALGORITHM")
 
-    def __init__(self, metrics=None, max_n=None, limit_length=True, length_limit=665, length_limit_type='bytes', apply_avg=True, apply_best=False, stemming=True, alpha=0.5, weight_factor=1.0, ensure_compatibility=True):
+    def __init__(
+        self,
+        metrics=None,
+        max_n=None,
+        limit_length=True,
+        length_limit=665,
+        length_limit_type="bytes",
+        apply_avg=True,
+        apply_best=False,
+        stemming=True,
+        alpha=0.5,
+        weight_factor=1.0,
+        ensure_compatibility=True,
+        n_jobs=-1,
+    ):
         """
         Handle the ROUGE score computation as in the official perl script.
 
@@ -62,23 +78,24 @@ class Rouge:
         self.max_n = max_n if "rouge-n" in self.metrics else None
         # Add all rouge-n metrics
         if self.max_n is not None:
-            index_rouge_n = self.metrics.index('rouge-n')
+            index_rouge_n = self.metrics.index("rouge-n")
             del self.metrics[index_rouge_n]
-            self.metrics += ['rouge-{}'.format(n)
-                             for n in range(1, self.max_n + 1)]
+            self.metrics += ["rouge-{}".format(n) for n in range(1, self.max_n + 1)]
         self.metrics = set(self.metrics)
 
         self.limit_length = limit_length
         if self.limit_length:
             if length_limit_type not in Rouge.AVAILABLE_LENGTH_LIMIT_TYPES:
                 raise ValueError(
-                    "Unknown length_limit_type '{}'".format(length_limit_type))
+                    "Unknown length_limit_type '{}'".format(length_limit_type)
+                )
 
         self.length_limit = length_limit
         if self.length_limit == 0:
             self.limit_length = False
         self.length_limit_type = length_limit_type
         self.stemming = stemming
+        self.n_jobs = n_jobs
 
         self.apply_avg = apply_avg
         self.apply_best = apply_best
@@ -109,17 +126,16 @@ class Rouge:
         for wordnet_db in files_to_load:
             filepath = pkg_resources.resource_filename(__name__, wordnet_db)
             if not os.path.exists(filepath):
-                raise FileNotFoundError(
-                    "The file '{}' does not exist".format(filepath))
+                raise FileNotFoundError("The file '{}' does not exist".format(filepath))
 
-            with open(filepath, 'r', encoding='utf-8') as fp:
+            with open(filepath, "r", encoding="utf-8") as fp:
                 for line in fp:
                     k, v = line.strip().split(Rouge.WORDNET_DB_DELIMITER)
                     assert k not in Rouge.WORDNET_KEY_VALUE
                     Rouge.WORDNET_KEY_VALUE[k] = v
 
     @staticmethod
-    def tokenize_text(text, language='english'):
+    def tokenize_text(text, language="english"):
         """
         Tokenize text in the specific language
 
@@ -133,7 +149,7 @@ class Rouge:
         return nltk.word_tokenize(text, language)
 
     @staticmethod
-    def split_into_sentences(text, ensure_compatibility, language='english'):
+    def split_into_sentences(text, ensure_compatibility, language="english"):
         """
         Split text into sentences, using specified language. Use PunktSentenceTokenizer
 
@@ -146,7 +162,7 @@ class Rouge:
           List of tokens of text
         """
         if ensure_compatibility:
-            return text.split('\n')
+            return text.split("\n")
         else:
             return nltk.sent_tokenize(text, language)
 
@@ -189,7 +205,7 @@ class Rouge:
         ngram_set = collections.defaultdict(int)
         max_index_ngram_start = len(text) - n
         for i in range(max_index_ngram_start + 1):
-            ngram_set[tuple(text[i:i + n])] += 1
+            ngram_set[tuple(text[i : i + n])] += 1
         return ngram_set
 
     @staticmethod
@@ -245,7 +261,13 @@ class Rouge:
         return unigram_set, len(tokens)
 
     @staticmethod
-    def _compute_p_r_f_score(evaluated_count, reference_count, overlapping_count, alpha=0.5, weight_factor=1.0):
+    def _compute_p_r_f_score(
+        evaluated_count,
+        reference_count,
+        overlapping_count,
+        alpha=0.5,
+        weight_factor=1.0,
+    ):
         """
         Compute precision, recall and f1_score (with alpha: P*R / ((1-alpha)*P + alpha*R))
 
@@ -281,7 +303,11 @@ class Rouge:
         Returns:
             f1 score
         """
-        return 0.0 if (recall == 0.0 or precision == 0.0) else precision * recall / ((1 - alpha) * precision + alpha * recall)
+        return (
+            0.0
+            if (recall == 0.0 or precision == 0.0)
+            else precision * recall / ((1 - alpha) * precision + alpha * recall)
+        )
 
     @staticmethod
     def _compute_ngrams(evaluated_sentences, reference_sentences, n):
@@ -308,22 +334,26 @@ class Rouge:
             raise ValueError("Collections must contain at least 1 sentence.")
 
         evaluated_ngrams, _, evaluated_count = Rouge._get_word_ngrams_and_length(
-            n, evaluated_sentences)
+            n, evaluated_sentences
+        )
         reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(
-            n, reference_sentences)
+            n, reference_sentences
+        )
 
         # Gets the overlapping ngrams between evaluated and reference
         overlapping_ngrams = set(evaluated_ngrams.keys()).intersection(
-            set(reference_ngrams.keys()))
+            set(reference_ngrams.keys())
+        )
         overlapping_count = 0
         for ngram in overlapping_ngrams:
-            overlapping_count += min(evaluated_ngrams[ngram],
-                                     reference_ngrams[ngram])
+            overlapping_count += min(evaluated_ngrams[ngram], reference_ngrams[ngram])
 
         return evaluated_count, reference_count, overlapping_count
 
     @staticmethod
-    def _compute_ngrams_lcs(evaluated_sentences, reference_sentences, weight_factor=1.0):
+    def _compute_ngrams_lcs(
+        evaluated_sentences, reference_sentences, weight_factor=1.0
+    ):
         """
         Computes ROUGE-L (summary level) of two text collections of sentences.
         http://research.microsoft.com/en-us/um/people/cyl/download/papers/
@@ -338,6 +368,7 @@ class Rouge:
         Raises:
           ValueError: raises exception if a param has len <= 0
         """
+
         def _lcs(x, y):
             m = len(x)
             n = len(y)
@@ -348,13 +379,13 @@ class Rouge:
                 for j in range(1, n + 1):
                     if x[i - 1] == y[j - 1]:
                         vals[i, j] = vals[i - 1, j - 1] + 1
-                        dirs[i, j] = '|'
+                        dirs[i, j] = "|"
                     elif vals[i - 1, j] >= vals[i, j - 1]:
                         vals[i, j] = vals[i - 1, j]
-                        dirs[i, j] = '^'
+                        dirs[i, j] = "^"
                     else:
                         vals[i, j] = vals[i, j - 1]
-                        dirs[i, j] = '<'
+                        dirs[i, j] = "<"
 
             return vals, dirs
 
@@ -369,34 +400,36 @@ class Rouge:
                 for j in range(1, n + 1):
                     if x[i - 1] == y[j - 1]:
                         length_tmp = lengths[i - 1, j - 1]
-                        vals[i, j] = vals[i - 1, j - 1] + \
-                            (length_tmp + 1) ** weight_factor - \
-                            length_tmp ** weight_factor
-                        dirs[i, j] = '|'
+                        vals[i, j] = (
+                            vals[i - 1, j - 1]
+                            + (length_tmp + 1) ** weight_factor
+                            - length_tmp ** weight_factor
+                        )
+                        dirs[i, j] = "|"
                         lengths[i, j] = length_tmp + 1
                     elif vals[i - 1, j] >= vals[i, j - 1]:
                         vals[i, j] = vals[i - 1, j]
-                        dirs[i, j] = '^'
+                        dirs[i, j] = "^"
                         lengths[i, j] = 0
                     else:
                         vals[i, j] = vals[i, j - 1]
-                        dirs[i, j] = '<'
+                        dirs[i, j] = "<"
                         lengths[i, j] = 0
 
             return vals, dirs
 
         def _mark_lcs(mask, dirs, m, n):
             while m != 0 and n != 0:
-                if dirs[m, n] == '|':
+                if dirs[m, n] == "|":
                     m -= 1
                     n -= 1
                     mask[m] = 1
-                elif dirs[m, n] == '^':
+                elif dirs[m, n] == "^":
                     m -= 1
-                elif dirs[m, n] == '<':
+                elif dirs[m, n] == "<":
                     n -= 1
                 else:
-                    raise UnboundLocalError('Illegal move')
+                    raise UnboundLocalError("Illegal move")
 
             return mask
 
@@ -404,9 +437,11 @@ class Rouge:
             raise ValueError("Collections must contain at least 1 sentence.")
 
         evaluated_unigrams_dict, evaluated_count = Rouge._get_unigrams(
-            evaluated_sentences)
+            evaluated_sentences
+        )
         reference_unigrams_dict, reference_count = Rouge._get_unigrams(
-            reference_sentences)
+            reference_sentences
+        )
 
         # Has to use weight factor for WLCS
         use_WLCS = weight_factor != 1.0
@@ -426,25 +461,41 @@ class Rouge:
 
                 if use_WLCS:
                     _, lcs_dirs = _wlcs(
-                        reference_sentence_tokens, evaluated_sentence_tokens, weight_factor)
+                        reference_sentence_tokens,
+                        evaluated_sentence_tokens,
+                        weight_factor,
+                    )
                 else:
                     _, lcs_dirs = _lcs(
-                        reference_sentence_tokens, evaluated_sentence_tokens)
-                _mark_lcs(hit_mask, lcs_dirs, len(
-                    reference_sentence_tokens), len(evaluated_sentence_tokens))
+                        reference_sentence_tokens, evaluated_sentence_tokens
+                    )
+                _mark_lcs(
+                    hit_mask,
+                    lcs_dirs,
+                    len(reference_sentence_tokens),
+                    len(evaluated_sentence_tokens),
+                )
 
             overlapping_count_length = 0
             for ref_token_id, val in enumerate(hit_mask):
                 if val == 1:
                     token = reference_sentence_tokens[ref_token_id]
-                    if evaluated_unigrams_dict[token] > 0 and reference_unigrams_dict[token] > 0:
+                    if (
+                        evaluated_unigrams_dict[token] > 0
+                        and reference_unigrams_dict[token] > 0
+                    ):
                         evaluated_unigrams_dict[token] -= 1
                         reference_unigrams_dict[ref_token_id] -= 1
 
                         if use_WLCS:
                             overlapping_count_length += 1
-                            if (ref_token_id + 1 < len(hit_mask) and hit_mask[ref_token_id + 1] == 0) or ref_token_id + 1 == len(hit_mask):
-                                overlapping_count += overlapping_count_length ** weight_factor
+                            if (
+                                ref_token_id + 1 < len(hit_mask)
+                                and hit_mask[ref_token_id + 1] == 0
+                            ) or ref_token_id + 1 == len(hit_mask):
+                                overlapping_count += (
+                                    overlapping_count_length ** weight_factor
+                                )
                                 overlapping_count_length = 0
                         else:
                             overlapping_count += 1
@@ -454,43 +505,43 @@ class Rouge:
 
         return evaluated_count, reference_count, overlapping_count
 
-    def get_scores(self, hypothesis, references):
-        """
-        Compute precision, recall and f1 score between hypothesis and references
-
-        Args:
-          hypothesis: hypothesis summary, string
-          references: reference summary/ies, either string or list of strings (if multiple)
-
-        Returns:
-          Return precision, recall and f1 score between hypothesis and references
-
-        Raises:
-          ValueError: raises exception if a type of hypothesis is different than the one of reference
-          ValueError: raises exception if a len of hypothesis is different than the one of reference
-        """
-        if isinstance(hypothesis, str):
-            hypothesis, references = [hypothesis], [references]
-
-        if type(hypothesis) != type(references):
-            raise ValueError("'hyps' and 'refs' are not of the same type")
-
-        if len(hypothesis) != len(references):
-            raise ValueError("'hyps' and 'refs' do not have the same length")
-
+    @delayed
+    def get_pair_score(self, evaluated_pair):
+        hypothesis, references = evaluated_pair
+        hypothesis, references = [hypothesis], [references]
         scores = []
-        has_rouge_n_metric = len(
-            [metric for metric in self.metrics if metric.split('-')[-1].isdigit()]) > 0
+        has_rouge_n_metric = (
+            len([metric for metric in self.metrics if metric.split("-")[-1].isdigit()])
+            > 0
+        )
         if has_rouge_n_metric:
-            scores.extend(self._get_scores_rouge_n(hypothesis, references))
+            n_scores = self._get_scores_rouge_n(hypothesis, references)
+            scores.append(n_scores["rouge-1"])
+            scores.append(n_scores["rouge-2"])
 
-        has_rouge_l_metric = len(
-            [metric for metric in self.metrics if metric.split('-')[-1].lower() == 'l']) > 0
+        has_rouge_l_metric = (
+            len(
+                [
+                    metric
+                    for metric in self.metrics
+                    if metric.split("-")[-1].lower() == "l"
+                ]
+            )
+            > 0
+        )
         if has_rouge_l_metric:
-            scores.append(self._get_scores_rouge_l_or_w(
-                hypothesis, references, False))
+            scores.append(self._get_scores_rouge_l_or_w(hypothesis, references, False))
 
-        scores = list(map(list, zip(*scores)))  # Transpose results to correct format
+        # Transpose results to correct format
+        scores = list(map(list, zip(*scores)))
+
+        return scores
+
+    def get_all_scores(self, evaluated_pairs):
+        used_jobs = self.n_jobs if len(evaluated_pairs) > 8 else 1
+        scores = Parallel(n_jobs=used_jobs)(
+            self.get_pair_score(pair) for pair in evaluated_pairs
+        )
 
         return scores
 
@@ -505,12 +556,13 @@ class Rouge:
         Returns:
           Return precision, recall and f1 score between all hypothesis and references
         """
-        metrics = [metric for metric in self.metrics if metric.split(
-            '-')[-1].isdigit()]
+        metrics = [metric for metric in self.metrics if metric.split("-")[-1].isdigit()]
 
-        scores = [[] * len(all_hypothesis) for _ in metrics]
+        scores = {metric: [] * len(all_hypothesis) for metric in metrics}
 
-        for sample_id, (hypothesis, references) in enumerate(zip(all_hypothesis, all_references)):
+        for sample_id, (hypothesis, references) in enumerate(
+            zip(all_hypothesis, all_references)
+        ):
             assert isinstance(hypothesis, str)
             has_multiple_references = False
             if isinstance(references, list):
@@ -520,20 +572,33 @@ class Rouge:
 
             # Prepare hypothesis and reference(s)
             hypothesis = self._preprocess_summary_as_a_whole(hypothesis)
-            references = [self._preprocess_summary_as_a_whole(reference) for reference in references] if has_multiple_references else [
-                self._preprocess_summary_as_a_whole(references)]
+            references = (
+                [
+                    self._preprocess_summary_as_a_whole(reference)
+                    for reference in references
+                ]
+                if has_multiple_references
+                else [self._preprocess_summary_as_a_whole(references)]
+            )
 
             # Compute scores
-            for i, metric in enumerate(metrics):
-                suffix = metric.split('-')[-1]
+            for metric in metrics:
+                suffix = metric.split("-")[-1]
                 n = int(suffix)
 
                 for reference in references:
-                    hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams(
-                        hypothesis, reference, n)
+                    (
+                        hypothesis_count,
+                        reference_count,
+                        overlapping_ngrams,
+                    ) = Rouge._compute_ngrams(hypothesis, reference, n)
                     score = Rouge._compute_p_r_f_score(
-                        hypothesis_count, reference_count, overlapping_ngrams, self.alpha)
-                    scores[i].append(score['f'])
+                        hypothesis_count,
+                        reference_count,
+                        overlapping_ngrams,
+                        self.alpha,
+                    )
+                    scores[metric].append(score["f"])
 
         return scores
 
@@ -551,7 +616,9 @@ class Rouge:
         metric = "rouge-l"
         scores = []
 
-        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(zip(all_hypothesis, all_references)):
+        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(
+            zip(all_hypothesis, all_references)
+        ):
             assert isinstance(hypothesis_sentences, str)
             has_multiple_references = False
             if isinstance(references_sentences, list):
@@ -561,17 +628,36 @@ class Rouge:
 
             # Prepare hypothesis and reference(s)
             hypothesis_sentences = self._preprocess_summary_per_sentence(
-                hypothesis_sentences)
-            references_sentences = [self._preprocess_summary_per_sentence(reference) for reference in references_sentences] if has_multiple_references else [
-                self._preprocess_summary_per_sentence(references_sentences)]
+                hypothesis_sentences
+            )
+            references_sentences = (
+                [
+                    self._preprocess_summary_per_sentence(reference)
+                    for reference in references_sentences
+                ]
+                if has_multiple_references
+                else [self._preprocess_summary_per_sentence(references_sentences)]
+            )
 
             for reference_sentences in references_sentences:
-                hypothesis_count, reference_count, overlapping_ngrams = Rouge._compute_ngrams_lcs(
-                    hypothesis_sentences, reference_sentences, self.weight_factor if use_w else 1.0)
+                (
+                    hypothesis_count,
+                    reference_count,
+                    overlapping_ngrams,
+                ) = Rouge._compute_ngrams_lcs(
+                    hypothesis_sentences,
+                    reference_sentences,
+                    self.weight_factor if use_w else 1.0,
+                )
                 score = Rouge._compute_p_r_f_score(
-                    hypothesis_count, reference_count, overlapping_ngrams, self.alpha, self.weight_factor)
+                    hypothesis_count,
+                    reference_count,
+                    overlapping_ngrams,
+                    self.alpha,
+                    self.weight_factor,
+                )
 
-                scores.append(score['f'])
+                scores.append(score["f"])
 
         return scores
 
@@ -587,27 +673,28 @@ class Rouge:
         """
         sentences = Rouge.split_into_sentences(summary, self.ensure_compatibility)
 
-        summary = ' '.join(sentences)
+        summary = " ".join(sentences)
 
-        summary = Rouge.REMOVE_CHAR_PATTERN.sub(' ', summary.lower()).strip()
+        summary = Rouge.REMOVE_CHAR_PATTERN.sub(" ", summary.lower()).strip()
 
         # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
         # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
         if self.ensure_compatibility:
             tokens = self.tokenize_text(
-                Rouge.KEEP_CANNOT_IN_ONE_WORD.sub('_cannot_', summary))
+                Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", summary)
+            )
         else:
-            tokens = self.tokenize_text(
-                Rouge.REMOVE_CHAR_PATTERN.sub(' ', summary))
+            tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(" ", summary))
 
         if self.stemming:
             self.stem_tokens(tokens)  # stemming in-place
 
         if self.ensure_compatibility:
             preprocessed_summary = [
-                Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub('cannot', ' '.join(tokens))]
+                Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub("cannot", " ".join(tokens))
+            ]
         else:
-            preprocessed_summary = [' '.join(tokens)]
+            preprocessed_summary = [" ".join(tokens)]
 
         return preprocessed_summary
 
@@ -621,31 +708,32 @@ class Rouge:
         Returns:
           Return the preprocessed summary (string)
         """
-        sentences = Rouge.split_into_sentences(
-            summary, self.ensure_compatibility)
+        sentences = Rouge.split_into_sentences(summary, self.ensure_compatibility)
 
         final_sentences = []
         for sentence in sentences:
-            sentence = Rouge.REMOVE_CHAR_PATTERN.sub(
-                ' ', sentence.lower()).strip()
+            sentence = Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence.lower()).strip()
 
             # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
             # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
             if self.ensure_compatibility:
                 tokens = self.tokenize_text(
-                    Rouge.KEEP_CANNOT_IN_ONE_WORD.sub('_cannot_', sentence))
+                    Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", sentence)
+                )
             else:
                 tokens = self.tokenize_text(
-                    Rouge.REMOVE_CHAR_PATTERN.sub(' ', sentence))
+                    Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence)
+                )
 
             if self.stemming:
                 self.stem_tokens(tokens)  # stemming in-place
 
             if self.ensure_compatibility:
                 sentence = Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub(
-                    'cannot', ' '.join(tokens))
+                    "cannot", " ".join(tokens)
+                )
             else:
-                sentence = ' '.join(tokens)
+                sentence = " ".join(tokens)
 
             final_sentences.append(sentence)
 
@@ -653,23 +741,27 @@ class Rouge:
 
 
 class RougeReward:
-    def __init__(self):
-        self.evaluator = Rouge(metrics=['rouge-n', 'rouge-l'],
-                               max_n=2,
-                               limit_length=False,
-                               apply_avg=False,
-                               stemming=True,
-                               ensure_compatibility=False)
+    def __init__(self, n_jobs=-1):
+        self.evaluator = Rouge(
+            metrics=["rouge-n", "rouge-l"],
+            max_n=2,
+            limit_length=False,
+            apply_avg=False,
+            stemming=True,
+            ensure_compatibility=False,
+            n_jobs=n_jobs,
+        )
 
     def __call__(self, hyps, refs, device):
-        hyps = [' . '.join(h) for h in hyps]
-        refs = [[' . '.join(r)] for r in refs]
-        results = self.evaluator.get_scores(hyps, refs)
+        hyps = [" ".join(h) for h in hyps]
+        refs = [[" ".join(r)] for r in refs]
+        pairs = [(hyp, ref) for hyp, ref in zip(hyps, refs)]
+        results = self.evaluator.get_all_scores(pairs)
         return torch.FloatTensor(results).to(device)
 
     @staticmethod
     def from_config(self, config):
-        return RougeReward()
+        return RougeReward(config["rouge_jobs"])
 
 
 if __name__ == "__main__":
@@ -685,14 +777,9 @@ if __name__ == "__main__":
         "./data/cnn_dailymail", "glove.6B.50d", dev=False, sets=["test"]
     )
 
-    test_split = dataset.get_splits()['test']
+    test_split = dataset.get_splits()["test"]
     test_loader = BucketIterator(
-        test_split,
-        train=False,
-        batch_size=64,
-        shuffle=False,
-        sort=False,
-        device='cpu',
+        test_split, train=False, batch_size=64, shuffle=False, sort=False, device="cpu",
     )
     scorer = RougeReward()
 
@@ -700,4 +787,5 @@ if __name__ == "__main__":
         (raw_contents, _), (raw_abstracts, _) = batch
         l3 = [r_c[:3] for r_c in raw_contents]
 
-        logging.info(scorer(l3, raw_abstracts, 'cpu'))
+        logging.info(scorer(l3, raw_abstracts, "cpu"))
+

@@ -7,8 +7,8 @@ import torch
 
 
 @timed
-def diego_rouge_stemming(dataset):
-    model = Lead3(dataset, reward=RougePython())
+def diego_rouge_stemming(dataset, n_jobs):
+    model = Lead3(dataset, reward=RougePython(n_jobs))
     model.test()
 
 
@@ -29,11 +29,9 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail",
-        "glove.6B.100d",
-        dev=False,
-        sets=["test"]
+        "./data/cnn_dailymail", "glove.6B.100d", dev=False, sets=["test"]
     )
 
-    diego_rouge_stemming(dataset)
+    diego_rouge_stemming(dataset, 1)
+    diego_rouge_stemming(dataset, -1)
     pythonrouge_multithread_stemming(dataset)
