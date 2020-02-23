@@ -32,6 +32,6 @@ if __name__ == "__main__":
         "./data/cnn_dailymail", "glove.6B.100d", dev=False, sets=["test"]
     )
 
-    diego_rouge_stemming(dataset, 1)
+    # diego_rouge_stemming(dataset, 1)
     diego_rouge_stemming(dataset, -1)
     pythonrouge_multithread_stemming(dataset)

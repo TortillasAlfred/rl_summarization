@@ -32,12 +32,12 @@ class RougeReward:
         self.n_jobs = n_jobs
         self.stemming = stemming
 
-    def __call__(self, hyps, refs, device):
-        refs = [[r] for r in refs]
+    def __call__(self, pairs, device):
+        pairs = [(hyp, [ref]) for hyps, ref in pairs for hyp in hyps]
 
         scores = list(
             Parallel(n_jobs=self.n_jobs)(
-                rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs)
+                rouge_reward(seqs, self.stemming) for seqs in pairs
             )
         )
 

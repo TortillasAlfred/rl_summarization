@@ -310,7 +310,7 @@ class Rouge:
         )
 
     @staticmethod
-    def _compute_ngrams(evaluated_sentences, reference_sentences, n):
+    def _compute_ngrams(evaluated_sentences, ref_grams, n):
         """
         Computes n-grams overlap of two text collections of sentences.
         Source: http://research.microsoft.com/en-us/um/people/cyl/download/
@@ -330,15 +330,13 @@ class Rouge:
           ValueError: raises exception if a param has len <= 0
         """
         # Modified from https://github.com/pltrdy/seq2seq/blob/master/seq2seq/metrics/rouge.py
-        if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
+        if len(evaluated_sentences) <= 0:
             raise ValueError("Collections must contain at least 1 sentence.")
 
         evaluated_ngrams, _, evaluated_count = Rouge._get_word_ngrams_and_length(
             n, evaluated_sentences
         )
-        reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(
-            n, reference_sentences
-        )
+        reference_ngrams, reference_count = ref_grams
 
         # Gets the overlapping ngrams between evaluated and reference
         overlapping_ngrams = set(evaluated_ngrams.keys()).intersection(
@@ -352,7 +350,7 @@ class Rouge:
 
     @staticmethod
     def _compute_ngrams_lcs(
-        evaluated_sentences, reference_sentences, weight_factor=1.0
+        evaluated_sentences, reference_sentences, ref_grams, weight_factor=1.0
     ):
         """
         Computes ROUGE-L (summary level) of two text collections of sentences.
@@ -433,42 +431,23 @@ class Rouge:
 
             return mask
 
-        if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
+        if len(evaluated_sentences) <= 0:
             raise ValueError("Collections must contain at least 1 sentence.")
 
         evaluated_unigrams_dict, evaluated_count = Rouge._get_unigrams(
             evaluated_sentences
         )
-        reference_unigrams_dict, reference_count = Rouge._get_unigrams(
-            reference_sentences
-        )
-
-        # Has to use weight factor for WLCS
-        use_WLCS = weight_factor != 1.0
-        if use_WLCS:
-            evaluated_count = evaluated_count ** weight_factor
-            reference_count = 0
+        reference_unigrams_dict, reference_count = ref_grams
 
         overlapping_count = 0.0
         for reference_sentence in reference_sentences:
             reference_sentence_tokens = reference_sentence.split()
-            if use_WLCS:
-                reference_count += len(reference_sentence_tokens) ** weight_factor
             hit_mask = [0 for _ in range(len(reference_sentence_tokens))]
 
             for evaluated_sentence in evaluated_sentences:
                 evaluated_sentence_tokens = evaluated_sentence.split()
 
-                if use_WLCS:
-                    _, lcs_dirs = _wlcs(
-                        reference_sentence_tokens,
-                        evaluated_sentence_tokens,
-                        weight_factor,
-                    )
-                else:
-                    _, lcs_dirs = _lcs(
-                        reference_sentence_tokens, evaluated_sentence_tokens
-                    )
+                _, lcs_dirs = _lcs(reference_sentence_tokens, evaluated_sentence_tokens)
                 _mark_lcs(
                     hit_mask,
                     lcs_dirs,
@@ -486,28 +465,12 @@ class Rouge:
                     ):
                         evaluated_unigrams_dict[token] -= 1
                         reference_unigrams_dict[ref_token_id] -= 1
-
-                        if use_WLCS:
-                            overlapping_count_length += 1
-                            if (
-                                ref_token_id + 1 < len(hit_mask)
-                                and hit_mask[ref_token_id + 1] == 0
-                            ) or ref_token_id + 1 == len(hit_mask):
-                                overlapping_count += (
-                                    overlapping_count_length ** weight_factor
-                                )
-                                overlapping_count_length = 0
-                        else:
-                            overlapping_count += 1
-
-        if use_WLCS:
-            reference_count = reference_count ** weight_factor
+                        overlapping_count += 1
 
         return evaluated_count, reference_count, overlapping_count
 
     @delayed
-    def get_pair_score(self, evaluated_pair):
-        hypothesis, references = evaluated_pair
+    def get_pair_score(self, hypothesis, references, ref_grams):
         hypothesis, references = [hypothesis], [references]
         scores = []
         has_rouge_n_metric = (
@@ -515,7 +478,7 @@ class Rouge:
             > 0
         )
         if has_rouge_n_metric:
-            n_scores = self._get_scores_rouge_n(hypothesis, references)
+            n_scores = self._get_scores_rouge_n(hypothesis, ref_grams)
             scores.append(n_scores["rouge-1"])
             scores.append(n_scores["rouge-2"])
 
@@ -530,7 +493,9 @@ class Rouge:
             > 0
         )
         if has_rouge_l_metric:
-            scores.append(self._get_scores_rouge_l_or_w(hypothesis, references, False))
+            scores.append(
+                self._get_scores_rouge_l_or_w(hypothesis, references, ref_grams, False)
+            )
 
         # Transpose results to correct format
         scores = list(map(list, zip(*scores)))
@@ -538,14 +503,18 @@ class Rouge:
         return scores
 
     def get_all_scores(self, evaluated_pairs):
-        used_jobs = self.n_jobs if len(evaluated_pairs) > 8 else 1
-        scores = Parallel(n_jobs=used_jobs)(
-            self.get_pair_score(pair) for pair in evaluated_pairs
+        refs_grams = Parallel(n_jobs=1)(
+            self._compute_reference_n_grams(ref) for _, ref in evaluated_pairs
+        )
+        scores = Parallel(n_jobs=self.n_jobs)(
+            self.get_pair_score(hyp, ref, ref_grams)
+            for (hyps, ref), ref_grams in zip(evaluated_pairs, refs_grams)
+            for hyp in hyps
         )
 
         return scores
 
-    def _get_scores_rouge_n(self, all_hypothesis, all_references):
+    def _get_scores_rouge_n(self, all_hypothesis, ref_grams):
         """
         Computes precision, recall and f1 score between all hypothesis and references
 
@@ -560,49 +529,53 @@ class Rouge:
 
         scores = {metric: [] * len(all_hypothesis) for metric in metrics}
 
-        for sample_id, (hypothesis, references) in enumerate(
-            zip(all_hypothesis, all_references)
-        ):
+        for hypothesis in all_hypothesis:
             assert isinstance(hypothesis, str)
-            has_multiple_references = False
-            if isinstance(references, list):
-                has_multiple_references = len(references) > 1
-                if not has_multiple_references:
-                    references = references[0]
 
             # Prepare hypothesis and reference(s)
             hypothesis = self._preprocess_summary_as_a_whole(hypothesis)
-            references = (
-                [
-                    self._preprocess_summary_as_a_whole(reference)
-                    for reference in references
-                ]
-                if has_multiple_references
-                else [self._preprocess_summary_as_a_whole(references)]
-            )
 
             # Compute scores
             for metric in metrics:
                 suffix = metric.split("-")[-1]
                 n = int(suffix)
 
-                for reference in references:
-                    (
-                        hypothesis_count,
-                        reference_count,
-                        overlapping_ngrams,
-                    ) = Rouge._compute_ngrams(hypothesis, reference, n)
-                    score = Rouge._compute_p_r_f_score(
-                        hypothesis_count,
-                        reference_count,
-                        overlapping_ngrams,
-                        self.alpha,
-                    )
-                    scores[metric].append(score["f"])
+                (
+                    hypothesis_count,
+                    reference_count,
+                    overlapping_ngrams,
+                ) = Rouge._compute_ngrams(hypothesis, ref_grams[n], n)
+                score = Rouge._compute_p_r_f_score(
+                    hypothesis_count, reference_count, overlapping_ngrams, self.alpha,
+                )
+                scores[metric].append(score["f"])
 
         return scores
 
-    def _get_scores_rouge_l_or_w(self, all_hypothesis, all_references, use_w=False):
+    @delayed
+    def _compute_reference_n_grams(self, reference):
+        metrics = [metric for metric in self.metrics if metric.split("-")[-1].isdigit()]
+
+        n_grams = {}
+
+        ref = self._preprocess_summary_as_a_whole(reference)
+
+        for metric in metrics:
+            suffix = metric.split("-")[-1]
+            n = int(suffix)
+
+            reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(
+                n, ref
+            )
+            n_grams[n] = (reference_ngrams, reference_count)
+
+        n_grams["uni"] = Rouge._get_unigrams(ref)
+
+        return n_grams
+
+    def _get_scores_rouge_l_or_w(
+        self, all_hypothesis, references_sentences, ref_grams, use_w=False
+    ):
         """
         Computes precision, recall and f1 score between all hypothesis and references
 
@@ -616,10 +589,7 @@ class Rouge:
         metric = "rouge-l"
         scores = []
 
-        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(
-            zip(all_hypothesis, all_references)
-        ):
-            assert isinstance(hypothesis_sentences, str)
+        for hypothesis_sentences in all_hypothesis:
             has_multiple_references = False
             if isinstance(references_sentences, list):
                 has_multiple_references = len(references_sentences) > 1
@@ -647,17 +617,18 @@ class Rouge:
                 ) = Rouge._compute_ngrams_lcs(
                     hypothesis_sentences,
                     reference_sentences,
+                    ref_grams["uni"],
                     self.weight_factor if use_w else 1.0,
                 )
-                score = Rouge._compute_p_r_f_score(
-                    hypothesis_count,
-                    reference_count,
-                    overlapping_ngrams,
-                    self.alpha,
-                    self.weight_factor,
-                )
+            score = Rouge._compute_p_r_f_score(
+                hypothesis_count,
+                reference_count,
+                overlapping_ngrams,
+                self.alpha,
+                self.weight_factor,
+            )
 
-                scores.append(score["f"])
+            scores.append(score["f"])
 
         return scores
 
@@ -752,10 +723,8 @@ class RougeReward:
             n_jobs=n_jobs,
         )
 
-    def __call__(self, hyps, refs, device):
-        hyps = [" ".join(h) for h in hyps]
-        refs = [[" ".join(r)] for r in refs]
-        pairs = [(hyp, ref) for hyp, ref in zip(hyps, refs)]
+    def __call__(self, pairs, device):
+        pairs = [([" ".join(h) for h in hyps], " ".join(ref)) for hyps, ref in pairs]
         results = self.evaluator.get_all_scores(pairs)
         return torch.FloatTensor(results).to(device)
 
