@@ -48,10 +48,7 @@ class Lead3:
         logging.info(f"Mean reward : {all_rewards.mean(dim=0)}")
 
     def __call__(self, contents, raw_contents):
-        return [
-            [range(min(3, len(c))) for _ in range(16)]
-            for c in raw_contents
-        ]
+        return [[range(min(3, len(c))) for _ in range(16)] for c in raw_contents]
 
     @staticmethod
     def from_config(dataset, reward, config):

@@ -4,19 +4,22 @@ import torch
 class Rollouts:
     def __init__(self, *, n_texts, n_sents, n_steps, n_repeats, device):
         self.selected_idxs = torch.zeros(
-            n_steps, n_repeats, n_texts, n_sents, dtype=bool).to(device)
-        self.entropies = torch.zeros(
-            n_steps, n_repeats, n_texts, dtype=float).to(device)
-        self.logprobs = torch.zeros(
-            n_steps, n_repeats, n_texts, dtype=float).to(device)
-        self.values = torch.zeros(
-            n_steps, n_repeats, n_texts, dtype=float).to(device)
-        self.returns = torch.zeros(
-            n_steps + 1, n_repeats, n_texts, dtype=float).to(device)
-        self.done_masks = torch.ones(
-            n_steps + 1, n_repeats, n_texts, dtype=bool).to(device)
-        self.idxs = torch.zeros(
-            n_steps, n_repeats, n_texts, dtype=torch.long).to(device)
+            n_steps, n_repeats, n_texts, n_sents, dtype=bool
+        ).to(device)
+        self.entropies = torch.zeros(n_steps, n_repeats, n_texts, dtype=float).to(
+            device
+        )
+        self.logprobs = torch.zeros(n_steps, n_repeats, n_texts, dtype=float).to(device)
+        self.values = torch.zeros(n_steps, n_repeats, n_texts, dtype=float).to(device)
+        self.returns = torch.zeros(n_steps + 1, n_repeats, n_texts, dtype=float).to(
+            device
+        )
+        self.done_masks = torch.ones(n_steps + 1, n_repeats, n_texts, dtype=bool).to(
+            device
+        )
+        self.idxs = torch.zeros(n_steps, n_repeats, n_texts, dtype=torch.long).to(
+            device
+        )
 
         self.step = 0
         self.n_steps = n_steps

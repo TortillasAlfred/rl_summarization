@@ -11,7 +11,7 @@ import argparse
 
 def main(_config):
     configure_logging()
-    set_random_seed(_config['seed'])
+    set_random_seed(_config["seed"])
 
     logging.info("Beginning training script with following config :")
     logging.info(_config)
