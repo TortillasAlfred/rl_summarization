@@ -7,7 +7,7 @@ dev: False
 ##################
 ### MODEL ARGS ###
 ##################
-model: "banditsum" # One of ['lead3', 'banditsum']
+model: "a2c" # One of ['lead3', 'banditsum', 'a2c']
 items_per_epoch: 50000
 train_batch_size: 1
 test_batch_size: 1
@@ -40,9 +40,9 @@ trainer: "pl" # One of ['gradient_free', 'pl']
 save_path: "."
 gradient_clip_val: 1
 gpus: 1
-overfit_pct: 0.00001
+overfit_pct: 0.0
 fast_dev_run: False
 max_epochs: 1000
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 use_amp: False
-print_nan_grads: True
+print_nan_grads: False

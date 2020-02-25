@@ -180,7 +180,7 @@ class BanditSum(pl.LightningModule):
             "train_loss": loss,
             "train_reward": rewards.mean((0, 1)),
             "train_greedy_reward": greedy_rewards.mean((0, 1)),
-            "max_prob": max_prob,
+            "max_prob": affinities.max(),
         }
 
     def training_end(self, outputs):
@@ -313,6 +313,7 @@ class BanditSum(pl.LightningModule):
         )
         return optimizer
 
+    @pl.data_loader
     def train_dataloader(self):
         train_split = self.splits["train"]
         n_items = min(self.items_per_epoch, len(train_split))
@@ -354,4 +355,3 @@ class BanditSum(pl.LightningModule):
     @staticmethod
     def from_config(dataset, reward, config):
         return BanditSum(dataset, reward, config,)
-

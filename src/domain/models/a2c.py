@@ -32,21 +32,35 @@ class A2C(pl.LightningModule):
 
         self.rewards_buffer = deque(maxlen=25)
 
-        self.__build_model()
+        self.__build_model(hparams["hidden_dim"])
 
-    def __build_model(self):
+    def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(
             self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
+        self.wl_encoder = torch.nn.LSTM(
+            input_size=self.embedding_dim,
+            hidden_size=hidden_dim,
+            num_layers=2,
+            bidirectional=True,
+            batch_first=True,
+        )
+        self.sl_encoder = torch.nn.LSTM(
+            input_size=2 * hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+        )
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(self.embedding_dim, 200),
+            torch.nn.Linear(hidden_dim * 2, 200),
             torch.nn.ReLU(),
             torch.nn.Linear(200, 200),
             torch.nn.ReLU(),
-            torch.nn.Linear(200, 1)
+            torch.nn.Linear(200, 1),
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(self.embedding_dim * 2, 200),
+            torch.nn.Linear(hidden_dim * 4, 200),
             torch.nn.ReLU(),
             torch.nn.Linear(200, 200),
             torch.nn.ReLU(),
@@ -63,14 +77,19 @@ class A2C(pl.LightningModule):
 
         valid_sents = sent_lens > 0
         x = self.embeddings(contents).sum(-2)
+        x, _ = self.wl_encoder(x)
         sent_features = torch.zeros_like(x)
-        sent_features[valid_sents] = x[valid_sents] / \
-            sent_lens[valid_sents].unsqueeze(-1)
-        doc_features = sent_features.mean(-2)
+        sent_features[valid_sents] = x[valid_sents] / sent_lens[valid_sents].unsqueeze(
+            -1
+        )
+        sent_features, (_, doc_features) = self.sl_encoder(sent_features)
+        doc_features = doc_features.view(contents.shape[0], -1)
 
         return sent_features, doc_features, valid_sents
 
-    def get_policy_dist(self, sent_features, doc_features, valid_sentences, selected_idxs):
+    def get_policy_dist(
+        self, sent_features, doc_features, valid_sentences, selected_idxs
+    ):
         logits = self.policy(sent_features).squeeze(-1)
         probs = F.softmax(logits, dim=-1)
         # probs = probs * ~selected_idxs * valid_sentences
@@ -81,15 +100,23 @@ class A2C(pl.LightningModule):
         return Categorical(probs=probs), probs
 
     def get_values(self, sent_features, doc_features, selected_idxs):
-        summ_features = sent_features * selected_idxs.unsqueeze(-1)
+        n_repeats, batch_size, n_sents = sent_features.shape[:3]
+
+        # summ_features = sent_features * selected_idxs.unsqueeze(-1)
         summ_features = sent_features
-        summ_features = summ_features.mean(-2)
+        summ_features = summ_features.view(n_repeats * batch_size, n_sents, -1)
+        _, (_, summ_features) = self.sl_encoder(summ_features)
+        summ_features = summ_features.view(n_repeats * batch_size, -1)
+        summ_features = summ_features.view(n_repeats, batch_size, -1)
 
         return self.value(torch.cat((summ_features, doc_features), dim=-1)).squeeze(-1)
 
-    def act(self, sent_features, doc_features, valid_sentences, selected_idxs, done_masks):
+    def act(
+        self, sent_features, doc_features, valid_sentences, selected_idxs, done_masks
+    ):
         dists, prob = self.get_policy_dist(
-            sent_features, doc_features, valid_sentences, selected_idxs)
+            sent_features, doc_features, valid_sentences, selected_idxs
+        )
         vals = self.get_values(sent_features, doc_features, selected_idxs)
 
         idxs = dists.sample()
@@ -105,12 +132,16 @@ class A2C(pl.LightningModule):
         return vals, idxs, logprobs, entropies, prob
 
     def compute_rollouts(self, contents, num_repeats):
-        sent_features, doc_features, valid_sentences = self.extract_features(
-            contents)
+        sent_features, doc_features, valid_sentences = self.extract_features(contents)
 
         n_texts, n_sents, _ = contents.shape
-        rollouts = Rollouts(n_texts=n_texts, n_sents=n_sents,
-                            n_steps=self.n_sents_per_summary, n_repeats=num_repeats, device=contents.device)
+        rollouts = Rollouts(
+            n_texts=n_texts,
+            n_sents=n_sents,
+            n_steps=self.n_sents_per_summary,
+            n_repeats=num_repeats,
+            device=contents.device,
+        )
 
         sent_features = sent_features.repeat(num_repeats, 1, 1, 1)
         doc_features = doc_features.repeat(num_repeats, 1, 1)
@@ -121,17 +152,27 @@ class A2C(pl.LightningModule):
             selected_idxs = rollouts.selected_idxs[step]
 
             vals, idxs, logprobs, entropies, prob = self.act(
-                sent_features, doc_features, valid_sentences, selected_idxs, rollouts.done_masks[step])
+                sent_features,
+                doc_features,
+                valid_sentences,
+                selected_idxs,
+                rollouts.done_masks[step],
+            )
 
             done_masks = selected_idxs.sum(-1) < valid_sentences.sum(-1)
 
-            rollouts.store(selected_idxs.scatter(-1, idxs.unsqueeze(-1), 1), vals, logprobs,
-                           entropies, done_masks, idxs)
+            rollouts.store(
+                selected_idxs.scatter(-1, idxs.unsqueeze(-1), 1),
+                vals,
+                logprobs,
+                entropies,
+                done_masks,
+                idxs,
+            )
 
             probs.append(prob)
 
-        next_values = self.get_values(
-            sent_features, doc_features, selected_idxs)
+        next_values = self.get_values(sent_features, doc_features, selected_idxs)
         next_values = next_values * rollouts.done_masks[-1]
 
         return rollouts, next_values, torch.stack(probs)
@@ -156,7 +197,8 @@ class A2C(pl.LightningModule):
             hyp_summaries.append(step_summaries)
 
         hyp_summaries = [
-            summ for step in hyp_summaries for fold in step for summ in fold]
+            summ for step in hyp_summaries for fold in step for summ in fold
+        ]
 
         rewards = self.reward(hyp_summaries, formatted_refs, idxs.device)
         rewards = rewards.view(*idxs.shape, -1)
@@ -168,14 +210,17 @@ class A2C(pl.LightningModule):
         (raw_contents, contents), (ref_summaries, _) = batch
 
         rollouts, next_values, probs = self.compute_rollouts(
-            contents, num_repeats=self.n_repeats_per_sample)
+            contents, num_repeats=self.n_repeats_per_sample
+        )
 
         rewards = self._compute_rewards(
-            rollouts.idxs, rollouts.done_masks, raw_contents, ref_summaries)
+            rollouts.idxs, rollouts.done_masks, raw_contents, ref_summaries
+        )
 
         rollouts.compute_returns(rewards.mean(-1), next_values, gamma=0.99)
 
         advantages = rollouts.returns[:-1] - rollouts.values
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
 
         action_loss = (-advantages.detach() * rollouts.logprobs).mean()
         value_loss = F.smooth_l1_loss(rollouts.values, rollouts.returns[:-1])
@@ -199,7 +244,7 @@ class A2C(pl.LightningModule):
         tqdm_dict = {
             "loss": train_loss.item(),
             "running_reward": np.mean(self.rewards_buffer),
-            "last_reward": final_reward.mean()
+            "last_reward": final_reward.mean(),
         }
 
         # show train_loss and train_acc in progress bar but only log train_loss
@@ -209,7 +254,7 @@ class A2C(pl.LightningModule):
             "log": {
                 "train_loss": train_loss.item(),
                 "running_reward": np.mean(self.rewards_buffer),
-                "last_reward": final_reward.mean()
+                "last_reward": final_reward.mean(),
             },
         }
 
