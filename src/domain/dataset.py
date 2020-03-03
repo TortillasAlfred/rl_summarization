@@ -41,13 +41,15 @@ class CnnDailyMailDataset(SummarizationDataset):
         vectors,
         *,
         sets=["train", "val", "test"],
+        begin_idx=None,
+        end_idx=None,
         dev=False,
         vectors_cache="./data/embeddings",
-        filter_pred=not_empty_example,
+        filter_pred=None,
     ):
         self.path = path
         self._build_reading_fields()
-        subsets = self._load_all(sets, dev)
+        subsets, self.fpaths = self._load_all(sets, dev, begin_idx, end_idx)
         super(CnnDailyMailDataset, self).__init__(
             subsets, self.fields, vectors, vectors_cache, filter_pred
         )
@@ -67,24 +69,27 @@ class CnnDailyMailDataset(SummarizationDataset):
             ],
         }
 
-    def _load_all(self, sets, dev):
+    def _load_all(self, sets, dev, begin_idx, end_idx):
         if "train" in sets and sets.index("train") != 0:
             raise ValueError(
                 "If loading the training dataset, it must be first in the sets list."
             )
 
         loaded_sets = []
+        paths = {}
 
         for split in sets:
-            loaded_sets.append((split, self._load_split(split, dev)))
+            articles, fpaths = self._load_split(split, dev, begin_idx, end_idx)
+            loaded_sets.append((split, articles))
+            paths[split] = fpaths
 
         self.fields = [
             field for field_list in self.fields.values() for field in field_list
         ]
 
-        return loaded_sets
+        return loaded_sets, paths
 
-    def _load_split(self, split, dev):
+    def _load_split(self, split, dev, begin_idx, end_idx):
         finished_path = os.path.join(self.path, "finished_files")
         reading_path = os.path.join(finished_path, split)
 
@@ -96,16 +101,21 @@ class CnnDailyMailDataset(SummarizationDataset):
                 tar.extractall(finished_path)
 
         all_articles = []
+        all_paths = []
         all_files = os.listdir(reading_path)
 
         if dev:
             all_files = all_files[:100]
+        elif begin_idx is not None and end_idx is not None:
+            all_files = all_files[begin_idx:end_idx]
 
         for fname in datetime_tqdm(all_files, desc=f"Reading {split} files..."):
-            with open(os.path.join(reading_path, fname), "r") as data:
+            fpath = os.path.join(reading_path, fname)
+            with open(fpath, "r") as data:
                 all_articles.append(Example.fromJSON(data.read(), self.fields))
+                all_paths.append(fpath)
 
-        return all_articles
+        return all_articles, all_paths
 
     def _build_vocabs(self, vectors, vectors_cache):
         logging.info("Building vocab from the whole dataset.")
