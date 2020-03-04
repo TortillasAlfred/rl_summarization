@@ -36,7 +36,7 @@ def main(options):
     )
 
     article_lens = [len(art) for _, art in iterable]
-    logging.info(f'Article lengths are : {article_lens')
+    logging.info(f'Article lengths are : {article_lens}')
 
     for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
         all_summ_idxs = list(permutations(range(len(article.raw_content)), 3))
