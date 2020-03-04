@@ -21,16 +21,18 @@ def main(options):
     logging.info(f"Beginning rouge script for slice {options.slice}")
 
     dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail",
+        options.data_path,
         "glove.6B.100d",
-        sets=["train"],
+        sets=[options.dataset],
         begin_idx=begin_idx,
         end_idx=end_idx,
         dev=False,
     )
     reward = RougeReward(n_jobs=-1)
 
-    iterable = list(zip(dataset.fpaths["train"], dataset.get_splits()["train"],))
+    iterable = list(
+        zip(dataset.fpaths[options.dataset], dataset.get_splits()[options.dataset],)
+    )
 
     for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
         all_summ_idxs = list(permutations(range(len(article.raw_content)), 3))
@@ -51,7 +53,7 @@ def main(options):
         with open(fpath, "w", encoding="utf8") as f:
             json.dump(data, f)
 
-        logging.info(f'Done file {fpath}')
+        logging.info(f"Done file {fpath}")
 
     logging.info("Done")
 
@@ -59,5 +61,9 @@ def main(options):
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument("slice", type=int)
+    argument_parser.add_argument(
+        "--data_path", type=str, default="./data/cnn_dailymail"
+    )
+    argument_parser.add_argument("--dataset", type=str, default="train")
     options = argument_parser.parse_args()
     main(options)
