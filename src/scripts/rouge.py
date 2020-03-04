@@ -35,6 +35,9 @@ def main(options):
         zip(dataset.fpaths[options.dataset], dataset.get_splits()[options.dataset],)
     )
 
+    article_lens = [len(art) for _, art in iterable]
+    logging.info(f'Article lengths are : {article_lens')
+
     for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
         all_summ_idxs = list(permutations(range(len(article.raw_content)), 3))
         all_summs = [[article.raw_content[i] for i in idxs] for idxs in all_summ_idxs]
@@ -54,7 +57,7 @@ def main(options):
         with open(fpath, "w", encoding="utf8") as f:
             json.dump(data, f)
 
-        logging.info(f"Done file {fpath}")
+        logging.info(f"Done file {fpath} that contained {len(article.raw_content)} sentences.")
 
     logging.info("Done")
 
