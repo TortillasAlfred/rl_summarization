@@ -23,6 +23,7 @@ def main(options):
     dataset = CnnDailyMailDataset(
         options.data_path,
         "glove.6B.100d",
+        vectors_cache=options.vectors_cache,
         sets=[options.dataset],
         begin_idx=begin_idx,
         end_idx=end_idx,
@@ -65,5 +66,8 @@ if __name__ == "__main__":
         "--data_path", type=str, default="./data/cnn_dailymail"
     )
     argument_parser.add_argument("--dataset", type=str, default="train")
+    argument_parser.add_argument(
+        "--vectors_cache", type=str, default="./data/embeddings"
+    )
     options = argument_parser.parse_args()
     main(options)
