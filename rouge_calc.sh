@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --array=0-1                                        
+#SBATCH --array=0-958                                        
 #SBATCH --account=def-lulam50                                 # Account with resources
 #SBATCH --cpus-per-task=8                                     # Number of CPUs
 #SBATCH --mem=5G                                              # memory (per node)
@@ -18,7 +18,7 @@ SECONDS=0
 # The $@ transfers all args passed to this bash file to the Python script
 # i.e. a call to 'sbatch $sbatch_args this_launcher.sh --arg1=0 --arg2=True'
 # will call 'python my_script.py --arg1=0 --arg2=True'
-python -m src.scripts.rouge $SLURM_ARRAY_TASK_ID --data_path=/scratch/magod/summarization_datasets/cnn_dailymail/data --vectors_cache=/scratch/magod/embeddings/ 
+python -um src.scripts.rouge $SLURM_ARRAY_TASK_ID --data_path=/scratch/magod/summarization_datasets/cnn_dailymail/data --vectors_cache=/scratch/magod/embeddings/ 
 
 # Utility to show job duration in output file
 diff=$SECONDS
