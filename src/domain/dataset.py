@@ -21,7 +21,7 @@ class SummarizationDataset(Dataset):
         self.subsets = OrderedDict(
             [(key, Dataset(subset, fields, filter_pred)) for key, subset in subsets]
         )
-        # self._build_vocabs(vectors, vectors_cache)
+        self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
         raise NotImplementedError()
@@ -55,17 +55,18 @@ class CnnDailyMailDataset(SummarizationDataset):
         )
 
     def _build_reading_fields(self):
-        raw_content = RawField()
-        id = RawField()
-        raw_abstract = RawField(is_target=True)
-        content = NestedField(Field(),)
-        abstract = NestedField(Field())
-        abstract.is_target = True
+        self.raw_content = RawField()
+        self.raw_abstract = RawField(is_target=True)
+        self.content = NestedField(Field(),)
+        self.abstract = NestedField(Field())
+        self.abstract.is_target = True
 
         self.fields = {
-            "article": [("raw_content", raw_content), ("content", content)],
-            "abstract": [("raw_abstract", raw_abstract), ("abstract", abstract),],
-            "id": [("id", id)],
+            "article": [("raw_content", self.raw_content), ("content", self.content)],
+            "abstract": [
+                ("raw_abstract", self.raw_abstract),
+                ("abstract", self.abstract),
+            ],
         }
 
     def _load_all(self, sets, dev, begin_idx, end_idx):
@@ -111,7 +112,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         for fname in datetime_tqdm(all_files, desc=f"Reading {split} files..."):
             fpath = os.path.join(reading_path, fname)
             with open(fpath, "r") as data:
-                # all_articles.append(Example.fromJSON(data.read(), self.fields))
+                all_articles.append(Example.fromJSON(data.read(), self.fields))
                 all_paths.append(fpath)
 
         return all_articles, all_paths
@@ -155,7 +156,7 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.100d", dev=True, sets=["train"])
+    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.100d", dev=True)
 
     train_set = dataset.get_splits()["train"]
 
