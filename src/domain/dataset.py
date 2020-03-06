@@ -55,17 +55,17 @@ class CnnDailyMailDataset(SummarizationDataset):
         )
 
     def _build_reading_fields(self):
-        raw_content = RawField()
-        id = RawField()
-        raw_abstract = RawField(is_target=True)
-        content = NestedField(Field(),)
-        abstract = NestedField(Field())
-        abstract.is_target = True
+        self.raw_content = RawField()
+        self.id = RawField()
+        self.raw_abstract = RawField(is_target=True)
+        self.content = NestedField(Field(),)
+        self.abstract = NestedField(Field())
+        self.abstract.is_target = True
 
         self.fields = {
-            "article": [("raw_content", raw_content), ("content", content)],
-            "abstract": [("raw_abstract", raw_abstract), ("abstract", abstract),],
-            "id": [("id", id)],
+            "article": [("raw_content", self.raw_content), ("content", self.content)],
+            "abstract": [("raw_abstract", self.raw_abstract), ("abstract", self.abstract),],
+            "id": [("id", self.id)],
         }
 
     def _load_all(self, sets, dev, begin_idx, end_idx):
