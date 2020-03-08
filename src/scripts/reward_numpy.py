@@ -12,25 +12,20 @@ from collections import OrderedDict
 from math import ceil
 
 
-def adapt_key(key):
-    idxs = key.split("-")
-    idxs = [i if len(i) == 2 else "0" + i for i in idxs]
-    return "-".join(idxs)
-
-
 @delayed
 def process_sample(fname, saving_dir, read_dir):
     with open(os.path.join(read_dir, fname), "rb") as f:
         data = json.load(f)
 
-    data = OrderedDict({adapt_key(k): v for k, v in data.items()})
-    data = list(data.values())
     n_sents = ceil(len(data) ** (1 / 3)) + 1
     assert n_sents * (n_sents - 1) * (n_sents - 2) == len(data)
-    data.append([(n_sents - 1) * (n_sents - 2), n_sents - 2, 1])
+    matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
+    for key, rouge in data.items():
+        idx = np.asarray(key.split('-'), dtype=int)
+        matrix_data[tuple(idx)] = np.asarray(rouge)
 
     f_id = fname.split(".")[0]
-    np.save(os.path.join(saving_dir, f_id), data)
+    np.save(os.path.join(saving_dir, f_id), matrix_data)
 
 
 def main(options):
