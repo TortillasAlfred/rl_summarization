@@ -45,7 +45,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         end_idx=None,
         dev=False,
         vectors_cache="./data/embeddings",
-        filter_pred=None,
+        filter_pred=not_empty_example,
     ):
         self.path = path
         self._build_reading_fields()
