@@ -7,7 +7,7 @@ import os
 import argparse
 import json
 
-from itertools import permutations
+from itertools import combinations
 
 SLICE_SIZE = 300
 
@@ -39,7 +39,7 @@ def main(options):
     logging.info(f"Article lengths are : {article_lens}")
 
     for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-        all_summ_idxs = list(permutations(range(len(article.raw_content)), 3))
+        all_summ_idxs = list(combinations(range(len(article.raw_content)), 3))
         all_summs = [[article.raw_content[i] for i in idxs] for idxs in all_summ_idxs]
         all_refs = [article.raw_abstract for _ in all_summs]
 
