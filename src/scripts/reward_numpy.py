@@ -50,7 +50,10 @@ def process_sample(fpath, saving_dir, bad_files_path):
 def main(options):
     configure_logging()
 
-    bad_files_path = os.path.join(options.saving_dir, "bad_train_files.pck")
+    saving_dir = os.path.join(options.target_dir, options.dataset)
+    os.makedirs(saving_dir, exist_ok=True)
+
+    bad_files_path = os.path.join(saving_dir, "bad_train_files.pck")
 
     with open(bad_files_path, "wb") as f:
         pickle.dump([], f)
@@ -62,9 +65,6 @@ def main(options):
         sets=[options.dataset],
         dev=options.dev,
     )
-
-    saving_dir = os.path.join(options.target_dir, options.dataset)
-    os.makedirs(saving_dir, exist_ok=True)
 
     Parallel(n_jobs=-1)(
         process_sample(fname, saving_dir, bad_files_path)
