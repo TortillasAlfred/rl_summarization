@@ -9,10 +9,7 @@ import numpy as np
 import pickle
 
 from joblib import Parallel, delayed
-from collections import OrderedDict
 from itertools import permutations
-from math import ceil
-
 
 @delayed
 def process_sample(fpath, saving_dir, bad_files_path):
@@ -24,8 +21,7 @@ def process_sample(fpath, saving_dir, bad_files_path):
 
         del data["rouge"]
 
-        n_sents = ceil(len(rouge_scores) ** (1 / 3)) + 1
-        assert n_sents * (n_sents - 1) * (n_sents - 2) == len(data)
+        n_sents = len(data["article"])
         matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
         for key, rouge in data.items():
             idx = np.asarray(key.split("-"), dtype=int)
