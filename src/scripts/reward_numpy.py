@@ -88,9 +88,6 @@ if __name__ == "__main__":
     argument_parser.add_argument(
         "--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/"
     )
-    argument_parser.add_argument(
-        "--source_dir", type=str, default="./data/cnn_dailymail/rouge/"
-    )
     argument_parser.add_argument("--dev", action="store_true")
     options = argument_parser.parse_args()
     main(options)
