@@ -11,10 +11,13 @@ import pickle
 from joblib import Parallel, delayed
 from itertools import permutations
 
+
 @delayed
-def process_sample(fpath, saving_dir, bad_files_path):
+def process_sample(fpath, saving_dir):
     with open(fpath, "rb") as f:
         data = json.load(f)
+
+    npy_fpath = os.path.join(saving_dir, data["id"]) + ".npy"
 
     if "rouge" in data:
         rouge_scores = data["rouge"]
@@ -29,18 +32,14 @@ def process_sample(fpath, saving_dir, bad_files_path):
             for i in permutations(idx):
                 matrix_data[tuple(idx)] = np.asarray(rouge)
 
-        np.save(os.path.join(saving_dir, data["id"]), matrix_data)
+        np.save(npy_fpath, matrix_data)
 
         with open(fpath, "w", encoding="utf8") as f:
             json.dump(data, f)
-    else:
-        with open(bad_files_path, "rb") as f:
-            bad_files = pickle.load(f)
+    elif not os.path.isfile(npy_fpath):
+        return fpath
 
-        bad_files.append(fpath)
-
-        with open(bad_files_path, "wb") as f:
-            pickle.dump(bad_files, f)
+    return None
 
 
 def main(options):
@@ -48,11 +47,6 @@ def main(options):
 
     saving_dir = os.path.join(options.target_dir, options.dataset)
     os.makedirs(saving_dir, exist_ok=True)
-
-    bad_files_path = os.path.join(saving_dir, "bad_train_files.pck")
-
-    with open(bad_files_path, "wb") as f:
-        pickle.dump([], f)
 
     dataset = CnnDailyMailDataset(
         options.data_path,
@@ -62,12 +56,19 @@ def main(options):
         dev=options.dev,
     )
 
-    Parallel(n_jobs=-1)(
-        process_sample(fname, saving_dir, bad_files_path)
+    bad_files = Parallel(n_jobs=-1)(
+        process_sample(fname, saving_dir)
         for fname in datetime_tqdm(
             dataset.fpaths[options.dataset], desc="Saving rouge scores"
         )
     )
+
+    bad_files = list(filter(None, bad_files))
+
+    bad_files_path = os.path.join(saving_dir, "bad_train_files.pck")
+
+    with open(bad_files_path, "wb") as f:
+        pickle.dump(bad_files, f)
 
     logging.info("Done")
 
