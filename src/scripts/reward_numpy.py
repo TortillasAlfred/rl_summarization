@@ -23,7 +23,7 @@ def process_sample(fpath, saving_dir, bad_files_path):
 
         n_sents = len(data["article"])
         matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
-        for key, rouge in data.items():
+        for key, rouge in rouge_scores.items():
             idx = np.asarray(key.split("-"), dtype=int)
 
             for i in permutations(idx):
