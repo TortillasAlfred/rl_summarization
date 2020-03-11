@@ -25,14 +25,16 @@ def process_sample(fpath, saving_dir):
         del data["rouge"]
 
         n_sents = len(data["article"])
-        matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
-        for key, rouge in rouge_scores.items():
-            idx = np.asarray(key.split("-"), dtype=int)
 
-            for i in permutations(idx):
-                matrix_data[tuple(idx)] = np.asarray(rouge)
+        if n_sents >= 3 and len(data["abstract"]) > 0:
+            matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
+            for key, rouge in rouge_scores.items():
+                idx = np.asarray(key.split("-"), dtype=int)
 
-        np.save(npy_fpath, matrix_data)
+                for i in permutations(idx):
+                    matrix_data[tuple(idx)] = np.asarray(rouge)
+
+            np.save(npy_fpath, matrix_data)
 
         with open(fpath, "w", encoding="utf8") as f:
             json.dump(data, f)
