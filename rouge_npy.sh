@@ -5,7 +5,7 @@
 #SBATCH --time=0-12:00                                        # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca               # Where to email
 #SBATCH --mail-type=FAIL                                      # Email when a job fails
-#SBATCH --output=/scratch/magod/rouge_calc/%A_%a.out          # Default write output on scratch, to jobID_arrayID.out file
+#SBATCH --output=/scratch/magod/rouge_npy/%A_%a.out          # Default write output on scratch, to jobID_arrayID.out file
 
 source ~/venvs/default/bin/activate
 
