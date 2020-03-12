@@ -6,10 +6,11 @@ import logging
 import os
 import argparse
 import json
+import numpy as np
 
-from itertools import permutations
+from itertools import combinations, permutations
 
-SLICE_SIZE = 300
+SLICE_SIZE = 400
 
 
 def main(options):
@@ -37,25 +38,26 @@ def main(options):
 
     article_lens = [len(art.raw_content) for _, art in iterable]
     logging.info(f"Article lengths are : {article_lens}")
+    save_dir = os.path.join(options.target_dir, options.dataset)
+
+    os.makedirs(save_dir, exist_ok=True)
 
     for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-        all_summ_idxs = list(permutations(range(len(article.raw_content)), 3))
+        all_summ_idxs = list(combinations(range(len(article.raw_content)), 3))
         all_summs = [[article.raw_content[i] for i in idxs] for idxs in all_summ_idxs]
         all_refs = [article.raw_abstract for _ in all_summs]
 
         rouge_scores = reward(all_summs, all_refs, "cpu").squeeze().tolist()
-        rouge_scores_dict = {
-            "-".join([str(i) for i in summ]): rouge_score
-            for summ, rouge_score in zip(all_summ_idxs, rouge_scores)
-        }
+        n_sents = len(article.raw_content)
 
-        with open(fpath, "rb") as f:
-            data = json.load(f)
+        matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
+        for idxs, rouge in zip(all_summ_idxs, rouge_scores):
 
-        data.update({"rouge": rouge_scores_dict})
+            for i in permutations(idxs):
+                matrix_data[tuple(idxs)] = np.asarray(rouge)
 
-        with open(fpath, "w", encoding="utf8") as f:
-            json.dump(data, f)
+        fname = fpath.split("/")[-1].split(".")[0]
+        np.save(os.path.join(save_dir, fname), matrix_data)
 
         logging.info(
             f"Done file {fpath} that contained {len(article.raw_content)} sentences."
@@ -73,6 +75,9 @@ if __name__ == "__main__":
     argument_parser.add_argument("--dataset", type=str, default="train")
     argument_parser.add_argument(
         "--vectors_cache", type=str, default="./data/embeddings"
+    )
+    argument_parser.add_argument(
+        "--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/"
     )
     options = argument_parser.parse_args()
     main(options)
