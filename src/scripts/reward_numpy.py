@@ -20,31 +20,25 @@ def process_sample(fpath, saving_dir):
     npy_fpath = os.path.join(saving_dir, data["id"]) + ".npy"
 
     if "rouge" in data:
-        try:
-            rouge_scores = data["rouge"]
+        rouge_scores = data["rouge"]
 
-            del data["rouge"]
+        del data["rouge"]
 
-            n_sents = len(data["article"])
+        n_sents = len(data["article"])
 
-            if n_sents >= 3 and len(data["abstract"]) > 0:
-                matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
-                for key, rouge in rouge_scores.items():
-                    idx = np.asarray(key.split("-"), dtype=int)
+        if n_sents >= 3 and len(data["abstract"]) > 0:
+            matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
+            print(n_sents, rouge_scores, fpath)
+            for key, rouge in rouge_scores.items():
+                idx = np.asarray(key.split("-"), dtype=int)
 
-                    for i in permutations(idx):
-                        matrix_data[tuple(idx)] = np.asarray(rouge)
+                for i in permutations(idx):
+                    matrix_data[tuple(idx)] = np.asarray(rouge)
 
-                np.save(npy_fpath, matrix_data)
+            np.save(npy_fpath, matrix_data)
 
-            with open(fpath, "w", encoding="utf8") as f:
-                json.dump(data, f)
-        except Exception as e:
-            logging.info(f"Data:\n{data}")
-            logging.info(f"Rouge scores:\n{rouge_scores}")
-            logging.info(f"fpath:{fpath}")
-            logging.info(f"key:{key}")
-            raise e
+        with open(fpath, "w", encoding="utf8") as f:
+            json.dump(data, f)
     elif not os.path.isfile(npy_fpath):
         return fpath
 
