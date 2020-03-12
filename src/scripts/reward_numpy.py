@@ -37,12 +37,14 @@ def process_sample(fpath, saving_dir):
 
                 np.save(npy_fpath, matrix_data)
 
+            with open(fpath, "w", encoding="utf8") as f:
+                json.dump(data, f)
         except Exception as e:
             logging.info(f"Data:\n{data}")
             logging.info(f"Rouge scores:\n{rouge_scores}")
             logging.info(f"fpath:{fpath}")
-        with open(fpath, "w", encoding="utf8") as f:
-            json.dump(data, f)
+            logging.info(f"key:{key}")
+            raise e
     elif not os.path.isfile(npy_fpath):
         return fpath
 
