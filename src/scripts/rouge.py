@@ -16,52 +16,37 @@ SLICE_SIZE = 400
 def main(options):
     configure_logging()
 
-    begin_idx = options.slice * SLICE_SIZE
-    end_idx = begin_idx + SLICE_SIZE
-
-    logging.info(f"Beginning rouge script for slice {options.slice}")
-
-    dataset = CnnDailyMailDataset(
-        options.data_path,
-        "glove.6B.100d",
-        vectors_cache=options.vectors_cache,
-        sets=[options.dataset],
-        begin_idx=begin_idx,
-        end_idx=end_idx,
-        dev=False,
-    )
     reward = RougeReward(n_jobs=-1)
 
-    iterable = list(
-        zip(dataset.fpaths[options.dataset], dataset.get_splits()[options.dataset],)
-    )
+    for dataset in ["test", "val", "train"]:
+        save_dir = os.path.join(options.target_dir, dataset)
 
-    article_lens = [len(art.raw_content) for _, art in iterable]
-    logging.info(f"Article lengths are : {article_lens}")
-    save_dir = os.path.join(options.target_dir, options.dataset)
+        os.makedirs(save_dir, exist_ok=True)
 
-    os.makedirs(save_dir, exist_ok=True)
+        bad_files_dir = "/scratch/magod/summarization_datasets/bad_files/"
 
-    for fpath, article in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-        all_summ_idxs = list(combinations(range(len(article.raw_content)), 3))
-        all_summs = [[article.raw_content[i] for i in idxs] for idxs in all_summ_idxs]
-        all_refs = [article.raw_abstract for _ in all_summs]
+        with open(os.path.join(bad_files_dir, f"{dataset}.pck"), "rb") as f:
+            iterable = pickle.load(f)
 
-        rouge_scores = reward(all_summs, all_refs, "cpu").squeeze().tolist()
-        n_sents = len(article.raw_content)
+        for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
+            article = json.load(fpath)
+            all_summ_idxs = list(combinations(range(len(article["article"])), 3))
+            all_summs = [
+                [article["article"][i] for i in idxs] for idxs in all_summ_idxs
+            ]
+            all_refs = [article["abstract"] for _ in all_summs]
 
-        matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
-        for idxs, rouge in zip(all_summ_idxs, rouge_scores):
+            rouge_scores = reward(all_summs, all_refs, "cpu").squeeze().tolist()
+            n_sents = len(article["article"])
 
-            for i in permutations(idxs):
-                matrix_data[tuple(idxs)] = np.asarray(rouge)
+            matrix_data = np.zeros((n_sents, n_sents, n_sents, 3), dtype=np.float32)
+            for idxs, rouge in zip(all_summ_idxs, rouge_scores):
 
-        fname = fpath.split("/")[-1].split(".")[0]
-        np.save(os.path.join(save_dir, fname), matrix_data)
+                for i in permutations(idxs):
+                    matrix_data[tuple(idxs)] = np.asarray(rouge)
 
-        logging.info(
-            f"Done file {fpath} that contained {len(article.raw_content)} sentences."
-        )
+            fname = fpath.split("/")[-1].split(".")[0]
+            np.save(os.path.join(save_dir, fname), matrix_data)
 
     logging.info("Done")
 
