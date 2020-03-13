@@ -29,7 +29,8 @@ def main(options):
             iterable = pickle.load(f)
 
         for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-            article = json.load(fpath)
+            with open(fpath, "rb") as f:
+                article = json.load(f)
             all_summ_idxs = list(combinations(range(len(article["article"])), 3))
             all_summs = [
                 [article["article"][i] for i in idxs] for idxs in all_summ_idxs
