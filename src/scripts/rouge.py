@@ -53,7 +53,6 @@ def main(options):
 
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("slice", type=int)
     argument_parser.add_argument(
         "--data_path", type=str, default="./data/cnn_dailymail"
     )
