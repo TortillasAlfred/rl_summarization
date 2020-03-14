@@ -39,7 +39,7 @@ def main(options):
         saving_dir = os.path.join(options.target_dir, dataset)
         os.makedirs(saving_dir, exist_ok=True)
 
-        Parallel(n_jobs=1)(
+        Parallel(n_jobs=-1)(
             process_sample(fname, saving_dir)
             for fname in datetime_tqdm(
                 dataset.fpaths[dataset], desc="Saving rouge scores"
