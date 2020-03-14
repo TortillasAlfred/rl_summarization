@@ -28,7 +28,9 @@ def json_rouge(dataset, samples):
 
 @timed
 def numpy_rouge(dataset, samples):
-    npy_rouge_dir = "./data/cnn_dailymail/rouge_npy/test/"
+    npy_rouge_dir = (
+        "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/test/"
+    )
     summ_scores = []
 
     for article, summs in datetime_tqdm(list(zip(dataset, samples))):
@@ -51,15 +53,6 @@ if __name__ == "__main__":
         "./data/cnn_dailymail", "glove.6B.100d", dev=False, sets=["test"],
     ).get_splits()["test"]
 
-    # samples = [
-    #     [
-    #         np.random.choice(len(article.raw_content), 3, replace=False)
-    #         for _ in range(100)
-    #     ]
-    #     for article in dataset
-    # ]
-
     samples = [[list(range(3))] for article in dataset]
 
-    # print(json_rouge(dataset, samples))
-    print(numpy_rouge(dataset, samples))
+    logging.info(numpy_rouge(dataset, samples))
