@@ -36,14 +36,14 @@ def main(options):
         dev=False,
     )
 
-    for dataset in ["test", "val", "train"]:
-        saving_dir = os.path.join(options.target_dir, dataset)
+    for subset in ["test", "val", "train"]:
+        saving_dir = os.path.join(options.target_dir, subset)
         os.makedirs(saving_dir, exist_ok=True)
 
         Parallel(n_jobs=-1)(
             process_sample(fname, saving_dir)
             for fname in datetime_tqdm(
-                dataset.fpaths[dataset], desc="Saving rouge scores"
+                dataset.fpaths[subset], desc="Saving rouge scores"
             )
         )
 
