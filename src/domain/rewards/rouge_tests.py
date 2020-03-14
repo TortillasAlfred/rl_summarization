@@ -50,7 +50,10 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail", "glove.6B.100d", dev=False, sets=["test"],
+        "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
+        "glove.6B.100d",
+        dev=False,
+        sets=["test"],
     ).get_splits()["test"]
 
     samples = [[list(range(3))] for article in dataset]

@@ -21,7 +21,7 @@ class SummarizationDataset(Dataset):
         self.subsets = OrderedDict(
             [(key, Dataset(subset, fields, filter_pred)) for key, subset in subsets]
         )
-        # self._build_vocabs(vectors, vectors_cache)
+        self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
         raise NotImplementedError()
@@ -113,8 +113,8 @@ class CnnDailyMailDataset(SummarizationDataset):
 
         for fname in datetime_tqdm(all_files, desc=f"Reading {split} files..."):
             fpath = os.path.join(reading_path, fname)
-            # with open(fpath, "r") as data:
-            #     all_articles.append(Example.fromJSON(data.read(), self.fields))
+            with open(fpath, "r") as data:
+                all_articles.append(Example.fromJSON(data.read(), self.fields))
             all_paths.append(fpath)
 
         return all_articles, all_paths
