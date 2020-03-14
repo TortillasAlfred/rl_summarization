@@ -53,6 +53,7 @@ if __name__ == "__main__":
         "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
         "glove.6B.100d",
         dev=False,
+        vectors_cache="/scratch/magod/embeddings/",
         sets=["test"],
     ).get_splits()["test"]
 
