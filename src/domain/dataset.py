@@ -6,6 +6,7 @@ import os
 import logging
 import json
 
+from joblib import Parallel, delayed
 from collections import OrderedDict
 from torchtext.data import (
     Dataset,
@@ -111,11 +112,12 @@ class CnnDailyMailDataset(SummarizationDataset):
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
-        for fname in datetime_tqdm(all_files, desc=f"Reading {split} files..."):
-            fpath = os.path.join(reading_path, fname)
-            with open(fpath, "r") as data:
-                all_articles.append(Example.fromJSON(data.read(), self.fields))
-            all_paths.append(fpath)
+        exs_and_paths = Parallel(n_jobs=-1)(
+            load_fname(fname, reading_path, self.fields)
+            for fname in datetime_tqdm(all_files, desc=f"Reading {split} files...")
+        )
+
+        all_articles, all_paths = zip(*exs_and_paths)
 
         return all_articles, all_paths
 
@@ -149,6 +151,14 @@ class CnnDailyMailDataset(SummarizationDataset):
             dev=config["dev"],
             vectors_cache=config["embeddings_location"],
         )
+
+
+@delayed
+def load_fname(fname, reading_path, fields):
+    fpath = os.path.join(reading_path, fname)
+    with open(fpath, "r") as data:
+        ex = Example.fromJSON(data.read(), fields)
+    return (ex, fpath)
 
 
 if __name__ == "__main__":
