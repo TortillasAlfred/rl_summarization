@@ -1,8 +1,8 @@
 #!/bin/bash                                      
 #SBATCH --account=rpp-corbeilj                             # Account with resources
 #SBATCH --cpus-per-task=16                                     # Number of CPUs
-#SBATCH --mem=10G                                              # memory (per node)
-#SBATCH --time=0-12:00                                        # time (DD-HH:MM)
+#SBATCH --mem=1G                                              # memory (per node)
+#SBATCH --time=0-3:00                                        # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca               # Where to email
 #SBATCH --mail-type=FAIL                                      # Email when a job fails
 #SBATCH --output=/scratch/magod/rouge_npy/%A_%a.out          # Default write output on scratch, to jobID_arrayID.out file
