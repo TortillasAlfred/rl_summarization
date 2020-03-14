@@ -17,7 +17,7 @@ SECONDS=0
 # The $@ transfers all args passed to this bash file to the Python script
 # i.e. a call to 'sbatch $sbatch_args this_launcher.sh --arg1=0 --arg2=True'
 # will call 'python my_script.py --arg1=0 --arg2=True'
-python -um src.scripts.reward_numpy --data_path=/scratch/magod/summarization_datasets/cnn_dailymail/data/ --dataset=train --vectors_cache=/scratch/magod/embeddings/ --target_dir=/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/
+python -um src.scripts.reward_numpy --data_path=/scratch/magod/summarization_datasets/cnn_dailymail/data/ --vectors_cache=/scratch/magod/embeddings/ --target_dir=/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/
 # Utility to show job duration in output file
 diff=$SECONDS
 echo "$(($diff / 60)) minutes and $(($diff % 60)) seconds elapsed."
