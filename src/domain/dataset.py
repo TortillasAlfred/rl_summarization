@@ -117,6 +117,8 @@ class CnnDailyMailDataset(SummarizationDataset):
             for fname in datetime_tqdm(all_files, desc=f"Reading {split} files...")
         )
 
+        logging.info(list(exs_and_paths))
+
         all_articles, all_paths = zip(*exs_and_paths)
 
         return all_articles, all_paths
