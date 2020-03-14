@@ -18,10 +18,11 @@ def process_sample(fpath, saving_dir):
         data = json.load(f)
 
     f_id = fpath.split("/")[-1].split(".")[0]
+
     npy_old_path = os.path.join(saving_dir, f_id) + ".npy"
     npy_new_path = os.path.join(saving_dir, data["id"]) + ".npy"
-
-    os.rename(npy_old_path, npy_new_path)
+    if os.path.isfile(npy_old_path):
+        os.rename(npy_old_path, npy_new_path)
 
 
 def main(options):
