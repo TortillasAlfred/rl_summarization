@@ -19,9 +19,9 @@ from torchtext.data import (
 
 class SummarizationDataset(Dataset):
     def __init__(self, subsets, fields, vectors, vectors_cache, filter_pred=None):
-        self.subsets = OrderedDict(
-            [(key, Dataset(subset, fields, filter_pred)) for key, subset in subsets]
-        )
+        self.subsets = {
+            key: Dataset(subset, fields, filter_pred) for key, subset in subsets
+        }
         self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
@@ -32,7 +32,7 @@ class SummarizationDataset(Dataset):
 
 
 def not_empty_example(example):
-    return not (len(example.content) < 3 or len(example.abstract) == 0)
+    return len(example.content) > 3 and len(example.abstract) > 0
 
 
 class CnnDailyMailDataset(SummarizationDataset):
@@ -121,7 +121,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
         all_articles, all_paths = zip(*exs_and_paths)
 
-        return all_articles, all_paths
+        return list(all_articles), list(all_paths)
 
     def _build_vocabs(self, vectors, vectors_cache):
         logging.info("Building vocab from the whole dataset.")
