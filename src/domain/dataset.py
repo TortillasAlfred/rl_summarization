@@ -6,6 +6,7 @@ import os
 import logging
 import json
 
+from joblib import Parallel, delayed
 from collections import OrderedDict
 from torchtext.data import (
     Dataset,
@@ -18,9 +19,9 @@ from torchtext.data import (
 
 class SummarizationDataset(Dataset):
     def __init__(self, subsets, fields, vectors, vectors_cache, filter_pred=None):
-        self.subsets = OrderedDict(
-            [(key, Dataset(subset, fields, filter_pred)) for key, subset in subsets]
-        )
+        self.subsets = {
+            key: Dataset(subset, fields, filter_pred) for key, subset in subsets
+        }
         self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
@@ -31,7 +32,7 @@ class SummarizationDataset(Dataset):
 
 
 def not_empty_example(example):
-    return not (len(example.content) < 3 or len(example.abstract) == 0)
+    return len(example.content) > 3 and len(example.abstract) > 0
 
 
 class CnnDailyMailDataset(SummarizationDataset):
@@ -41,19 +42,22 @@ class CnnDailyMailDataset(SummarizationDataset):
         vectors,
         *,
         sets=["train", "val", "test"],
+        begin_idx=None,
+        end_idx=None,
         dev=False,
         vectors_cache="./data/embeddings",
         filter_pred=not_empty_example,
     ):
         self.path = path
         self._build_reading_fields()
-        subsets = self._load_all(sets, dev)
+        subsets, self.fpaths = self._load_all(sets, dev, begin_idx, end_idx)
         super(CnnDailyMailDataset, self).__init__(
             subsets, self.fields, vectors, vectors_cache, filter_pred
         )
 
     def _build_reading_fields(self):
         self.raw_content = RawField()
+        self.id = RawField()
         self.raw_abstract = RawField(is_target=True)
         self.content = NestedField(Field(),)
         self.abstract = NestedField(Field())
@@ -65,26 +69,30 @@ class CnnDailyMailDataset(SummarizationDataset):
                 ("raw_abstract", self.raw_abstract),
                 ("abstract", self.abstract),
             ],
+            "id": [("id", self.id)],
         }
 
-    def _load_all(self, sets, dev):
+    def _load_all(self, sets, dev, begin_idx, end_idx):
         if "train" in sets and sets.index("train") != 0:
             raise ValueError(
                 "If loading the training dataset, it must be first in the sets list."
             )
 
         loaded_sets = []
+        paths = {}
 
         for split in sets:
-            loaded_sets.append((split, self._load_split(split, dev)))
+            articles, fpaths = self._load_split(split, dev, begin_idx, end_idx)
+            loaded_sets.append((split, articles))
+            paths[split] = fpaths
 
         self.fields = [
             field for field_list in self.fields.values() for field in field_list
         ]
 
-        return loaded_sets
+        return loaded_sets, paths
 
-    def _load_split(self, split, dev):
+    def _load_split(self, split, dev, begin_idx, end_idx):
         finished_path = os.path.join(self.path, "finished_files")
         reading_path = os.path.join(finished_path, split)
 
@@ -96,16 +104,22 @@ class CnnDailyMailDataset(SummarizationDataset):
                 tar.extractall(finished_path)
 
         all_articles = []
+        all_paths = []
         all_files = os.listdir(reading_path)
 
         if dev:
             all_files = all_files[:100]
+        elif begin_idx is not None and end_idx is not None:
+            all_files = all_files[begin_idx:end_idx]
 
-        for fname in datetime_tqdm(all_files, desc=f"Reading {split} files..."):
-            with open(os.path.join(reading_path, fname), "r") as data:
-                all_articles.append(Example.fromJSON(data.read(), self.fields))
+        exs_and_paths = Parallel(n_jobs=-1)(
+            load_fname(fname, reading_path, self.fields)
+            for fname in datetime_tqdm(all_files, desc=f"Reading {split} files...")
+        )
 
-        return all_articles
+        all_articles, all_paths = zip(*exs_and_paths)
+
+        return list(all_articles), list(all_paths)
 
     def _build_vocabs(self, vectors, vectors_cache):
         logging.info("Building vocab from the whole dataset.")
@@ -139,6 +153,14 @@ class CnnDailyMailDataset(SummarizationDataset):
         )
 
 
+@delayed
+def load_fname(fname, reading_path, fields):
+    fpath = os.path.join(reading_path, fname)
+    with open(fpath, "r") as data:
+        ex = Example.fromJSON(data.read(), fields)
+    return (ex, fpath)
+
+
 if __name__ == "__main__":
     from src.domain.utils import configure_logging
 
@@ -146,7 +168,9 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.100d", dev=True)
+    dataset = CnnDailyMailDataset(
+        "./data/cnn_dailymail", "glove.6B.100d", dev=True, sets=["train"]
+    )
 
     train_set = dataset.get_splits()["train"]
 
