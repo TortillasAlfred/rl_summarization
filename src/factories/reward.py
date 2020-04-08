@@ -1,14 +1,14 @@
-from src.domain.rewards.rouge import RougeReward
+from src.domain.rewards.rouge import RougeRewardBuilder
 
 
 class RewardFactory:
     ROUGE = "rouge"
 
     @classmethod
-    def get_reward(cls, dataset, config):
+    def get_reward(cls, config):
         reward_type = config["reward"]
 
         if reward_type == cls.ROUGE:
-            return RougeReward.from_config(dataset, config)
+            return RougeRewardBuilder.from_config(config)
         else:
             raise ValueError(f"Reward type {reward_type} not implemented.")

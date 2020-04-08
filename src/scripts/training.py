@@ -18,7 +18,7 @@ def main(_config):
 
     dataset = DatasetFactory.get_dataset(_config)
     trainer = TrainerFactory.get_trainer(_config)
-    reward = RewardFactory.get_reward(dataset, _config)
+    reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 
     trainer.fit(model)

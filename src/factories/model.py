@@ -1,5 +1,5 @@
 from src.domain.models.baselines import *
-from src.domain.models.bandit import *
+from src.domain.models.banditsum import *
 from src.domain.models.a2c import *
 
 

@@ -7,14 +7,13 @@ dev: False
 ##################
 ### MODEL ARGS ###
 ##################
-model: "a2c" # One of ['lead3', 'banditsum', 'a2c']
-items_per_epoch: 50000
+model: "banditsum" # One of ['lead3', 'banditsum', 'a2c']
 train_batch_size: 1
-test_batch_size: 1
+test_batch_size: 16
 hidden_dim: 200
 decoder_dim: 100
-n_repeats_per_sample: 16
-learning_rate: 0.001
+n_repeats_per_sample: 20
+learning_rate: 0.00005
 epsilon: 0.1
 n_sents_per_summary: 3
 
@@ -31,18 +30,20 @@ sets: ["train", "val", "test"] # List containing combination of ['train', 'val',
 ### REWARD ARGS ###
 ###################
 reward: "rouge" # One of ['rouge']
-rouge_jobs: -1
+rouge_base_path: "./data/cnn_dailymail/rouge_npy/"
 
 ####################
 ### TRAINER ARGS ###
 ####################
 trainer: "pl" # One of ['gradient_free', 'pl']
-save_path: "."
 gradient_clip_val: 1
 gpus: 1
 overfit_pct: 0.0
 fast_dev_run: False
-max_epochs: 1000
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 use_amp: False
-print_nan_grads: False
+print_nan_grads: True
+val_check_interval: 0.1
+default_save_path: "./results/"
+weights_save_path: "./weights"
+max_epochs: 4
