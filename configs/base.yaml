@@ -21,16 +21,16 @@ n_sents_per_summary: 3
 ### DATASET ARGS ###
 ####################
 dataset: "cnn_dailymail" # One of ['cnn_dailymail']
-data_path: "./data/cnn_dailymail" # Argument to the Dataset object
+data_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
-embeddings_location: "./data/embeddings"
+embeddings_location: "/scratch/magod/embeddings/"
 sets: ["train", "val", "test"] # List containing combination of ['train', 'val', 'test']. If present, 'train' must be first
 
 ###################
 ### REWARD ARGS ###
 ###################
 reward: "rouge" # One of ['rouge']
-rouge_base_path: "./data/cnn_dailymail/rouge_npy/"
+rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/"
 
 ####################
 ### TRAINER ARGS ###
@@ -44,6 +44,6 @@ distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 use_amp: False
 print_nan_grads: True
 val_check_interval: 0.1
-default_save_path: "./results/"
-weights_save_path: "./weights"
+default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
+weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
 max_epochs: 4
