@@ -16,13 +16,14 @@ def python_rouge(fpaths, samples):
     rouge_reward = RougeReward(n_jobs=-1)
     summ_scores = []
 
-    for fpath, article_summ in datetime_tqdm(list(zip(fpaths, samples))):
+    for fpath, article_summs in datetime_tqdm(list(zip(fpaths, samples))):
         with open(fpath, "rb") as f:
             article = json.load(f)
 
         if len(article["article"]) > 5:
-            hyp_summ = [article["article"][i] for i in article_summ]
-            summ_scores.append(rouge_reward([hyp_summ], [article["abstract"]], "cpu"))
+            for article_summ in article_summs:
+                hyp_summ = [article["article"][i] for i in article_summ]
+                summ_scores.append(rouge_reward([hyp_summ], [article["abstract"]], "cpu"))
 
     return np.asarray([t.numpy()[0][0] for t in summ_scores])
 
@@ -31,7 +32,7 @@ def python_rouge(fpaths, samples):
 def numpy_rouge(fpaths, samples, subset, rouge_npy_path):
     summ_scores = []
 
-    for fpath, article_summ in datetime_tqdm(list(zip(fpaths, samples))):
+    for fpath, article_summs in datetime_tqdm(list(zip(fpaths, samples))):
         with open(fpath, "rb") as f:
             article = json.load(f)
 
@@ -39,7 +40,8 @@ def numpy_rouge(fpaths, samples, subset, rouge_npy_path):
             scorer = RougeRewardScorer(
                 os.path.join(rouge_npy_path, subset, f'{article["id"]}.npy')
             )
-            summ_scores.append(scorer.get_score(article_summ))
+            for article_summ in article_summs:
+                summ_scores.append(scorer.get_score(article_summ))
 
     return np.asarray(summ_scores)
 
@@ -52,7 +54,7 @@ if __name__ == "__main__":
     dataset = CnnDailyMailDataset(
         "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
         "glove.6B.100d",
-        dev=True,
+        dev=False,
         vectors_cache="/scratch/magod/embeddings/",
         sets=["val", "test"],
     )
@@ -60,7 +62,7 @@ if __name__ == "__main__":
     for subset in ["val", "test"]:
         fpaths = dataset.fpaths[subset]
 
-        samples = [list(range(3)) for _ in fpaths]
+        samples = [[list(range(3))] * 1 for _ in fpaths]
 
         python_rouge_scores = python_rouge(fpaths, samples)
         numpy_rouge_scores = numpy_rouge(
@@ -70,4 +72,7 @@ if __name__ == "__main__":
             rouge_npy_path="/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/",
         )
 
-        print(np.absolute(python_rouge_scores - numpy_rouge_scores).sum(-1).mean())
+        diffs = np.absolute(python_rouge_scores - numpy_rouge_scores).sum(-1)
+        print((diffs > 0).sum())
+        print(diffs.mean())
+        print(diffs.max())
