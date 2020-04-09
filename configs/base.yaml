@@ -8,8 +8,8 @@ dev: False
 ### MODEL ARGS ###
 ##################
 model: "banditsum" # One of ['lead3', 'banditsum', 'a2c']
-train_batch_size: 4
-test_batch_size: 48
+train_batch_size: 64
+test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
