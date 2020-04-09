@@ -50,20 +50,24 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail/",
+        "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
         "glove.6B.100d",
-        dev=False,
-        vectors_cache="./data/embeddings/",
-        sets=["test"],
+        dev=True,
+        vectors_cache="/scratch/magod/embeddings/",
+        sets=["val", "test"],
     )
 
-    fpaths = dataset.fpaths["test"]
+    for subset in ["val", "test"]:
+        fpaths = dataset.fpaths[subset]
 
-    samples = [list(range(2, 5)) for _ in fpaths]
+        samples = [list(range(3)) for _ in fpaths]
 
-    python_rouge_scores = python_rouge(fpaths, samples)
-    numpy_rouge_scores = numpy_rouge(
-        fpaths, samples, subset="test", rouge_npy_path="./data/cnn_dailymail/rouge_npy",
-    )
+        python_rouge_scores = python_rouge(fpaths, samples)
+        numpy_rouge_scores = numpy_rouge(
+            fpaths,
+            samples,
+            subset=subset,
+            rouge_npy_path="/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/",
+        )
 
-    print(((python_rouge_scores - numpy_rouge_scores).abs()).max())
+        print(np.absolute(python_rouge_scores - numpy_rouge_scores).sum(-1).mean())
