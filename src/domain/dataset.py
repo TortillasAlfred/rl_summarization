@@ -22,7 +22,7 @@ class SummarizationDataset(Dataset):
         self.subsets = {
             key: Dataset(subset, fields, filter_pred) for key, subset in subsets
         }
-        self._build_vocabs(vectors, vectors_cache)
+        # self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
         raise NotImplementedError()
@@ -32,7 +32,8 @@ class SummarizationDataset(Dataset):
 
 
 def not_empty_example(example):
-    return len(example.content) > 3 and len(example.abstract) > 0
+    # return len(example.content) > 3 and len(example.abstract) > 0
+    return True
 
 
 class CnnDailyMailDataset(SummarizationDataset):
@@ -112,7 +113,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
-        exs_and_paths = Parallel(n_jobs=-1)(
+        exs_and_paths = Parallel(n_jobs=1)(
             load_fname(fname, reading_path, self.fields)
             for fname in datetime_tqdm(all_files, desc=f"Reading {split} files...")
         )
@@ -156,8 +157,9 @@ class CnnDailyMailDataset(SummarizationDataset):
 @delayed
 def load_fname(fname, reading_path, fields):
     fpath = os.path.join(reading_path, fname)
-    with open(fpath, "r") as data:
-        ex = Example.fromJSON(data.read(), fields)
+    ex = None
+    # with open(fpath, "r") as data:
+    #     ex = Example.fromJSON(data.read(), fields)
     return (ex, fpath)
 
 

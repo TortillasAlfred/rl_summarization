@@ -1,5 +1,7 @@
 from src.domain.dataset import CnnDailyMailDataset
 from src.domain.utils import set_random_seed, configure_logging, datetime_tqdm
+from src.domain.rewards.rouge_python import RougeReward
+from src.domain.rewards.rouge import RougeRewardScorer
 
 from graal_utils import timed
 
@@ -10,38 +12,36 @@ import os
 
 
 @timed
-def json_rouge(dataset, samples):
-    json_rouge_dir = "./data/cnn_dailymail/rouge/test/"
+def python_rouge(fpaths, samples):
+    rouge_reward = RougeReward(n_jobs=-1)
     summ_scores = []
 
-    for article, summs in datetime_tqdm(list(zip(dataset, samples))):
-        with open(os.path.join(json_rouge_dir, f"{article.id}.json"), "rb") as f:
-            scores = json.load(f)
+    for fpath, article_summ in datetime_tqdm(list(zip(fpaths, samples))):
+        with open(fpath, "rb") as f:
+            article = json.load(f)
 
-        for summ in summs:
-            summ_scores.append(scores["-".join([str(s) for s in summ])])
+        if len(article["article"]) > 5:
+            hyp_summ = [article["article"][i] for i in article_summ]
+            summ_scores.append(rouge_reward([hyp_summ], [article["abstract"]], "cpu"))
 
-    summ_scores = np.asarray(summ_scores)
-
-    return summ_scores.mean(0)
+    return np.asarray([t.numpy()[0][0] for t in summ_scores])
 
 
 @timed
-def numpy_rouge(dataset, samples):
-    npy_rouge_dir = (
-        "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/test/"
-    )
+def numpy_rouge(fpaths, samples, subset, rouge_npy_path):
     summ_scores = []
 
-    for article, summs in datetime_tqdm(list(zip(dataset, samples))):
-        scores = np.load(os.path.join(npy_rouge_dir, f"{article.id}.npy"))
+    for fpath, article_summ in datetime_tqdm(list(zip(fpaths, samples))):
+        with open(fpath, "rb") as f:
+            article = json.load(f)
 
-        for summ in summs:
-            summ_scores.append(scores[tuple(summ)])
+        if len(article["article"]) > 5:
+            scorer = RougeRewardScorer(
+                os.path.join(rouge_npy_path, subset, f'{article["id"]}.npy')
+            )
+            summ_scores.append(scorer.get_score(article_summ))
 
-    summ_scores = np.asarray(summ_scores)
-
-    return summ_scores.mean(0)
+    return np.asarray(summ_scores)
 
 
 if __name__ == "__main__":
@@ -50,13 +50,20 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     dataset = CnnDailyMailDataset(
-        "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
+        "./data/cnn_dailymail/",
         "glove.6B.100d",
         dev=False,
-        vectors_cache="/scratch/magod/embeddings/",
+        vectors_cache="./data/embeddings/",
         sets=["test"],
-    ).get_splits()["test"]
+    )
 
-    samples = [[list(range(3))] for article in dataset]
+    fpaths = dataset.fpaths["test"]
 
-    logging.info(numpy_rouge(dataset, samples))
+    samples = [list(range(2, 5)) for _ in fpaths]
+
+    python_rouge_scores = python_rouge(fpaths, samples)
+    numpy_rouge_scores = numpy_rouge(
+        fpaths, samples, subset="test", rouge_npy_path="./data/cnn_dailymail/rouge_npy",
+    )
+
+    print(((python_rouge_scores - numpy_rouge_scores).abs()).max())
