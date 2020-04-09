@@ -15,6 +15,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(BanditSum, self).__init__()
+        hparams["sets"] = "/".join(hparams["sets"])
+        self.hparams = hparams
         self.dataset = dataset
         self.environment = BanditSummarizationEnvironment(reward, episode_length=1)
 
@@ -44,6 +46,7 @@ class BanditSum(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
+            dropout=0.1,
         )
         self.sl_encoder = torch.nn.LSTM(
             input_size=2 * hidden_dim,
@@ -51,9 +54,11 @@ class BanditSum(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
+            dropout=0.1,
         )
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
+            torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
             torch.nn.Sigmoid(),

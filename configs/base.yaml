@@ -9,7 +9,7 @@ dev: False
 ##################
 model: "banditsum" # One of ['lead3', 'banditsum', 'a2c']
 train_batch_size: 1
-test_batch_size: 48
+test_batch_size: 16
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 20

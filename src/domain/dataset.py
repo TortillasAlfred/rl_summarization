@@ -59,7 +59,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.raw_content = RawField()
         self.id = RawField()
         self.raw_abstract = RawField(is_target=True)
-        self.content = NestedField(Field(),)
+        self.content = NestedField(Field(fix_length=80), fix_length=50)
         self.abstract = NestedField(Field())
         self.abstract.is_target = True
 
