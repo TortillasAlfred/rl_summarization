@@ -1,5 +1,3 @@
-from src.domain.rollouts import Rollouts
-
 import pytorch_lightning as pl
 
 import logging
