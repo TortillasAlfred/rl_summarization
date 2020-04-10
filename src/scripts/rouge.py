@@ -19,16 +19,14 @@ def main(options):
 
     reward = RougeReward(n_jobs=-1)
 
-    save_dir = os.path.join(options.target_dir, options.dataset)
-
-    os.makedirs(save_dir, exist_ok=True)
-
-    with open(f"bad_files_{options.dataset}.pck", "rb") as f:
+    with open(f"bad_files.pck", "rb") as f:
         iterable = pickle.load(f)[
             options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
         ]
 
     for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
+        dataset = fpath.split('/')[-2]
+        save_dir = os.path.join(options.target_dir, dataset)
         with open(fpath, "rb") as f:
             article = json.load(f)
         all_summ_idxs = list(combinations(range(len(article["article"])), 3))
@@ -55,7 +53,6 @@ if __name__ == "__main__":
     argument_parser.add_argument(
         "--data_path", type=str, default="./data/cnn_dailymail"
     )
-    argument_parser.add_argument("--dataset", type=str, default="train")
     argument_parser.add_argument(
         "--vectors_cache", type=str, default="./data/embeddings"
     )
