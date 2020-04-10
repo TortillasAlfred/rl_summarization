@@ -24,6 +24,6 @@ class RougeRewardScorer:
 
     def get_score(self, summ_ids):
         if len(summ_ids) == 3:
-            return self.scores[tuple(summ_ids)]
+            return self.scores[tuple(sorted(summ_ids))]
         else:
             return 0
