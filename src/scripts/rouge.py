@@ -23,7 +23,7 @@ def main(options):
         dev=False,
         vectors_cache="/scratch/magod/embeddings/",
         sets=[options.dataset],
-    ).fpath[options.dataset][
+    ).fpaths[options.dataset][
         options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
     ]
 
