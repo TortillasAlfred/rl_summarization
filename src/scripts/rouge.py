@@ -11,22 +11,26 @@ import pickle
 
 from itertools import combinations, permutations
 
-SLICE_SIZE = 600
+SLICE_SIZE = 1000
 
 
 def main(options):
     configure_logging()
 
+    fpaths = CnnDailyMailDataset(
+        "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
+        "glove.6B.100d",
+        dev=False,
+        vectors_cache="/scratch/magod/embeddings/",
+        sets=[options.dataset],
+    ).fpath[options.dataset][
+        options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
+    ]
+
     reward = RougeReward(n_jobs=-1)
+    save_dir = os.path.join(options.target_dir, options.dataset)
 
-    with open(f"bad_files.pck", "rb") as f:
-        iterable = pickle.load(f)[
-            options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
-        ]
-
-    for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-        dataset = fpath.split("/")[-2]
-        save_dir = os.path.join(options.target_dir, dataset)
+    for fpath in datetime_tqdm(fpaths, desc="Calculating rouge scores"):
         with open(fpath, "rb") as f:
             article = json.load(f)
         all_summ_idxs = list(combinations(range(len(article["article"])), 3))
@@ -53,6 +57,7 @@ if __name__ == "__main__":
     argument_parser.add_argument(
         "--data_path", type=str, default="./data/cnn_dailymail"
     )
+    argument_parser.add_argument("--dataset", type=str, default="train")
     argument_parser.add_argument(
         "--vectors_cache", type=str, default="./data/embeddings"
     )
