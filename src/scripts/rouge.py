@@ -21,11 +21,11 @@ def main(options):
 
     with open(f"bad_files.pck", "rb") as f:
         iterable = pickle.load(f)[
-            options.run_index * SLICE_SIZE  + 384: (options.run_index + 1) * SLICE_SIZE
+            options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
         ]
 
     for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
-        dataset = fpath.split('/')[-2]
+        dataset = fpath.split("/")[-2]
         save_dir = os.path.join(options.target_dir, dataset)
         with open(fpath, "rb") as f:
             article = json.load(f)
@@ -40,7 +40,7 @@ def main(options):
         for idxs, rouge in zip(all_summ_idxs, rouge_scores):
 
             for i in permutations(idxs):
-                matrix_data[tuple(idxs)] = np.asarray(rouge)
+                matrix_data[tuple(i)] = np.asarray(rouge)
 
         np.save(os.path.join(save_dir, f'{article["id"]}.npy'), matrix_data)
 
