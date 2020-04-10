@@ -21,7 +21,7 @@ def main(options):
 
     with open(f"bad_files.pck", "rb") as f:
         iterable = pickle.load(f)[
-            options.run_index * SLICE_SIZE  + 381: (options.run_index + 1) * SLICE_SIZE
+            options.run_index * SLICE_SIZE  + 384: (options.run_index + 1) * SLICE_SIZE
         ]
 
     for fpath in datetime_tqdm(iterable, desc="Calculating rouge scores"):
