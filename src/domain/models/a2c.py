@@ -274,7 +274,6 @@ class A2C(pl.LightningModule):
         )
         return optimizer
 
-    @pl.data_loader
     def train_dataloader(self):
         train_split = self.splits["train"]
         n_items = min(self.items_per_epoch, len(train_split))
