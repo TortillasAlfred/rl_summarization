@@ -261,7 +261,15 @@ class BanditSum(pl.LightningModule):
             weight_decay=1e-6,
         )
 
-        return optimizer
+        lr_scheduler = {}
+        lr_scheduler["scheduler"] = ReduceLROnPlateau(
+            optimizer, mode="max", patience=3, factor=0.2
+        )
+        lr_scheduler["interval"] = "step"
+        lr_scheduler["monitor"] = "val_greedy_rouge_mean"
+        lr_scheduler["frequency"] = int(2e4)
+
+        return [optimizer], [lr_scheduler]
 
     def train_dataloader(self):
         return BucketIterator(
