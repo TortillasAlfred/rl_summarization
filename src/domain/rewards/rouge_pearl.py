@@ -1,7 +1,7 @@
 from pythonrouge.pythonrouge import Pythonrouge
 
 from joblib import Parallel, delayed
-import torch
+import numpy as np
 
 
 @delayed
@@ -27,12 +27,12 @@ def rouge_reward(seqs, stemming):
     return (score["ROUGE-1"], score["ROUGE-2"], score["ROUGE-L"])
 
 
-class RougeReward:
-    def __init__(self, n_jobs=-1, stemming=True):
+class RougePearlReward:
+    def __init__(self, n_jobs=1, stemming=True):
         self.n_jobs = n_jobs
         self.stemming = stemming
 
-    def __call__(self, hyps, refs, device):
+    def __call__(self, hyps, refs):
         refs = [[r] for r in refs]
 
         scores = list(
@@ -41,11 +41,17 @@ class RougeReward:
             )
         )
 
-        return torch.tensor(scores).to(device)
+        return np.asarray(scores[0], dtype=np.float32)
+
+    def get_score(self, state):
+        hyps = [[state.raw_content[i] for i in state.summary_idxs]]
+        refs = [state.raw_abstract]
+
+        return self.__call__(hyps, refs)
 
     @staticmethod
     def from_config(self, config):
-        return RougeReward(n_jobs=config["rouge_jobs"])
+        return RougePearlReward(n_jobs=config["rouge_jobs"])
 
 
 if __name__ == "__main__":

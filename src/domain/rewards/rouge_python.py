@@ -8,6 +8,7 @@ import re
 import itertools
 import collections
 import pkg_resources
+import numpy as np
 
 from joblib import Parallel, delayed
 
@@ -740,8 +741,8 @@ class Rouge:
         return final_sentences
 
 
-class RougeReward:
-    def __init__(self, n_jobs=-1):
+class RougePythonReward:
+    def __init__(self, n_jobs=1):
         self.evaluator = Rouge(
             metrics=["rouge-n", "rouge-l"],
             max_n=2,
@@ -752,16 +753,22 @@ class RougeReward:
             n_jobs=n_jobs,
         )
 
-    def __call__(self, hyps, refs, device):
+    def __call__(self, hyps, refs):
         hyps = [" ".join(h) for h in hyps]
         refs = [[" ".join(r)] for r in refs]
         pairs = [(hyp, ref) for hyp, ref in zip(hyps, refs)]
         results = self.evaluator.get_all_scores(pairs)
-        return torch.FloatTensor(results).to(device)
+        return np.asarray(results[0][0], dtype=np.float32)
+
+    def get_score(self, state):
+        hyps = [[state.raw_content[i] for i in state.summary_idxs]]
+        refs = [state.raw_abstract]
+
+        return self.__call__(hyps, refs)
 
     @staticmethod
     def from_config(self, config):
-        return RougeReward(config["rouge_jobs"])
+        return RougePythonReward(config["rouge_jobs"])
 
 
 if __name__ == "__main__":
@@ -788,4 +795,3 @@ if __name__ == "__main__":
         l3 = [r_c[:3] for r_c in raw_contents]
 
         logging.info(scorer(l3, raw_abstracts, "cpu"))
-
