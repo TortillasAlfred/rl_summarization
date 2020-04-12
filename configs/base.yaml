@@ -9,7 +9,7 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ### MODEL ARGS ###
 ##################
 model: "banditsum" # One of ['lead3', 'banditsum', 'a2c']
-train_batch_size: 64
+train_batch_size: 1
 test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100

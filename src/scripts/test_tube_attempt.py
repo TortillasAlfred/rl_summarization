@@ -9,20 +9,20 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
-    cluster.script_name = "-m src.scripts.test_tube_attempt"
+    cluster.script_name = "-um src.scripts.test_tube_attempt"
 
     # email for cluster coms
     cluster.notify_job_status(
-        email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True
+        email="mathieu.godbout.3@ulaval.ca", on_done=False, on_fail=True
     )
 
     # configure cluster
     cluster.per_experiment_nb_cpus = 4
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "0:10:00"
+    cluster.job_time = "24:00:00"
     cluster.gpu_type = "p100"
-    cluster.memory_mb_per_node = int(1e4)
+    cluster.memory_mb_per_node = int(3e4)
     cluster.minutes_to_checkpoint_before_walltime = 1
 
     # any modules for code to run in env
