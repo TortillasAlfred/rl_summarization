@@ -9,6 +9,8 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
+    cluster.script_name = "-m src.scripts.test_tube_attempt"
+
     # email for cluster coms
     cluster.notify_job_status(
         email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True
