@@ -52,11 +52,7 @@ class PytorchLightningTrainer(Trainer):
         logger = TestTubeLogger(
             save_dir=default_save_path, name=model, create_git_tag=True
         )
-        early_stopping = EarlyStopping(
-            monitor="val_greedy_rouge_mean", min_delta=1e-5, mode="max"
-        )
         super(PytorchLightningTrainer, self).__init__(
-            early_stop_callback=early_stopping,
             gradient_clip_val=gradient_clip_val,
             gpus=gpus,
             fast_dev_run=fast_dev_run,
