@@ -1,5 +1,5 @@
 from src.domain.environment import BanditSummarizationEnvironment
-from src.domain.utils import nansum
+import src.domain.mcts as mcts
 
 import pytorch_lightning as pl
 import logging
@@ -12,7 +12,7 @@ from torchtext.data import BucketIterator
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import math
-from copy import deepcopy
+from joblib import delayed, Parallel
 
 
 class BanditSumMCTS(pl.LightningModule):
@@ -100,41 +100,21 @@ class BanditSumMCTS(pl.LightningModule):
         return Categorical(probs=contents), valid_sentences
 
     def mcts(self, priors, valid_sentences):
-        priors = priors.cpu()
-        valid_sentences = valid_sentences.float().cpu()
-        n_visits = torch.zeros_like(priors)
-        Q = torch.zeros_like(priors)
-        text_lens = valid_sentences.sum(-1).unsqueeze(-1)
-
-        for t in range(1, self.n_mcts_samples + 1):
-            env = deepcopy(self.environment)
-            # Sample
-            uct_vals = Q / torch.clamp(
-                n_visits, 1
-            ) + text_lens * self.c_puct * math.pow(t, 0.25) * priors / (
-                n_visits + 1
-            ).float().pow(
-                0.5
+        mcts_pures = Parallel(n_jobs=-1)(
+            delayed(mcts.article_mcts)(
+                prior.cpu(),
+                valid_sents.cpu(),
+                self.n_mcts_samples,
+                reward_scorer.scores,
+                self.c_puct,
+                self.n_sents_per_summary,
             )
-            uct_vals = uct_vals * valid_sentences
-            _, sampled_actions = uct_vals.topk(
-                k=self.n_sents_per_summary, dim=-1, sorted=False
+            for prior, valid_sents, reward_scorer in zip(
+                priors, valid_sentences, self.environment.reward_scorers
             )
+        )
 
-            # Get rewards
-            _, rewards = env.update(sampled_actions, actions_probs=None)
-            rewards = torch.tensor(rewards).mean(-1).to(priors.device)
-
-            # Backprop
-            for i, (acts, r) in enumerate(zip(sampled_actions, rewards)):
-                n_visits[i].index_add_(
-                    -1, acts, torch.ones(size=acts.shape, device=priors.device)
-                )
-                Q[i].index_add_(-1, acts, r.repeat_interleave(repeats=len(acts)))
-
-        mcts_pure = n_visits / n_visits.sum(-1).unsqueeze(-1)
-
-        return mcts_pure
+        return torch.stack(mcts_pures)
 
     def forward(self, batch, subset):
         states = self.environment.init(batch, subset)
