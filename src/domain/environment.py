@@ -34,10 +34,8 @@ class BanditSummarizationEnvironment:
                 self.train_reward_builder.init_scorer(articles.id[i], subset)
                 for i in range(articles.batch_size)
             ]
-        elif subset == "val":
+        elif subset in ["val", "test"]:
             return [RougePythonReward() for _ in range(articles.batch_size)]
-        elif subset == "test":
-            return [RougePearlReward() for _ in range(articles.batch_size)]
         else:
             raise ValueError(
                 f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
