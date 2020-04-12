@@ -113,7 +113,7 @@ class CnnDailyMailDataset(SummarizationDataset):
             all_files = all_files[begin_idx:end_idx]
 
         exs_and_paths = Parallel(n_jobs=-1)(
-            load_fname(fname, reading_path, self.fields)
+            delayed(load_fname)(fname, reading_path, self.fields)
             for fname in datetime_tqdm(all_files, desc=f"Reading {split} files...")
         )
 
@@ -153,7 +153,6 @@ class CnnDailyMailDataset(SummarizationDataset):
         )
 
 
-@delayed
 def load_fname(fname, reading_path, fields):
     fpath = os.path.join(reading_path, fname)
     with open(fpath, "r") as data:
