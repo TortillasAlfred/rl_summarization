@@ -45,7 +45,16 @@ class BanditSummarizationEnvironment:
         for state, action in zip(self.states, actions):
             state.update(action)
 
-        rewards = np.asarray(
+        rewards = self.get_scores()
+
+        if actions_probs:
+            self.logged_metrics.log(actions, actions_probs, rewards)
+            self.done_steps += 1
+
+        return self.states, rewards
+
+    def get_scores(self):
+        return np.asarray(
             [
                 self.reward_scorers[scorer_idx].get_score(
                     self.states[scorer_idx * self.n_repeats + state_idx]
@@ -54,10 +63,6 @@ class BanditSummarizationEnvironment:
                 for scorer_idx in range(len(self.reward_scorers))
             ]
         )
-        self.logged_metrics.log(actions, actions_probs, rewards)
-        self.done_steps += 1
-
-        return self.states, rewards
 
     def done(self):
         return self.done_steps == self.episode_length or all(
