@@ -9,7 +9,7 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
-    cluster.script_name = "-um src.scripts.test_tube_attempt"
+    cluster.script_name = "-um src.scripts.test_tube_launcher"
 
     # email for cluster coms
     cluster.notify_job_status(
