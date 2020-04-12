@@ -3,6 +3,7 @@
 #####################
 seed: 42 # Random seed
 dev: False
+slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 
 ##################
 ### MODEL ARGS ###
@@ -24,7 +25,7 @@ dataset: "cnn_dailymail" # One of ['cnn_dailymail']
 data_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/scratch/magod/embeddings/"
-sets: ["train", "val", "test"] # List containing combination of ['train', 'val', 'test']. If present, 'train' must be first
+sets: "train-val-test" # If present, 'train' must be first
 
 ###################
 ### REWARD ARGS ###

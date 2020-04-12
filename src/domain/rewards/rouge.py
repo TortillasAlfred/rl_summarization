@@ -15,7 +15,7 @@ class RougeRewardBuilder:
 
     @staticmethod
     def from_config(config):
-        return RougeRewardBuilder(config["rouge_base_path"])
+        return RougeRewardBuilder(config.rouge_base_path)
 
 
 class RougeRewardScorer:

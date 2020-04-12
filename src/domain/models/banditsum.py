@@ -15,7 +15,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(BanditSum, self).__init__()
-        hparams["sets"] = "/".join(hparams["sets"])
         self.hparams = hparams
         self.dataset = dataset
         self.environment = BanditSummarizationEnvironment(reward, episode_length=1)
@@ -25,16 +24,16 @@ class BanditSum(pl.LightningModule):
         self.splits = self.dataset.get_splits()
         self.n_epochs_done = 0
 
-        self.train_batch_size = hparams["train_batch_size"]
-        self.test_batch_size = hparams["test_batch_size"]
-        self.hidden_dim = hparams["hidden_dim"]
-        self.decoder_dim = hparams["decoder_dim"]
-        self.n_repeats_per_sample = hparams["n_repeats_per_sample"]
-        self.learning_rate = hparams["learning_rate"]
-        self.epsilon = hparams["epsilon"]
-        self.n_sents_per_summary = hparams["n_sents_per_summary"]
+        self.train_batch_size = hparams.train_batch_size
+        self.test_batch_size = hparams.test_batch_size
+        self.hidden_dim = hparams.hidden_dim
+        self.decoder_dim = hparams.decoder_dim
+        self.n_repeats_per_sample = hparams.n_repeats_per_sample
+        self.learning_rate = hparams.learning_rate
+        self.epsilon = hparams.epsilon
+        self.n_sents_per_summary = hparams.n_sents_per_summary
 
-        self.__build_model(hparams["hidden_dim"], hparams["decoder_dim"])
+        self.__build_model(hparams.hidden_dim, hparams.decoder_dim)
 
     def __build_model(self, hidden_dim, decoder_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(

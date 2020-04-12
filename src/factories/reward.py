@@ -6,7 +6,7 @@ class RewardFactory:
 
     @classmethod
     def get_reward(cls, config):
-        reward_type = config["reward"]
+        reward_type = config.reward
 
         if reward_type == cls.ROUGE:
             return RougeRewardBuilder.from_config(config)

@@ -21,16 +21,16 @@ class A2C(pl.LightningModule):
         self.splits = self.dataset.get_splits()
         self.n_epochs_done = 0
 
-        self.items_per_epoch = hparams["items_per_epoch"]
-        self.train_batch_size = hparams["train_batch_size"]
-        self.test_batch_size = hparams["test_batch_size"]
-        self.n_repeats_per_sample = hparams["n_repeats_per_sample"]
-        self.learning_rate = hparams["learning_rate"]
-        self.n_sents_per_summary = hparams["n_sents_per_summary"]
+        self.items_per_epoch = hparams.items_per_epoch
+        self.train_batch_size = hparams.train_batch_size
+        self.test_batch_size = hparams.test_batch_size
+        self.n_repeats_per_sample = hparams.n_repeats_per_sample
+        self.learning_rate = hparams.learning_rate
+        self.n_sents_per_summary = hparams.n_sents_per_summary
 
         self.rewards_buffer = deque(maxlen=25)
 
-        self.__build_model(hparams["hidden_dim"])
+        self.__build_model(hparams.hidden_dim)
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(

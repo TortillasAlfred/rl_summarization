@@ -145,11 +145,11 @@ class CnnDailyMailDataset(SummarizationDataset):
     @staticmethod
     def from_config(config):
         return CnnDailyMailDataset(
-            config["data_path"],
-            config["embeddings"],
-            sets=config["sets"],
-            dev=config["dev"],
-            vectors_cache=config["embeddings_location"],
+            config.data_path,
+            config.embeddings,
+            sets=config.sets.split("-"),
+            dev=config.dev,
+            vectors_cache=config.embeddings_location,
         )
 
 

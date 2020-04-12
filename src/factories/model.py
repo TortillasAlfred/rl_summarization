@@ -10,7 +10,7 @@ class ModelFactory:
 
     @classmethod
     def get_model(cls, dataset, reward, config):
-        model = config["model"]
+        model = config.model
 
         if model == cls.LEAD3:
             return Lead3.from_config(dataset, reward, config)

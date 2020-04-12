@@ -51,7 +51,7 @@ class RougePearlReward:
 
     @staticmethod
     def from_config(self, config):
-        return RougePearlReward(n_jobs=config["rouge_jobs"])
+        return RougePearlReward(n_jobs=config.rouge_jobs)
 
 
 if __name__ == "__main__":

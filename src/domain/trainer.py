@@ -3,7 +3,7 @@ import os
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, TestTubeLogger
 
 
 class GradientFreeTrainer:
@@ -37,6 +37,7 @@ class PytorchLightningTrainer(Trainer):
         weights_save_path,
         model,
         max_epochs,
+        cluster=None,
     ):
         checkpoint_callback = ModelCheckpoint(
             filepath="/".join(
@@ -48,7 +49,9 @@ class PytorchLightningTrainer(Trainer):
             mode="max",
             prefix="",
         )
-        logger = TensorBoardLogger(save_dir=default_save_path, name=model)
+        logger = TestTubeLogger(
+            save_dir=default_save_path, name=model, create_git_tag=True
+        )
         early_stopping = EarlyStopping(
             monitor="val_greedy_rouge_mean", min_delta=1e-5, mode="max"
         )
@@ -67,21 +70,23 @@ class PytorchLightningTrainer(Trainer):
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
+            cluster=cluster,
         )
 
     @staticmethod
-    def from_config(config):
+    def from_config(config, cluster):
         return PytorchLightningTrainer(
-            config["gradient_clip_val"],
-            config["gpus"],
-            config["fast_dev_run"],
-            config["distributed_backend"],
-            config["use_amp"],
-            config["overfit_pct"],
-            config["print_nan_grads"],
-            config["val_check_interval"],
-            config["default_save_path"],
-            config["weights_save_path"],
-            config["model"],
-            config["max_epochs"],
+            config.gradient_clip_val,
+            config.gpus,
+            config.fast_dev_run,
+            config.distributed_backend,
+            config.use_amp,
+            config.overfit_pct,
+            config.print_nan_grads,
+            config.val_check_interval,
+            config.default_save_path,
+            config.weights_save_path,
+            config.model,
+            config.max_epochs,
+            cluster,
         )

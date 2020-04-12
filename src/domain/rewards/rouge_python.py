@@ -768,7 +768,7 @@ class RougePythonReward:
 
     @staticmethod
     def from_config(self, config):
-        return RougePythonReward(config["rouge_jobs"])
+        return RougePythonReward(config.rouge_jobs)
 
 
 if __name__ == "__main__":

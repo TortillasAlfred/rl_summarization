@@ -27,5 +27,4 @@ class RougeReward:
 
     @staticmethod
     def from_config(self, config):
-        return RougeReward(config["rouge_path"])
-
+        return RougeReward(config.rouge_path)
