@@ -206,7 +206,11 @@ class BanditSum(pl.LightningModule):
         return reward_dict
 
     def validation_epoch_end(self, outputs):
-        return self.generic_epoch_end(outputs)
+        output_dict = self.generic_epoch_end(outputs)
+
+        self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
+
+        return output_dict
 
     def test_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="test").mean(0)
@@ -260,15 +264,11 @@ class BanditSum(pl.LightningModule):
             weight_decay=1e-6,
         )
 
-        lr_scheduler = {}
-        lr_scheduler["scheduler"] = ReduceLROnPlateau(
-            optimizer, mode="max", patience=3, factor=0.2
+        self.lr_scheduler = ReduceLROnPlateau(
+            optimizer, mode="max", patience=5, factor=0.2
         )
-        lr_scheduler["interval"] = "step"
-        lr_scheduler["monitor"] = "val_greedy_rouge_mean"
-        lr_scheduler["frequency"] = int(2e4)
 
-        return [optimizer], [lr_scheduler]
+        return optimizer
 
     def train_dataloader(self):
         return BucketIterator(
