@@ -137,7 +137,7 @@ class BanditSumMCTS(pl.LightningModule):
                 mcts_idxs, Categorical(probs=mcts_probs)
             )
 
-            loss = (mcts_probs.to(valid_sentences.device) * action_dist.logits).sum()
+            loss = (-mcts_probs.to(valid_sentences.device) * action_dist.logits).sum()
 
             return mcts_rewards, greedy_rewards, loss
         else:
