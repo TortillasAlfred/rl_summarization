@@ -14,7 +14,7 @@ test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
-learning_rate: 0.000001
+learning_rate: 0.00001
 epsilon: 0.1
 n_sents_per_summary: 3
 

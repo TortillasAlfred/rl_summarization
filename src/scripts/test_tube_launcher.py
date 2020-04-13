@@ -54,11 +54,7 @@ if __name__ == "__main__":
                 )
     # let's enable optimizing over the number of layers in the network
     argument_parser.opt_list(
-        "--n_mcts_samples",
-        default=50,
-        type=int,
-        tunable=True,
-        options=[250, 500, 1000, 2500],
+        "--n_mcts_samples", default=50, type=int, tunable=True, options=[500, 2500],
     )
 
     # and tune the number of units in each layer
