@@ -55,3 +55,5 @@ val_check_interval: 0.1
 default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
 max_epochs: 4
+weight_decay: 0.000001
+dropout: 0.1

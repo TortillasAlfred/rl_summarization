@@ -38,6 +38,8 @@ class BanditSumMCTS(pl.LightningModule):
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.c_puct = hparams.c_puct
         self.n_mcts_samples = hparams.n_mcts_samples
+        self.dropout = hparams.dropout
+        self.weight_decay = hparams.weight_decay
 
         self.__build_model(hparams.hidden_dim, hparams.decoder_dim)
 
@@ -51,7 +53,7 @@ class BanditSumMCTS(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=0.1,
+            dropout=self.dropout,
         )
         self.sl_encoder = torch.nn.LSTM(
             input_size=2 * hidden_dim,
@@ -59,11 +61,11 @@ class BanditSumMCTS(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=0.1,
+            dropout=self.dropout,
         )
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
-            torch.nn.Dropout(0.1),
+            torch.nn.Dropout(self.dropout),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
             torch.nn.Sigmoid(),
@@ -235,7 +237,7 @@ class BanditSumMCTS(pl.LightningModule):
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
-            weight_decay=1e-6,
+            weight_decay=self.weight_decay,
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
