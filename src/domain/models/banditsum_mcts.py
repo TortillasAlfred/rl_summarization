@@ -34,6 +34,7 @@ class BanditSumMCTS(pl.LightningModule):
         self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
+        self.dirichlet_epsilon = hparams.dirichlet_epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.c_puct = hparams.c_puct
         self.n_mcts_samples = hparams.n_mcts_samples
@@ -50,7 +51,7 @@ class BanditSumMCTS(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=0.1,
+            dropout=0.25,
         )
         self.sl_encoder = torch.nn.LSTM(
             input_size=2 * hidden_dim,
@@ -58,11 +59,11 @@ class BanditSumMCTS(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=0.1,
+            dropout=0.25,
         )
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
-            torch.nn.Dropout(0.1),
+            torch.nn.Dropout(0.25),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
             torch.nn.Sigmoid(),
@@ -108,6 +109,7 @@ class BanditSumMCTS(pl.LightningModule):
                 reward_scorer.scores,
                 self.c_puct,
                 self.n_sents_per_summary,
+                self.dirichlet_epsilon,
             )
             for prior, valid_sents, reward_scorer in zip(
                 priors, valid_sentences, self.environment.reward_scorers
@@ -233,7 +235,7 @@ class BanditSumMCTS(pl.LightningModule):
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
-            weight_decay=1e-6,
+            weight_decay=1e-4,
         )
 
         self.lr_scheduler = ReduceLROnPlateau(

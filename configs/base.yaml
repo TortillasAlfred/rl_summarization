@@ -38,6 +38,7 @@ rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge
 ##################
 c_puct: 0.5
 n_mcts_samples: 50
+dirichlet_epsilon: 0.25
 
 ####################
 ### TRAINER ARGS ###
