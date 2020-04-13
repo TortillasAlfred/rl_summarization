@@ -43,7 +43,7 @@ class PytorchLightningTrainer(Trainer):
             filepath="/".join(
                 [weights_save_path, model, "{epoch}-{val_greedy_rouge_mean:.5f}"]
             ),
-            save_top_k=10,
+            save_top_k=3,
             verbose=True,
             monitor="val_greedy_rouge_mean",
             mode="max",
