@@ -58,7 +58,7 @@ if __name__ == "__main__":
         default=50,
         type=int,
         tunable=True,
-        options=[25, 50, 100, 250],
+        options=[250, 500, 1000, 2500],
     )
 
     # and tune the number of units in each layer
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         default=0.5,
         type=float,
         tunable=True,
-        low=0.1,
+        low=0.01,
         high=1.0,
         nb_samples=5,
     )
