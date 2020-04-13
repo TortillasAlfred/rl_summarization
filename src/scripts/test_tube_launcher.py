@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
+        main, nb_trials=6, job_name="rl_summarization"
     )
 
 
@@ -54,18 +54,12 @@ if __name__ == "__main__":
                 )
     # let's enable optimizing over the number of layers in the network
     argument_parser.opt_list(
-        "--n_mcts_samples", default=50, type=int, tunable=True, options=[500, 2500],
+        "--n_mcts_samples", default=50, type=int, tunable=True, options=[50, 1000],
     )
 
     # and tune the number of units in each layer
-    argument_parser.opt_range(
-        "--c_puct",
-        default=0.5,
-        type=float,
-        tunable=True,
-        low=0.01,
-        high=1.0,
-        nb_samples=5,
+    argument_parser.opt_list(
+        "--c_puct", default=1.0, type=float, tunable=True, options=[0.1, 1.0, 10.0]
     )
 
     hparams = argument_parser.parse_args()
