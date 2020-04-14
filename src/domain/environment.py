@@ -28,6 +28,17 @@ class BanditSummarizationEnvironment:
 
         return self.states
 
+    def soft_init(self, articles, subset, n_repeats=1):
+        self.states = [
+            BanditExtractiveSummarizationState(
+                articles.content[i], articles.raw_content[i], articles.raw_abstract[i],
+            )
+            for i in range(articles.batch_size)
+            for _ in range(self.n_repeats)
+        ]
+
+        return self.states
+
     def __get_reward_scorers(self, articles, subset):
         if subset == "train":
             return [
@@ -41,15 +52,14 @@ class BanditSummarizationEnvironment:
                 f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
             )
 
-    def update(self, actions, actions_probs):
+    def update(self, actions, actions_probs, is_mcts=False):
         for state, action in zip(self.states, actions):
             state.update(action)
 
         rewards = self.get_scores()
 
-        if actions_probs:
-            self.logged_metrics.log(actions, actions_probs, rewards)
-            self.done_steps += 1
+        self.logged_metrics.log(actions, actions_probs, rewards, is_mcts)
+        self.done_steps += 1
 
         return self.states, rewards
 

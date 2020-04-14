@@ -129,7 +129,7 @@ class BanditSumMCTS(pl.LightningModule):
         _, greedy_rewards = self.environment.update(greedy_idxs, action_dist)
 
         if subset == "train":
-            _ = self.environment.init(batch, subset, n_repeats=1)
+            _ = self.environment.soft_init(batch, subset, n_repeats=1)
 
             mcts_probs = self.mcts(action_dist.probs, valid_sentences)
 
@@ -138,7 +138,7 @@ class BanditSumMCTS(pl.LightningModule):
             ]
 
             _, mcts_rewards = self.environment.update(
-                mcts_idxs, Categorical(probs=mcts_probs)
+                mcts_idxs, Categorical(probs=mcts_probs), is_mcts=True
             )
 
             loss = (-mcts_probs.to(valid_sentences.device) * action_dist.logits).sum()
@@ -185,6 +185,9 @@ class BanditSumMCTS(pl.LightningModule):
         output_dict = self.generic_epoch_end(outputs)
 
         self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
+        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
+            1
+        ]["lr"]
 
         return output_dict
 
