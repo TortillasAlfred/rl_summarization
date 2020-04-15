@@ -119,7 +119,7 @@ def rlsum_mcts(
     alpha = text_lens.float() / 100
     alphas = torch.ones_like(valid_sentences, dtype=torch.float32) * alpha
 
-    prior_producer = PriorsProducer(
+    prior_producer = RLSumPriorsProducer(
         model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
     )
 
@@ -208,7 +208,7 @@ def rlsum_mcts_episode(
     return mcts_pure
 
 
-class PriorsProducer:
+class RLSumPriorsProducer:
     def __init__(
         self, model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
     ):
@@ -218,6 +218,7 @@ class PriorsProducer:
         self.valid_sentences = valid_sentences.unsqueeze(0)
         self.epsilon = epsilon
         self.alphas = alphas
+        self.noise_dist = torch.distributions.dirichlet.Dirichlet(self.alphas)
 
     def __call__(self, state):
         action_dist, valid_sents = self.model.produce_affinities(
@@ -225,8 +226,221 @@ class PriorsProducer:
         )
 
         # Add Dirichlet Noise
-        noise = torch.distributions.dirichlet.Dirichlet(self.alphas).sample()
+        noise = self.noise_dist.sample()
         priors = (1 - self.epsilon) * action_dist.probs + self.epsilon * noise
         priors = priors * valid_sents
 
         return priors
+
+
+class AZSumMCTSProcess:
+    def __init__(self, model, n_samples, c_puct, n_sents_per_summary, epsilon):
+        self.model = model
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+        self.epsilon = epsilon
+
+    def __call__(self, iterable):
+        (sent_contents, doc_contents, state, valid_sentences, scores,) = iterable
+        return azsum_mcts(
+            sent_contents,
+            doc_contents,
+            state,
+            valid_sentences,
+            scores,
+            self.model,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+            self.epsilon,
+        )
+
+
+class AZSumNode:
+    def __init__(self, prior, q_val, state, parent=None):
+        self.prior = prior
+        self.state = state
+        self.parent = parent
+        self.q_sum = q_val
+
+        self.children = []
+        self.n_visits = 0
+        self.expanded = False
+
+    def self_backprop(self):
+        self.n_visits += 1
+
+        if self.parent:
+            self.parent.backprop(self.q_sum)
+
+    def backprop(self, reward):
+        self.n_visits += 1
+        self.q_sum += reward
+
+        if self.parent:
+            self.parent.backprop(reward)
+
+    def expand(self, priors, q_vals):
+        for i, (prior, q_val) in enumerate(zip(priors.squeeze(0), q_vals.squeeze(0))):
+            new_state = copy.deepcopy(self.state)
+            new_state.update(i)
+
+            new_node = AZSumNode(prior.unsqueeze(0), q_val, new_state, parent=self)
+            self.children.append(new_node)
+
+        self.expanded = True
+
+
+def azsum_mcts(
+    sent_contents,
+    doc_contents,
+    state,
+    valid_sentences,
+    scores,
+    model,
+    n_samples,
+    c_puct,
+    n_sents_per_summary,
+    epsilon,
+):
+    torch.set_grad_enabled(False)
+    text_lens = valid_sentences.sum(-1).unsqueeze(-1)
+
+    alpha = text_lens.float() / 100
+    alphas = torch.ones_like(valid_sentences, dtype=torch.float32) * alpha
+
+    prior_producer = AZSumPriorsProducer(
+        model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
+    )
+
+    # Initial Node
+    root_node = AZSumNode(
+        prior=torch.zeros((1,), dtype=torch.float32),
+        q_val=torch.zeros((3,), dtype=torch.float32),
+        state=state,
+    )
+
+    targets = []
+
+    for _ in range(n_sents_per_summary):
+        mcts_probs, mcts_vals = azsum_mcts_episode(
+            prior_producer,
+            scores,
+            n_samples,
+            c_puct,
+            epsilon,
+            root_node,
+            valid_sentences.cpu(),
+        )
+
+        epsilon = 0.25
+        val_probs = mcts_vals.mean(-1)
+        val_probs = val_probs / val_probs.sum(-1)
+        sampling_probs = (mcts_probs + val_probs) / 2
+        noise = torch.distributions.dirichlet.Dirichlet(alphas).sample().cpu()
+
+        noisy_mcts = (1 - epsilon) * sampling_probs + epsilon * noise
+        noisy_mcts = noisy_mcts * valid_sentences.cpu()
+
+        selected_action = torch.distributions.Categorical(noisy_mcts).sample()
+        targets.append(
+            (root_node.state, mcts_probs, selected_action, mcts_vals, sampling_probs)
+        )
+
+        valid_sentences[selected_action] = 0
+        root_node = root_node.children[selected_action]
+
+    return targets
+
+
+def azsum_mcts_episode(
+    prior_producer, scores, n_samples, c_puct, epsilon, root_node, valid_sentences,
+):
+    if not root_node.expanded:
+        priors, vals = prior_producer(root_node.state)
+        root_node.expand(priors, vals)
+        done = True
+
+    for _ in range(n_samples):
+        current_node = root_node
+        done = False
+
+        while not done:
+            Q = torch.stack([c.q_sum for c in current_node.children]).mean(-1)
+            n_visits = torch.tensor(
+                [c.n_visits for c in current_node.children], dtype=torch.float32,
+            )
+            priors = torch.tensor(
+                [c.prior for c in current_node.children], dtype=torch.float32
+            )
+
+            uct_vals = (
+                Q / n_visits
+                + priors
+                * torch.sqrt(math.log(current_node.n_visits + 1) * 2 / (n_visits + 1))
+                * c_puct
+            )
+
+            uct_vals[~valid_sentences] = -1
+
+            for idx in current_node.state.summary_idxs:
+                uct_vals[idx] = 0.0
+
+            sampled_action = uct_vals.argmax()
+            current_node = current_node.children[sampled_action.item()]
+
+            if current_node.state.done:
+                reward = scores[tuple(sorted(current_node.state.summary_idxs))]
+                current_node.backprop(reward)
+                done = True
+            elif not current_node.expanded:
+                priors, vals = prior_producer(current_node.state)
+                current_node.expand(priors, vals)
+                current_node.self_backprop()
+                done = True
+
+    n_visits = torch.tensor(
+        [c.n_visits for c in root_node.children], dtype=torch.float32,
+    )
+    mcts_probs = n_visits / n_visits.sum(-1).unsqueeze(-1)
+    mcts_probs = torch.nn.functional.softmax(mcts_probs, dim=-1)
+
+    q_vals = torch.stack([c.q_sum for c in root_node.children])
+    mcts_vals = q_vals / torch.clamp(n_visits, 1).unsqueeze(-1)
+
+    mcts_probs[~valid_sentences] = 0
+    mcts_vals[~valid_sentences] = 0
+
+    for idx in root_node.state.summary_idxs:
+        mcts_probs[idx] = 0.0
+        mcts_vals[idx] = 0.0
+
+    mcts_probs = mcts_probs / mcts_probs.sum(-1).unsqueeze(-1)
+
+    return mcts_probs, mcts_vals
+
+
+class AZSumPriorsProducer:
+    def __init__(
+        self, model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
+    ):
+        self.model = model
+        self.sent_contents = sent_contents.unsqueeze(0)
+        self.doc_contents = doc_contents.unsqueeze(0)
+        self.valid_sentences = valid_sentences.unsqueeze(0)
+        self.epsilon = epsilon
+        self.alphas = alphas
+        self.noise_dist = torch.distributions.dirichlet.Dirichlet(self.alphas)
+
+    def __call__(self, state):
+        action_dist, valid_sents, action_values = self.model.produce_affinities(
+            self.sent_contents, self.doc_contents, [state], self.valid_sentences,
+        )
+
+        # Add Dirichlet Noise
+        noise = self.noise_dist.sample()
+        priors = (1 - self.epsilon) * action_dist.probs + self.epsilon * noise
+        priors = priors * valid_sents
+
+        return priors, action_values

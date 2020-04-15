@@ -72,5 +72,15 @@ if __name__ == "__main__":
         nb_samples=10,
     )
 
+    argument_parser.opt_range(
+        "--lambda_loss",
+        default=0.1,
+        type=float,
+        tunable=True,
+        low=0.01,
+        high=0.9,
+        nb_samples=10,
+    )
+
     hparams = argument_parser.parse_args()
     optimize_on_cluster(hparams)
