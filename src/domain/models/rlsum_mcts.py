@@ -49,7 +49,11 @@ class RLSumMCTS(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
         mp.set_start_method("spawn", force=True)
-        self.pool = mp.Pool(processes=os.cpu_count())
+        if hparams.n_jobs_for_mcts == -1:
+            n_processes = os.cpu_count()
+        else:
+            n_processes = hparams.n_jobs_for_mcts
+        self.pool = mp.Pool(processes=n_processes)
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(

@@ -9,7 +9,7 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ### MODEL ARGS ###
 ##################
 model: "rlsum_mcts" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'a2c']
-train_batch_size: 16
+train_batch_size: 24
 test_batch_size: 128
 hidden_dim: 200
 decoder_dim: 100
@@ -17,6 +17,7 @@ n_repeats_per_sample: 16
 learning_rate: 0.0001
 epsilon: 0.1
 n_sents_per_summary: 3
+n_jobs_for_mcts: 8
 
 ####################
 ### DATASET ARGS ###
