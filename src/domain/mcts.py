@@ -286,7 +286,7 @@ class AZSumNode:
             new_state = copy.deepcopy(self.state)
             new_state.update(i)
 
-            new_node = AZSumNode(prior.unsqueeze(0), q_val, new_state, parent=self)
+            new_node = AZSumNode(prior.unsqueeze(0).cpu(), q_val.cpu(), new_state, parent=self)
             self.children.append(new_node)
 
         self.expanded = True
