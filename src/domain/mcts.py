@@ -196,6 +196,14 @@ def rlsum_mcts_episode(
         [c.n_visits for c in root_node.children], dtype=torch.float32,
     )
     mcts_pure = n_visits / n_visits.sum(-1).unsqueeze(-1)
+    mcts_pure = torch.nn.functional.softmax(mcts_pure, dim=-1)
+
+    mcts_pure[~valid_sentences] = 0
+
+    for idx in root_node.state.summary_idxs:
+        mcts_pure[idx] = 0.0
+
+    mcts_pure = mcts_pure / mcts_pure.sum(-1).unsqueeze(-1)
 
     return mcts_pure
 

@@ -347,7 +347,9 @@ class RLSummModel(torch.nn.Module):
         return sent_contents, doc_contents
 
     def decoding(self, contents):
-        return self.decoder(contents).squeeze(-1)
+        outputs = self.decoder(contents).squeeze(-1)
+
+        return F.softmax(outputs, dim=-1)
 
     def get_summ_sents_from_states(self, sent_contents, states):
         summ_sents = []
