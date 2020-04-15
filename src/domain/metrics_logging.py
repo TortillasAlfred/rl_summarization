@@ -19,7 +19,7 @@ class DefaultLoggedMetrics:
         self.rouge_L = [[] for _ in range(n_states)]
         self.rouge_mean = [[] for _ in range(n_states)]
 
-    def log(self, actions, actions_probs, rewards, is_mcts):
+    def log(self, actions, actions_probs, rewards, is_mcts, done):
         for i, (action, reward) in enumerate(zip(actions, rewards)):
             # Policy logging 
             if is_mcts:
@@ -29,7 +29,7 @@ class DefaultLoggedMetrics:
                 self.mcts_mean_action_prob[i].append(actions_probs.probs[i].mean())
                 self.mcts_median_action_prob[i].append(actions_probs.probs[i].median())
                 
-                if len(action) > 1:
+                if len(action.shape) > 0 and len(action) > 1:
                     self.mcts_selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
                 else:
                     self.mcts_selected_action_probs[i].append(actions_probs.probs[i][action])
@@ -40,13 +40,14 @@ class DefaultLoggedMetrics:
                 self.mean_action_prob[i].append(actions_probs.probs[i].mean())
                 self.median_action_prob[i].append(actions_probs.probs[i].median())
                 
-                if len(action) > 1:
+                if len(action.shape) > 1:
                     self.selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
                 else:
                     self.selected_action_probs[i].append(actions_probs.probs[i][action])
 
-            # Rewards
-            self.rouge_1[i].append(reward[0])
-            self.rouge_2[i].append(reward[1])
-            self.rouge_L[i].append(reward[2])
-            self.rouge_mean[i].append(reward.mean())
+            if done:
+                # Rewards
+                self.rouge_1[i].append(reward[0])
+                self.rouge_2[i].append(reward[1])
+                self.rouge_L[i].append(reward[2])
+                self.rouge_mean[i].append(reward.mean())

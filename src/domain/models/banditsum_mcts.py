@@ -104,7 +104,7 @@ class BanditSumMCTS(pl.LightningModule):
 
     def mcts(self, priors, valid_sentences):
         mcts_pures = Parallel(n_jobs=-1)(
-            delayed(mcts.article_mcts)(
+            delayed(mcts.bs_mcts)(
                 prior.cpu(),
                 valid_sents.cpu(),
                 self.n_mcts_samples,

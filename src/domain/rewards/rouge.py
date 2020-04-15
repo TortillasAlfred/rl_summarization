@@ -26,7 +26,7 @@ class RougeRewardScorer:
         if len(summ_ids) == 3:
             return self.scores[tuple(sorted(summ_ids))]
         else:
-            return [0.0, 0.0, 0.0]
+            return np.zeros((3,), dtype=np.float32)
 
     def get_score(self, state):
         summ_ids = state.summary_idxs

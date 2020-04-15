@@ -761,10 +761,13 @@ class RougePythonReward:
         return np.asarray(results[0][0], dtype=np.float32)
 
     def get_score(self, state):
-        hyps = [[state.raw_content[i] for i in state.summary_idxs]]
-        refs = [state.raw_abstract]
+        if len(state.summary_idxs) == 3:
+            hyps = [[state.raw_content[i] for i in state.summary_idxs]]
+            refs = [state.raw_abstract]
 
-        return self.__call__(hyps, refs)
+            return self.__call__(hyps, refs)
+        else:
+            return np.zeros((3,), dtype=np.float32)
 
     @staticmethod
     def from_config(self, config):

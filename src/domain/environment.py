@@ -12,13 +12,12 @@ class BanditSummarizationEnvironment:
         self.episode_length = episode_length
 
         self.n_repeats = 1
-        self.done_steps = 0
 
     def init(self, articles, subset, n_repeats=1):
         self.n_repeats = n_repeats
         self.states = [
             BanditExtractiveSummarizationState(
-                articles.content[i], articles.raw_content[i], articles.raw_abstract[i],
+                articles.raw_content[i], articles.raw_abstract[i], self.episode_length
             )
             for i in range(articles.batch_size)
             for _ in range(self.n_repeats)
@@ -31,7 +30,7 @@ class BanditSummarizationEnvironment:
     def soft_init(self, articles, subset, n_repeats=1):
         self.states = [
             BanditExtractiveSummarizationState(
-                articles.content[i], articles.raw_content[i], articles.raw_abstract[i],
+                articles.raw_content[i], articles.raw_abstract[i], self.episode_length,
             )
             for i in range(articles.batch_size)
             for _ in range(self.n_repeats)
@@ -58,8 +57,7 @@ class BanditSummarizationEnvironment:
 
         rewards = self.get_scores()
 
-        self.logged_metrics.log(actions, actions_probs, rewards, is_mcts)
-        self.done_steps += 1
+        self.logged_metrics.log(actions, actions_probs, rewards, is_mcts, self.done())
 
         return self.states, rewards
 
@@ -75,9 +73,7 @@ class BanditSummarizationEnvironment:
         )
 
     def done(self):
-        return self.done_steps == self.episode_length or all(
-            [state.done for state in self.states]
-        )
+        return all([state.done for state in self.states])
 
     def get_logged_metrics(self):
         return vars(self.logged_metrics)
