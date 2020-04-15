@@ -68,6 +68,7 @@ class DefaultLoggedMetrics:
 
 
                 if q_vals is not None:
+                    q_vals = q_vals.mean(-1)
                     self.mcts_max_action_value[i].append(q_vals[i].max())
                     self.mcts_min_action_value[i].append(q_vals[i].min())
                     self.mcts_mean_action_value[i].append(q_vals[i].mean())
@@ -102,6 +103,7 @@ class DefaultLoggedMetrics:
 
 
                 if q_vals is not None:
+                    q_vals = q_vals.mean(-1)
                     self.max_action_value[i].append(q_vals[i].max())
                     self.min_action_value[i].append(q_vals[i].min())
                     self.mean_action_value[i].append(q_vals[i].mean())

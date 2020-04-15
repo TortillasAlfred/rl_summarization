@@ -64,7 +64,7 @@ class BanditSummarizationEnvironment:
             is_mcts,
             self.done(),
             policy,
-            q_vals.mean(-1),
+            q_vals,
         )
 
         return self.states, rewards
