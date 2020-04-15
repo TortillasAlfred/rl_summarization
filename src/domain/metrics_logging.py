@@ -40,6 +40,9 @@ class DefaultLoggedMetrics:
         self.rouge_mean = [[] for _ in range(n_states)]
 
     def log(self, actions, actions_probs, rewards, is_mcts, done, policy, q_vals):
+        if q_vals is not None:
+            q_vals = q_vals.mean(-1)
+
         for i, (action, reward) in enumerate(zip(actions, rewards)):
             # Policy logging 
             if is_mcts:
@@ -68,7 +71,6 @@ class DefaultLoggedMetrics:
 
 
                 if q_vals is not None:
-                    q_vals = q_vals.mean(-1)
                     self.mcts_max_action_value[i].append(q_vals[i].max())
                     self.mcts_min_action_value[i].append(q_vals[i].min())
                     self.mcts_mean_action_value[i].append(q_vals[i].mean())
@@ -103,7 +105,6 @@ class DefaultLoggedMetrics:
 
 
                 if q_vals is not None:
-                    q_vals = q_vals.mean(-1)
                     self.max_action_value[i].append(q_vals[i].max())
                     self.min_action_value[i].append(q_vals[i].min())
                     self.mean_action_value[i].append(q_vals[i].mean())
