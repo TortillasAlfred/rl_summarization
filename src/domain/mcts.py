@@ -286,7 +286,9 @@ class AZSumNode:
             new_state = copy.deepcopy(self.state)
             new_state.update(i)
 
-            new_node = AZSumNode(prior.unsqueeze(0).cpu(), q_val.cpu(), new_state, parent=self)
+            new_node = AZSumNode(
+                prior.unsqueeze(0).cpu(), q_val.cpu(), new_state, parent=self
+            )
             self.children.append(new_node)
 
         self.expanded = True
@@ -392,6 +394,7 @@ def azsum_mcts_episode(
 
             if current_node.state.done:
                 reward = scores[tuple(sorted(current_node.state.summary_idxs))]
+                reward = torch.from_numpy(reward)
                 current_node.backprop(reward)
                 done = True
             elif not current_node.expanded:
