@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
+        main, nb_trials=20, job_name="rl_summarization"
     )
 
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
     for config, value in base_configs.items():
-        if config not in ["c_puct", "n_mcts_samples", "lambda_loss"]:
+        if config not in ["c_puct", "n_mcts_samples", "lambda_loss", "model"]:
             if type(value) is bool:
                 # Hack as per https://stackoverflow.com/a/46951029
                 argument_parser.add_argument(
@@ -59,6 +59,14 @@ if __name__ == "__main__":
         type=int,
         tunable=True,
         options=[25, 50, 100, 250],
+    )
+
+    argument_parser.opt_list(
+        "--model",
+        default="rlsum_mcts",
+        type=str,
+        tunable=True,
+        options=["rlsum_mcts", "azsum_mcts"],
     )
 
     # and tune the number of units in each layer
