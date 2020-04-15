@@ -95,22 +95,20 @@ class RLSumMCTS(pl.LightningModule):
         self.model.share_memory()
         mcts_pures = self.pool.map(
             mcts.RLSumMCTSProcess(
-                model=self.model.cpu(),
+                model=self.model,
                 n_samples=self.n_mcts_samples,
                 c_puct=self.c_puct,
                 n_sents_per_summary=self.n_sents_per_summary,
                 epsilon=self.dirichlet_epsilon,
             ),
             zip(
-                sent_contents.cpu(),
-                doc_contents.cpu(),
+                sent_contents,
+                doc_contents,
                 states,
-                valid_sentences.cpu(),
+                valid_sentences,
                 [s.scores for s in self.environment.reward_scorers],
             ),
         )
-
-        self.model.cuda()
 
         return (
             [m_i[0] for m in mcts_pures for m_i in m],
