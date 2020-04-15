@@ -9,7 +9,7 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
-    cluster.script_name = "-m src.scripts.test_tube_launcher"
+    cluster.script_name = "-um src.scripts.test_tube_launcher"
 
     # email for cluster coms
     cluster.notify_job_status(
@@ -17,7 +17,7 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 8
+    cluster.per_experiment_nb_cpus = 6
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "24:00:00"
