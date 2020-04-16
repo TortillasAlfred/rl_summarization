@@ -198,12 +198,14 @@ class AZSumMCTS(pl.LightningModule):
             )
 
             mcts_probs = torch.cat([m for m in mcts_probs], dim=0)
-            policy_loss = -mcts_probs.to(valid_sentences.device) * action_dist.logits
-            policy_loss = (policy_loss.sum(-1) / available_sents.sum(-1)).mean()
+            policy_loss = -mcts_probs.to(valid_sentences.device).mm(
+                action_dist.logits.T
+            )
+            policy_loss = policy_loss.mean()
 
             mcts_values = torch.cat([m for m in mcts_vals], dim=0)
             value_loss = (q_values - mcts_values.to(valid_sentences.device)) ** 2
-            value_loss = (value_loss.mean(-1).sum(-1) / available_sents.sum(-1)).mean()
+            value_loss = (value_loss.sum(-1).sum(-1) / available_sents.sum(-1)).mean()
 
             return mcts_rewards, greedy_rewards, policy_loss, value_loss
         else:

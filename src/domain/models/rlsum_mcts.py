@@ -168,8 +168,8 @@ class RLSumMCTS(pl.LightningModule):
             )
 
             mcts_probs = torch.cat([m for m in mcts_probs], dim=0)
-            loss = -mcts_probs.to(valid_sentences.device) * action_dist.logits
-            loss = (loss.sum(-1) / available_sents.sum(-1)).mean()
+            loss = -mcts_probs.to(valid_sentences.device).mm(action_dist.logits.T)
+            loss = loss.mean()
 
             return mcts_rewards, greedy_rewards, loss
         else:
