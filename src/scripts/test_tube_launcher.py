@@ -22,7 +22,7 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "24:00:00"
     cluster.gpu_type = "p100"
-    cluster.memory_mb_per_node = int(6e4)
+    cluster.memory_mb_per_node = int(3e4)
     cluster.minutes_to_checkpoint_before_walltime = 5
 
     # any modules for code to run in env
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
     for config, value in base_configs.items():
-        if config not in ["c_puct", "n_mcts_samples", "lambda_loss", "model"]:
+        if config not in ["c_puct", "n_mcts_samples"]:
             if type(value) is bool:
                 # Hack as per https://stackoverflow.com/a/46951029
                 argument_parser.add_argument(
@@ -61,14 +61,6 @@ if __name__ == "__main__":
         options=[25, 50, 100, 250],
     )
 
-    argument_parser.opt_list(
-        "--model",
-        default="rlsum_mcts",
-        type=str,
-        tunable=True,
-        options=["rlsum_mcts", "azsum_mcts"],
-    )
-
     # and tune the number of units in each layer
     argument_parser.opt_range(
         "--c_puct",
@@ -77,16 +69,6 @@ if __name__ == "__main__":
         tunable=True,
         low=0.1,
         high=10.0,
-        nb_samples=10,
-    )
-
-    argument_parser.opt_range(
-        "--lambda_loss",
-        default=0.1,
-        type=float,
-        tunable=True,
-        low=0.01,
-        high=0.9,
         nb_samples=10,
     )
 
