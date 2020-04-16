@@ -13,7 +13,7 @@ def optimize_on_cluster(hparams):
 
     # email for cluster coms
     cluster.notify_job_status(
-        email="mathieu.godbout.3@ulaval.ca", on_done=False, on_fail=True
+        email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True
     )
 
     # configure cluster
