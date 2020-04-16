@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=20, job_name="rl_summarization"
+        main, nb_trials=10, job_name="rl_summarization"
     )
 
 
