@@ -122,3 +122,6 @@ class DefaultLoggedMetrics:
                 self.rouge_2[i].append(reward[1])
                 self.rouge_L[i].append(reward[2])
                 self.rouge_mean[i].append(reward.mean())
+
+    def to_dict(self):
+        return {k: v for k, v in vars(self).items() if len(v[0]) > 0}

@@ -186,7 +186,7 @@ class RLSumMCTS(pl.LightningModule):
     def get_step_output(self, **kwargs):
         output_dict = {}
 
-        log_dict = vars(self.environment.logged_metrics)
+        log_dict = self.environment.get_logged_metrics()
         log_dict = {k: torch.tensor(v).mean() for k, v in log_dict.items()}
         for key, value in kwargs.items():
             log_dict[key] = value

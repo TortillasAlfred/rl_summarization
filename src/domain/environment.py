@@ -84,4 +84,4 @@ class BanditSummarizationEnvironment:
         return all([state.done for state in self.states])
 
     def get_logged_metrics(self):
-        return vars(self.logged_metrics)
+        return self.logged_metrics.to_dict()
