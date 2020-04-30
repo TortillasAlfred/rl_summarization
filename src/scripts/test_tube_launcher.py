@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 )
     # let's enable optimizing over the number of layers in the network
     argument_parser.opt_list(
-        "--c_puct", default=50, type=int, tunable=True, options=[0.1, 1.0, 10.0],
+        "--c_puct", default=50, type=float, tunable=True, options=[0.1, 1.0, 10.0],
     )
 
     hparams = argument_parser.parse_args()
