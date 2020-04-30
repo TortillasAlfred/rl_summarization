@@ -73,14 +73,15 @@ class RLSumMCTSProcess:
 
 
 class RLSumNode:
-    def __init__(self, prior, state, parent=None):
+    def __init__(self, prior, state, q_init=0.0, parent=None):
         self.prior = prior
         self.state = state
         self.parent = parent
 
         self.children = []
         self.n_visits = 0
-        self.q_sum = 0.0
+        self.q_sum = q_init
+        self.q_init = q_init
         self.expanded = False
 
     def backprop(self, reward):
@@ -95,7 +96,7 @@ class RLSumNode:
             new_state = copy.deepcopy(self.state)
             new_state.update(i)
 
-            new_node = RLSumNode(prior.unsqueeze(0), new_state, parent=self)
+            new_node = RLSumNode(prior.unsqueeze(0), new_state, parent=self, q_init=self.q_init)
             self.children.append(new_node)
 
         self.expanded = True
@@ -122,9 +123,10 @@ def rlsum_mcts(
     prior_producer = RLSumPriorsProducer(
         model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
     )
+    q_init = scores[scores > 0].mean()
 
     # Initial Node
-    root_node = RLSumNode(prior=torch.zeros((1,), dtype=torch.float32), state=state)
+    root_node = RLSumNode(prior=torch.zeros((1,), dtype=torch.float32), state=state, q_init=q_init)
 
     targets = []
 
@@ -136,7 +138,7 @@ def rlsum_mcts(
             c_puct,
             epsilon,
             root_node,
-            valid_sentences.cpu(),
+            valid_sentences.cpu()
         )
 
         epsilon = 0.25
@@ -177,7 +179,7 @@ def rlsum_mcts_episode(
             uct_vals = (
                 Q / n_visits
                 + priors
-                * torch.sqrt(math.log(current_node.n_visits + 1) * 2 / (n_visits + 1))
+                * torch.sqrt(math.sqrt(current_node.n_visits + 1) / (n_visits + 1))
                 * c_puct
             )
 
@@ -195,15 +197,12 @@ def rlsum_mcts_episode(
     n_visits = torch.tensor(
         [c.n_visits for c in root_node.children], dtype=torch.float32,
     )
-    mcts_pure = n_visits / n_visits.sum(-1).unsqueeze(-1)
-    mcts_pure = torch.nn.functional.softmax(mcts_pure, dim=-1)
-
-    mcts_pure[~valid_sentences] = 0
+    n_visits[~valid_sentences] = 0.0
 
     for idx in root_node.state.summary_idxs:
-        mcts_pure[idx] = 0.0
+        n_visits[idx] = 0.0
 
-    mcts_pure = mcts_pure / mcts_pure.sum(-1).unsqueeze(-1)
+    mcts_pure = n_visits / n_visits.sum(-1).unsqueeze(-1)
 
     return mcts_pure
 
@@ -218,17 +217,13 @@ class RLSumPriorsProducer:
         self.valid_sentences = valid_sentences.unsqueeze(0)
         self.epsilon = epsilon
         self.alphas = alphas
-        self.noise_dist = torch.distributions.dirichlet.Dirichlet(self.alphas)
 
     def __call__(self, state):
         action_dist, valid_sents = self.model.produce_affinities(
             self.sent_contents, self.doc_contents, [state], self.valid_sentences,
         )
 
-        # Add Dirichlet Noise
-        noise = self.noise_dist.sample()
-        priors = (1 - self.epsilon) * action_dist.probs + self.epsilon * noise
-        priors = priors * valid_sents
+        priors = action_dist.probs * valid_sents
 
         return priors
 
@@ -434,16 +429,12 @@ class AZSumPriorsProducer:
         self.valid_sentences = valid_sentences.unsqueeze(0)
         self.epsilon = epsilon
         self.alphas = alphas
-        self.noise_dist = torch.distributions.dirichlet.Dirichlet(self.alphas)
 
     def __call__(self, state):
         action_dist, valid_sents, action_values = self.model.produce_affinities(
             self.sent_contents, self.doc_contents, [state], self.valid_sentences,
         )
 
-        # Add Dirichlet Noise
-        noise = self.noise_dist.sample()
-        priors = (1 - self.epsilon) * action_dist.probs + self.epsilon * noise
-        priors = priors * valid_sents
+        priors = action_dist.probs * valid_sents
 
         return priors, action_values

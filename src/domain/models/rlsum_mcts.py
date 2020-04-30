@@ -168,8 +168,8 @@ class RLSumMCTS(pl.LightningModule):
             )
 
             mcts_probs = torch.cat([m for m in mcts_probs], dim=0)
-            loss = -mcts_probs.to(valid_sentences.device).mm(action_dist.logits.T)
-            loss = loss.mean()
+            loss = (mcts_probs.to(valid_sentences.device) - action_dist.probs) ** 2
+            loss = loss.sum()
 
             return mcts_rewards, greedy_rewards, loss
         else:
@@ -332,7 +332,6 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
-            torch.nn.Sigmoid(),
         )
 
     def sentence_level_encoding(self, contents):
@@ -347,9 +346,7 @@ class RLSummModel(torch.nn.Module):
         return sent_contents, doc_contents
 
     def decoding(self, contents):
-        outputs = self.decoder(contents).squeeze(-1)
-
-        return F.softmax(outputs, dim=-1)
+        return F.softmax(self.decoder(contents).squeeze(-1), dim=-1)
 
     def get_summ_sents_from_states(self, sent_contents, states):
         summ_sents = []
