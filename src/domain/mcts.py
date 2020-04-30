@@ -75,7 +75,6 @@ def rlsum_oh(
     mean_scores = scores[:50, :50, :50].mean(-1)
     best_idx = mean_scores.argmax()
     best_idx = np.asarray(np.unravel_index(best_idx, mean_scores.shape))
-    np.random.shuffle(best_idx)
     selected_actions = []
 
     for selected_action in best_idx:
@@ -83,8 +82,6 @@ def rlsum_oh(
         for action in best_idx:
             if action not in selected_actions:
                 target_probs[action] = 1.0
-
-        target_probs = target_probs / target_probs.sum(-1)
 
         targets.append((copy.deepcopy(state), target_probs, torch.tensor(selected_action)))
         state.update(selected_action)
