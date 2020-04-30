@@ -40,7 +40,7 @@ if __name__ == "__main__":
     base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
     for config, value in base_configs.items():
-        if config not in ["c_puct"]:
+        if config not in ["seed"]:
             if type(value) is bool:
                 # Hack as per https://stackoverflow.com/a/46951029
                 argument_parser.add_argument(
@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 )
     # let's enable optimizing over the number of layers in the network
     argument_parser.opt_list(
-        "--c_puct", default=50, type=float, tunable=True, options=[0.1, 1.0, 10.0],
+        "--seed", default=0, type=int, tunable=True, options=[0, 1, 2],
     )
 
     hparams = argument_parser.parse_args()

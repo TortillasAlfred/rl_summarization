@@ -2,6 +2,7 @@ import torch
 import math
 import itertools
 import copy
+import numpy as np
 
 
 def bs_mcts(
@@ -46,6 +47,50 @@ def bs_mcts(
     out_probs[valid_sentences] = mcts_pure
 
     return out_probs
+
+
+class RLSumOHProcess:
+    def __init__(self, n_samples, c_puct, n_sents_per_summary):
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+
+    def __call__(self, iterable):
+        (state, valid_sentences, scores,) = iterable
+        return rlsum_oh(
+            state,
+            valid_sentences,
+            scores,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+        )
+
+
+def rlsum_oh(
+    state, valid_sentences, scores, n_samples, c_puct, n_sents_per_summary,
+):
+    targets = []
+
+    mean_scores = scores[:50, :50, :50].mean(-1)
+    best_idx = mean_scores.argmax()
+    best_idx = np.asarray(np.unravel_index(best_idx, mean_scores.shape))
+    np.random.shuffle(best_idx)
+    selected_actions = []
+
+    for selected_action in best_idx:
+        target_probs = torch.zeros(valid_sentences.shape, dtype=torch.float32)
+        for action in best_idx:
+            if action not in selected_actions:
+                target_probs[action] = 1.0
+
+        target_probs = target_probs / target_probs.sum(-1)
+
+        targets.append((copy.deepcopy(state), target_probs, torch.tensor(selected_action)))
+        state.update(selected_action)
+        selected_actions.append(selected_action)
+
+    return targets
 
 
 class RLSumMCTSProcess:
@@ -96,7 +141,9 @@ class RLSumNode:
             new_state = copy.deepcopy(self.state)
             new_state.update(i)
 
-            new_node = RLSumNode(prior.unsqueeze(0), new_state, parent=self, q_init=self.q_init)
+            new_node = RLSumNode(
+                prior.unsqueeze(0), new_state, parent=self, q_init=self.q_init
+            )
             self.children.append(new_node)
 
         self.expanded = True
@@ -126,7 +173,9 @@ def rlsum_mcts(
     q_init = scores[scores > 0].mean()
 
     # Initial Node
-    root_node = RLSumNode(prior=torch.zeros((1,), dtype=torch.float32), state=state, q_init=q_init)
+    root_node = RLSumNode(
+        prior=torch.zeros((1,), dtype=torch.float32), state=state, q_init=q_init
+    )
 
     targets = []
 
@@ -138,7 +187,7 @@ def rlsum_mcts(
             c_puct,
             epsilon,
             root_node,
-            valid_sentences.cpu()
+            valid_sentences.cpu(),
         )
 
         epsilon = 0.25
