@@ -59,7 +59,7 @@ class PytorchLightningTrainer(Trainer):
         )
 
         if hasattr(config, "test_tube_slurm_cmd_path"):
-            self.launch_script_path = config.launch_script_path
+            self.launch_script_path = config.test_tube_slurm_cmd_path
 
         super(PytorchLightningTrainer, self).__init__(
             gradient_clip_val=gradient_clip_val,
