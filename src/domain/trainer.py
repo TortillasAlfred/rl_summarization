@@ -37,6 +37,7 @@ class PytorchLightningTrainer(Trainer):
         weights_save_path,
         model,
         max_epochs,
+        config,
         cluster=None,
     ):
         checkpoint_callback = ModelCheckpoint(
@@ -49,9 +50,17 @@ class PytorchLightningTrainer(Trainer):
             mode="max",
             prefix="",
         )
+        if hasattr(config, "hpc_exp_number"):
+            name = f"{model}_{config.hpc_exp_number}"
+        else:
+            name = model
         logger = TestTubeLogger(
-            save_dir=default_save_path, name=model, create_git_tag=True
+            save_dir=default_save_path, name=name, create_git_tag=True
         )
+
+        if hasattr(config, "launch_script_path"):
+            self.launch_script_path = config.launch_script_path
+
         super(PytorchLightningTrainer, self).__init__(
             gradient_clip_val=gradient_clip_val,
             gpus=gpus,
@@ -84,5 +93,6 @@ class PytorchLightningTrainer(Trainer):
             config.weights_save_path,
             config.model,
             config.max_epochs,
+            config,
             cluster,
         )
