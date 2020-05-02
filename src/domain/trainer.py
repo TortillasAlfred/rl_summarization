@@ -40,9 +40,13 @@ class PytorchLightningTrainer(Trainer):
         config,
         cluster=None,
     ):
+        if hasattr(config, "hpc_exp_number"):
+            name = f"{model}_{config.hpc_exp_number}"
+        else:
+            name = model
         checkpoint_callback = ModelCheckpoint(
             filepath="/".join(
-                [weights_save_path, model, "{epoch}-{val_greedy_rouge_mean:.5f}"]
+                [weights_save_path, name, "{epoch}-{val_greedy_rouge_mean:.5f}"]
             ),
             save_top_k=3,
             verbose=True,
@@ -50,10 +54,6 @@ class PytorchLightningTrainer(Trainer):
             mode="max",
             prefix="",
         )
-        if hasattr(config, "hpc_exp_number"):
-            name = f"{model}_{config.hpc_exp_number}"
-        else:
-            name = model
         logger = TestTubeLogger(
             save_dir=default_save_path, name=name, create_git_tag=True
         )
