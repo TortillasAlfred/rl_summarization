@@ -58,7 +58,7 @@ class PytorchLightningTrainer(Trainer):
             save_dir=default_save_path, name=name, create_git_tag=True
         )
 
-        if hasattr(config, "launch_script_path"):
+        if hasattr(config, "test_tube_slurm_cmd_path"):
             self.launch_script_path = config.launch_script_path
 
         super(PytorchLightningTrainer, self).__init__(
