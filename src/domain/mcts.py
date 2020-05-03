@@ -196,9 +196,9 @@ def rlsum_value_pure(
 
     targets = []
 
-    for _ in range(n_sents_per_summary):
+    for t in range(n_sents_per_summary):
         mcts_vals = rlsum_value_pure_episode(
-            scores, n_samples, c_puct, root_node, valid_sentences.cpu(),
+            scores, n_samples, c_puct, root_node, valid_sentences.cpu(), t
         )
 
         mcts_probs = mcts_vals.clone()
@@ -213,9 +213,13 @@ def rlsum_value_pure(
     return targets
 
 
-def rlsum_value_pure_episode(
-    scores, n_samples, c_puct, root_node, valid_sentences,
-):
+def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentences, t):
+    if t == 0:
+        n_samples = n_samples * 2
+    elif t == 1:
+        n_samples = n_samples
+    else:
+        n_samples = 50
     for _ in range(n_samples):
         current_node = root_node
 
