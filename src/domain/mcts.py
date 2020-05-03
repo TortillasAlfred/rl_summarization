@@ -167,6 +167,96 @@ def rlsum_mcts_pure_episode(
     return mcts_pure
 
 
+class RLSumValuePureProcess:
+    def __init__(self, n_samples, c_puct, n_sents_per_summary):
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+
+    def __call__(self, iterable):
+        (state, valid_sentences, scores,) = iterable
+        return rlsum_value_pure(
+            state,
+            valid_sentences,
+            scores,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+        )
+
+
+def rlsum_value_pure(
+    state, valid_sentences, scores, n_samples, c_puct, n_sents_per_summary,
+):
+    torch.set_grad_enabled(False)
+    text_lens = valid_sentences.sum(-1).unsqueeze(-1)
+
+    # Initial Node
+    root_node = RLSumPureNode(state=state)
+
+    targets = []
+
+    for _ in range(n_sents_per_summary):
+        mcts_vals = rlsum_value_pure_episode(
+            scores, n_samples, c_puct, root_node, valid_sentences.cpu(),
+        )
+
+        mcts_probs = mcts_vals.clone()
+        mcts_probs[mcts_vals > 0] = mcts_probs[mcts_vals > 0].exp()
+        mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
+        selected_action = torch.distributions.Categorical(mcts_probs).sample()
+        targets.append((root_node.state, mcts_vals, selected_action))
+
+        valid_sentences[selected_action] = 0
+        root_node = root_node.children[selected_action]
+
+    return targets
+
+
+def rlsum_value_pure_episode(
+    scores, n_samples, c_puct, root_node, valid_sentences,
+):
+    for _ in range(n_samples):
+        current_node = root_node
+
+        while not current_node.state.done:
+            if not current_node.expanded:
+                current_node.expand()
+
+            Q = torch.tensor(
+                [c.q_sum for c in current_node.children], dtype=torch.float32
+            )
+            n_visits = torch.tensor(
+                [c.n_visits for c in current_node.children], dtype=torch.float32,
+            )
+
+            uct_vals = (
+                Q / n_visits
+                + torch.sqrt(math.sqrt(current_node.n_visits + 1) / (n_visits + 1))
+                * c_puct
+            )
+
+            uct_vals[~valid_sentences] = -1
+
+            for idx in current_node.state.summary_idxs:
+                uct_vals[idx] = 0.0
+
+            sampled_action = uct_vals.argmax()
+            current_node = current_node.children[sampled_action.item()]
+
+        reward = scores[tuple(sorted(current_node.state.summary_idxs))].mean()
+        current_node.backprop(reward)
+
+    Q = torch.tensor([c.q_sum for c in root_node.children], dtype=torch.float32)
+
+    n_visits = torch.tensor(
+        [c.n_visits for c in root_node.children], dtype=torch.float32,
+    )
+    mcts_pure = Q / torch.clamp(n_visits, 1)
+
+    return mcts_pure
+
+
 class RLSumOHProcess:
     def __init__(self, n_samples, c_puct, n_sents_per_summary):
         self.n_samples = n_samples
