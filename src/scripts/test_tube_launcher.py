@@ -23,10 +23,11 @@ def optimize_on_cluster(hparams):
     cluster.job_time = "24:00:00"
     cluster.gpu_type = "p100"
     cluster.memory_mb_per_node = int(6e4)
-    cluster.minutes_to_checkpoint_before_walltime = 5
+    cluster.minutes_to_checkpoint_before_walltime = 1
 
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
+    cluster.add_command("sleep 120")
     cluster.add_slurm_cmd(
         cmd="account", value="def-lulam50", comment="CCDB account for running"
     )
