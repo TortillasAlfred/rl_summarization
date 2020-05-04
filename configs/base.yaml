@@ -39,7 +39,7 @@ rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge
 ### MCTS ARGS  ###
 ##################
 c_puct: 0.1
-n_mcts_samples: 250
+n_mcts_samples: 100
 dirichlet_epsilon: 0.25
 
 ####################
@@ -59,4 +59,4 @@ weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving
 max_epochs: 4
 weight_decay: 0.00001
 dropout: 0.1
-accumulate_grad_batches: 4
+accumulate_grad_batches: 1

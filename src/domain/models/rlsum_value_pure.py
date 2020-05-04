@@ -108,7 +108,6 @@ class RLSumValuePure(pl.LightningModule):
         return (
             [m_i[0] for m in mcts_pures for m_i in m],
             torch.stack([torch.stack([m_i[1] for m_i in m]) for m in mcts_pures]),
-            torch.stack([torch.stack([m_i[2] for m_i in m]) for m in mcts_pures]),
         )
 
     def forward(self, batch, subset):
@@ -120,18 +119,9 @@ class RLSumValuePure(pl.LightningModule):
         )
 
         if subset == "train":
-            prediction_states, mcts_probs, mcts_idxs = self.mcts(
+            prediction_states, mcts_vals = self.mcts(
                 sent_contents, doc_contents, states, valid_sentences
             )
-
-            for step_idxs, step_probs in zip(
-                mcts_idxs.permute(1, 0), mcts_probs.permute(1, 0, 2)
-            ):
-                _, mcts_rewards = self.environment.update(
-                    step_idxs, Categorical(probs=step_probs), is_mcts=True
-                )
-
-            states = self.environment.soft_init(batch, subset)
 
             for _ in range(self.n_sents_per_summary):
                 (
@@ -141,7 +131,7 @@ class RLSumValuePure(pl.LightningModule):
                 ) = self.model.produce_affinities(
                     sent_contents, doc_contents, states, valid_sentences
                 )
-                _, greedy_idxs = action_vals.max(dim=-1)
+                _, greedy_idxs = action_vals.mean(-1).max(dim=-1)
                 states, greedy_rewards = self.environment.update(
                     greedy_idxs, action_dist
                 )
@@ -154,23 +144,25 @@ class RLSumValuePure(pl.LightningModule):
                 batch.content
             )
             sent_contents = torch.repeat_interleave(
-                sent_contents, self.n_sents_per_summary, dim=0
+                sent_contents, int(len(prediction_states) / batch.batch_size), dim=0
             )
             doc_contents = torch.repeat_interleave(
-                doc_contents, self.n_sents_per_summary, dim=0
+                doc_contents, int(len(prediction_states) / batch.batch_size), dim=0
             )
             valid_sentences = torch.repeat_interleave(
-                valid_sentences, self.n_sents_per_summary, dim=0
+                valid_sentences, int(len(prediction_states) / batch.batch_size), dim=0
             )
             _, available_sents, action_vals = self.model.produce_affinities(
                 sent_contents, doc_contents, prediction_states, valid_sentences
             )
 
-            mcts_probs = torch.cat([m for m in mcts_probs], dim=0)
-            loss = (mcts_probs.to(valid_sentences.device) - action_vals) ** 2
+            mcts_vals = torch.cat([m for m in mcts_vals], dim=0)
+            loss = (
+                mcts_vals.to(valid_sentences.device) - action_vals
+            ) ** 2 / batch.batch_size
             loss = loss.sum()
 
-            return mcts_rewards, greedy_rewards, loss
+            return greedy_rewards, loss
         else:
             for _ in range(self.n_sents_per_summary):
                 (
@@ -204,7 +196,7 @@ class RLSumValuePure(pl.LightningModule):
         return output_dict
 
     def training_step(self, batch, batch_idx):
-        generated_rewards, greedy_rewards, loss = self.forward(batch, subset="train")
+        greedy_rewards, loss = self.forward(batch, subset="train")
 
         return self.get_step_output(loss=loss, greedy_reward=greedy_rewards.mean())
 
@@ -334,7 +326,7 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Linear(hidden_dim * 2 * 3, decoder_dim),
             torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim, 1),
+            torch.nn.Linear(decoder_dim, 3),
             torch.nn.Sigmoid(),
         )
 
@@ -382,9 +374,9 @@ class RLSummModel(torch.nn.Module):
                 a_s[idx] = False
 
         valid_sentences = valid_sentences & available_sents
-        contents = contents * valid_sentences
+        contents = contents * valid_sentences.unsqueeze(-1)
 
-        return Categorical(probs=contents), valid_sentences, contents
+        return Categorical(probs=contents.mean(-1)), valid_sentences, contents
 
     def forward(self, x):
         pass

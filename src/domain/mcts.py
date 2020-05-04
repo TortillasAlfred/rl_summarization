@@ -185,6 +185,34 @@ class RLSumValuePureProcess:
         )
 
 
+class RLSumValuePureNode:
+    def __init__(self, state, parent=None):
+        self.state = state
+        self.parent = parent
+
+        self.children = []
+        self.n_visits = 0
+        self.q_sum = np.zeros((3,))
+        self.expanded = False
+
+    def backprop(self, reward):
+        self.n_visits += 1
+        self.q_sum += reward
+
+        if self.parent:
+            self.parent.backprop(reward)
+
+    def expand(self):
+        for i in range(50):
+            new_state = copy.deepcopy(self.state)
+            new_state.update(i)
+
+            new_node = RLSumValuePureNode(new_state, parent=self)
+            self.children.append(new_node)
+
+        self.expanded = True
+
+
 def rlsum_value_pure(
     state, valid_sentences, scores, n_samples, c_puct, n_sents_per_summary,
 ):
@@ -192,34 +220,44 @@ def rlsum_value_pure(
     text_lens = valid_sentences.sum(-1).unsqueeze(-1)
 
     # Initial Node
-    root_node = RLSumPureNode(state=state)
+    root_node = RLSumValuePureNode(state=state)
+    level_t_nodes = [root_node]
+    level_t_valid = [valid_sentences]
 
     targets = []
 
     for t in range(n_sents_per_summary):
-        mcts_vals = rlsum_value_pure_episode(
-            scores, n_samples, c_puct, root_node, valid_sentences.cpu(), t
-        )
+        next_level_t_nodes = []
+        next_level_t_valid = []
 
-        mcts_probs = mcts_vals.clone()
-        mcts_probs[mcts_vals > 0] = mcts_probs[mcts_vals > 0].exp()
-        mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
-        selected_action = torch.distributions.Categorical(mcts_probs).sample()
-        targets.append((root_node.state, mcts_vals, selected_action))
+        for root_node, valid_sentences in zip(level_t_nodes, level_t_valid):
+            mcts_vals = rlsum_value_pure_episode(
+                scores, n_samples, c_puct, root_node, valid_sentences.cpu(), t
+            )
 
-        valid_sentences[selected_action] = 0
-        root_node = root_node.children[selected_action]
+            mcts_probs = mcts_vals.mean(-1)
+            mcts_probs[mcts_probs > 0] = mcts_probs[mcts_probs > 0].exp()
+            mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
+            selected_actions = torch.distributions.Categorical(mcts_probs).sample((4,))
+            targets.append((root_node.state, mcts_vals))
+
+            for action in selected_actions:
+                next_valid = valid_sentences.clone()
+                next_valid[action] = 0
+                next_level_t_valid.append(next_valid)
+                next_level_t_nodes.append(root_node.children[action])
+
+        level_t_nodes = next_level_t_nodes
+        level_t_valid = next_level_t_valid
 
     return targets
 
 
 def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentences, t):
     if t == 0:
-        n_samples = n_samples * 2
-    elif t == 1:
-        n_samples = n_samples
-    else:
-        n_samples = 50
+        n_samples = n_samples * 4
+    elif t == 2:
+        n_samples = valid_sentences.sum().item()
     for _ in range(n_samples):
         current_node = root_node
 
@@ -229,7 +267,7 @@ def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentenc
 
             Q = torch.tensor(
                 [c.q_sum for c in current_node.children], dtype=torch.float32
-            )
+            ).mean(-1)
             n_visits = torch.tensor(
                 [c.n_visits for c in current_node.children], dtype=torch.float32,
             )
@@ -248,7 +286,7 @@ def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentenc
             sampled_action = uct_vals.argmax()
             current_node = current_node.children[sampled_action.item()]
 
-        reward = scores[tuple(sorted(current_node.state.summary_idxs))].mean()
+        reward = scores[tuple(sorted(current_node.state.summary_idxs))]
         current_node.backprop(reward)
 
     Q = torch.tensor([c.q_sum for c in root_node.children], dtype=torch.float32)
@@ -256,7 +294,7 @@ def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentenc
     n_visits = torch.tensor(
         [c.n_visits for c in root_node.children], dtype=torch.float32,
     )
-    mcts_pure = Q / torch.clamp(n_visits, 1)
+    mcts_pure = Q / torch.clamp(n_visits, 1).unsqueeze(-1)
 
     return mcts_pure
 
