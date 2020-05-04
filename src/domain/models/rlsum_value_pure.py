@@ -48,7 +48,7 @@ class RLSumValuePure(pl.LightningModule):
         self.__build_model(hparams.hidden_dim)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-        mp.set_start_method("spawn", force=True)
+        mp.set_start_method("forkserver", force=True)
         if hparams.n_jobs_for_mcts == -1:
             n_processes = os.cpu_count()
         else:
