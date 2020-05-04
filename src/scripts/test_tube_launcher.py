@@ -17,11 +17,11 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 6
+    cluster.per_experiment_nb_cpus = 12
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "24:00:00"
-    cluster.gpu_type = "p100"
+    cluster.gpu_type = "v100l"
     cluster.memory_mb_per_node = int(6e4)
     cluster.minutes_to_checkpoint_before_walltime = 1
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     # let's enable optimizing over the number of layers in the network
 
     argument_parser.opt_list(
-        "--c_puct", default=0.1, type=float, tunable=True, options=[0.1, 1.0, 10.0]
+        "--c_puct", default=0.1, type=float, tunable=True, options=[0.05, 0.1, 0.25]
     )
 
     hparams = argument_parser.parse_args()
