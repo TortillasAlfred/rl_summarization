@@ -279,7 +279,7 @@ class RLSumMCTS(pl.LightningModule):
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=5, factor=0.2, verbose=True
+            optimizer, mode="max", patience=3, factor=0.1, verbose=True
         )
 
         return optimizer
