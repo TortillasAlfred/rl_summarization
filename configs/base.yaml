@@ -8,16 +8,16 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ##################
 ### MODEL ARGS ###
 ##################
-model: "rlsum_value_pure" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
-train_batch_size: 128
-test_batch_size: 512
+model: "rlsum_value_inference" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+train_batch_size: 64
+test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
 learning_rate: 0.0001
 epsilon: 0.1
 n_sents_per_summary: 3
-n_jobs_for_mcts: 12
+n_jobs_for_mcts: 10
 lambda_loss: 0.5
 
 ####################
