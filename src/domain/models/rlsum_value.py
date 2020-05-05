@@ -17,9 +17,9 @@ import os
 import functools
 
 
-class RLSumValuePure(pl.LightningModule):
+class RLSumValue(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
-        super(RLSumValuePure, self).__init__()
+        super(RLSumValue, self).__init__()
         self.hparams = hparams
         self.dataset = dataset
         self.environment = BanditSummarizationEnvironment(
@@ -92,13 +92,18 @@ class RLSumValuePure(pl.LightningModule):
         return sent_contents, doc_contents, valid_sentences
 
     def mcts(self, sent_contents, doc_contents, states, valid_sentences):
+        self.model.share_memory()
         mcts_pures = self.pool.map(
-            mcts.RLSumValuePureProcess(
+            mcts.RLSumValueProcess(
+                model=self.model,
                 n_samples=self.n_mcts_samples,
                 c_puct=self.c_puct,
                 n_sents_per_summary=self.n_sents_per_summary,
+                epsilon=self.dirichlet_epsilon,
             ),
             zip(
+                sent_contents,
+                doc_contents,
                 states,
                 valid_sentences,
                 [s.scores for s in self.environment.reward_scorers],
@@ -308,7 +313,7 @@ class RLSumValuePure(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return RLSumValuePure(dataset, reward, config,)
+        return RLSumValue(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):

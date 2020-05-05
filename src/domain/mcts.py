@@ -299,6 +299,199 @@ def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentenc
     return mcts_pure
 
 
+class RLSumValueProcess:
+    def __init__(self, model, n_samples, c_puct, n_sents_per_summary, epsilon):
+        self.model = model
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+        self.epsilon = epsilon
+
+    def __call__(self, iterable):
+        (sent_contents, doc_contents, state, valid_sentences, scores,) = iterable
+        return rlsum_pure(
+            sent_contents,
+            doc_contents,
+            state,
+            valid_sentences,
+            scores,
+            self.model,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+            self.epsilon,
+        )
+
+
+class RLSumValueNode:
+    def __init__(self, prior, state, parent=None):
+        self.prior = prior
+        self.state = state
+        self.parent = parent
+
+        self.children = []
+        self.n_visits = 0
+        self.q_sum = np.zeros((3,))
+        self.expanded = False
+
+    def backprop(self, reward):
+        self.n_visits += 1
+        self.q_sum += reward
+
+        if self.parent:
+            self.parent.backprop(reward)
+
+    def expand(self, priors):
+        for i, prior in enumerate(priors.squeeze(0)):
+            new_state = copy.deepcopy(self.state)
+            new_state.update(i)
+
+            new_node = RLSumValueNode(prior.unsqueeze(0), new_state, parent=self)
+            self.children.append(new_node)
+
+        self.expanded = True
+
+
+def rlsum_pure(
+    sent_contents,
+    doc_contents,
+    state,
+    valid_sentences,
+    scores,
+    model,
+    n_samples,
+    c_puct,
+    n_sents_per_summary,
+    epsilon,
+):
+    torch.set_grad_enabled(False)
+    text_lens = valid_sentences.sum(-1).unsqueeze(-1)
+
+    alpha = text_lens.float() / 100
+    alphas = torch.ones_like(valid_sentences, dtype=torch.float32) * alpha
+
+    prior_producer = RLSumValuePriorsProducer(
+        model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
+    )
+
+    # Initial Node
+    root_node = RLSumValueNode(
+        prior=torch.zeros((1,), dtype=torch.float32), state=state
+    )
+    level_t_nodes = [root_node]
+    level_t_valid = [valid_sentences]
+
+    targets = []
+
+    for t in range(n_sents_per_summary):
+        next_level_t_nodes = []
+        next_level_t_valid = []
+
+        for root_node, valid_sentences in zip(level_t_nodes, level_t_valid):
+            mcts_vals = rlsum_value_episode(
+                prior_producer,
+                scores,
+                n_samples,
+                c_puct,
+                root_node,
+                valid_sentences.cpu(),
+                t,
+            )
+
+            mcts_probs = mcts_vals.mean(-1)
+            mcts_probs[mcts_probs > 0] = mcts_probs[mcts_probs > 0].exp()
+            mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
+
+            selected_actions = torch.distributions.Categorical(mcts_probs).sample((4,))
+            targets.append((root_node.state, mcts_vals))
+
+            for action in selected_actions:
+                next_valid = valid_sentences.clone()
+                next_valid[action] = 0
+                next_level_t_valid.append(next_valid)
+                next_level_t_nodes.append(root_node.children[action])
+
+        level_t_nodes = next_level_t_nodes
+        level_t_valid = next_level_t_valid
+
+    return targets
+
+
+def rlsum_value_episode(
+    prior_producer, scores, n_samples, c_puct, root_node, valid_sentences, t
+):
+    if t == 0:
+        n_samples = n_samples * 4
+    elif t == 2:
+        n_samples = valid_sentences.sum().item()
+    for _ in range(n_samples):
+        current_node = root_node
+
+        while not current_node.state.done:
+            if not current_node.expanded:
+                priors = prior_producer(current_node.state)
+                current_node.expand(priors)
+
+            Q = torch.tensor(
+                [c.q_sum for c in current_node.children], dtype=torch.float32
+            ).mean(-1)
+            n_visits = torch.tensor(
+                [c.n_visits for c in current_node.children], dtype=torch.float32,
+            )
+
+            priors = torch.tensor(
+                [c.prior for c in current_node.children], dtype=torch.float32
+            )
+            uct_vals = (
+                Q / n_visits
+                + priors
+                * valid_sentences.sum().item()
+                * torch.sqrt(math.sqrt(current_node.n_visits + 1) / (n_visits + 1))
+                * c_puct
+            )
+
+            uct_vals[~valid_sentences] = -1
+
+            for idx in current_node.state.summary_idxs:
+                uct_vals[idx] = 0.0
+
+            sampled_action = uct_vals.argmax()
+            current_node = current_node.children[sampled_action.item()]
+
+        reward = scores[tuple(sorted(current_node.state.summary_idxs))]
+        current_node.backprop(reward)
+
+    Q = torch.tensor([c.q_sum for c in root_node.children], dtype=torch.float32)
+
+    n_visits = torch.tensor(
+        [c.n_visits for c in root_node.children], dtype=torch.float32,
+    )
+    mcts_pure = Q / torch.clamp(n_visits, 1).unsqueeze(-1)
+
+    return mcts_pure
+
+
+class RLSumValuePriorsProducer:
+    def __init__(
+        self, model, sent_contents, doc_contents, valid_sentences, epsilon, alphas
+    ):
+        self.model = model
+        self.sent_contents = sent_contents.unsqueeze(0)
+        self.doc_contents = doc_contents.unsqueeze(0)
+        self.valid_sentences = valid_sentences.unsqueeze(0)
+        self.epsilon = epsilon
+        self.alphas = alphas
+
+    def __call__(self, state):
+        action_dist, valid_sents, _ = self.model.produce_affinities(
+            self.sent_contents, self.doc_contents, [state], self.valid_sentences,
+        )
+
+        priors = action_dist.probs * valid_sents
+
+        return priors
+
+
 class RLSumOHProcess:
     def __init__(self, n_samples, c_puct, n_sents_per_summary):
         self.n_samples = n_samples

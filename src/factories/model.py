@@ -4,6 +4,7 @@ from src.domain.models.banditsum_mcts import *
 from src.domain.models.rlsum_mcts import *
 from src.domain.models.rlsum_mcts_pure import *
 from src.domain.models.rlsum_value_pure import *
+from src.domain.models.rlsum_value import *
 from src.domain.models.rlsum_oh import *
 from src.domain.models.azsum_mcts import *
 from src.domain.models.a2c import *
@@ -19,6 +20,7 @@ class ModelFactory:
     RLSUM_OH = "rlsum_oh"
     RLSUM_MCTS_PURE = "rlsum_mcts_pure"
     RLSUM_VALUE_PURE = "rlsum_value_pure"
+    RLSUM_VALUE = "rlsum_value"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -42,5 +44,7 @@ class ModelFactory:
             return RLSumMCTSPure.from_config(dataset, reward, config)
         elif model == cls.RLSUM_VALUE_PURE:
             return RLSumValuePure.from_config(dataset, reward, config)
+        elif model == cls.RLSUM_VALUE:
+            return RLSumValue.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")
