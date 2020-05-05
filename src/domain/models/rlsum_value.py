@@ -162,10 +162,8 @@ class RLSumValue(pl.LightningModule):
             )
 
             mcts_vals = torch.cat([m for m in mcts_vals], dim=0)
-            loss = (
-                (mcts_vals.to(valid_sentences.device) - action_vals) ** 2
-            ) / batch.batch_size
-            loss = loss.sum()
+            loss = (mcts_vals.to(valid_sentences.device) - action_vals) ** 2
+            loss = loss.sum() / batch.batch_size
 
             return greedy_rewards, loss
         else:
