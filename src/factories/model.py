@@ -5,6 +5,8 @@ from src.domain.models.rlsum_mcts import *
 from src.domain.models.rlsum_mcts_pure import *
 from src.domain.models.rlsum_value_pure import *
 from src.domain.models.rlsum_value import *
+from src.domain.models.rlsum_value_inference import *
+from src.domain.models.rlsum_value_pure_inference import *
 from src.domain.models.rlsum_oh import *
 from src.domain.models.azsum_mcts import *
 from src.domain.models.a2c import *
@@ -21,6 +23,8 @@ class ModelFactory:
     RLSUM_MCTS_PURE = "rlsum_mcts_pure"
     RLSUM_VALUE_PURE = "rlsum_value_pure"
     RLSUM_VALUE = "rlsum_value"
+    RLSUM_VALUE_INFERENCE = "rlsum_value_inference"
+    RLSUM_VALUE_PURE_INFERENCE = "rlsum_value_pure_inference"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -46,5 +50,9 @@ class ModelFactory:
             return RLSumValuePure.from_config(dataset, reward, config)
         elif model == cls.RLSUM_VALUE:
             return RLSumValue.from_config(dataset, reward, config)
+        elif model == cls.RLSUM_VALUE_INFERENCE:
+            return RLSumValueInference.from_config(dataset, reward, config)
+        elif model == cls.RLSUM_VALUE_PURE_INFERENCE:
+            return RLSumValuePureInference.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

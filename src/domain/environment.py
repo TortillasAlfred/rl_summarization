@@ -51,7 +51,7 @@ class BanditSummarizationEnvironment:
                 f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
             )
 
-    def update(self, actions, actions_probs, is_mcts=False, policy=None, q_vals=None):
+    def update(self, actions, actions_probs=None, is_mcts=False, policy=None, q_vals=None):
         for state, action in zip(self.states, actions):
             state.update(action)
 

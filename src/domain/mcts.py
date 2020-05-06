@@ -299,6 +299,381 @@ def rlsum_value_pure_episode(scores, n_samples, c_puct, root_node, valid_sentenc
     return mcts_pure
 
 
+class RLSumValueInferenceProcess:
+    def __init__(self, model, n_samples, c_puct, n_sents_per_summary):
+        self.model = model
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+
+    def __call__(self, iterable):
+        (sent_contents, doc_contents, state, valid_sentences) = iterable
+        return rlsum_value_inference(
+            sent_contents,
+            doc_contents,
+            state,
+            valid_sentences,
+            self.model,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+        )
+
+
+class RLSumValueInferenceNode:
+    def __init__(self, state, prior, reward, parent=None):
+        self.state = state
+        self.parent = parent
+        self.prior = prior
+        self.reward = reward
+
+        self.children = []
+        self.n_visits = 0
+        self.q_sum = reward.cpu()
+        self.expanded = False
+
+    def backprop(self, reward=None):
+        self.n_visits += 1
+
+        if reward is not None:
+            self.q_sum += reward
+
+            if self.parent:
+                self.parent.backprop(reward)
+
+        else:
+            if self.parent:
+                self.parent.backprop(self.reward)
+
+    def expand(self, priors, rewards):
+        for i, (prior, reward) in enumerate(
+            zip(priors.squeeze(0).cpu(), rewards.squeeze(0).cpu())
+        ):
+            new_state = copy.deepcopy(self.state)
+            new_state.update(i)
+
+            new_node = RLSumValueInferenceNode(
+                new_state, prior.unsqueeze(0), reward, parent=self
+            )
+            self.children.append(new_node)
+
+        self.expanded = True
+
+
+def rlsum_value_inference(
+    sent_contents,
+    doc_contents,
+    state,
+    valid_sentences,
+    model,
+    n_samples,
+    c_puct,
+    n_sents_per_summary,
+):
+    torch.set_grad_enabled(False)
+    text_lens = valid_sentences.sum(-1).unsqueeze(-1)
+
+    prior_producer = RLSumValueInferencePriorsProducer(
+        model, sent_contents, doc_contents, valid_sentences,
+    )
+
+    # Initial Node
+    root_node = RLSumValueInferenceNode(
+        prior=torch.zeros((1,), dtype=torch.float32),
+        reward=torch.zeros((3,), dtype=torch.float32),
+        state=state,
+    )
+
+    idxs = []
+
+    for t in range(n_sents_per_summary - 1):
+        mcts_vals = rlsum_value_inference_episode(
+            prior_producer,
+            sent_contents,
+            doc_contents,
+            n_samples,
+            c_puct,
+            root_node,
+            valid_sentences.cpu(),
+            t,
+        )
+
+        selected_action = mcts_vals.argmax()
+        idxs.append(selected_action)
+
+        valid_sentences[selected_action] = 0
+        root_node = root_node.children[selected_action]
+
+    Q = torch.stack([c.q_sum for c in root_node.children]).mean(-1).squeeze(-1)
+
+    idxs.append(Q.argmax())
+
+    return idxs
+
+
+def rlsum_value_inference_episode(
+    prior_producer,
+    sent_contents,
+    doc_contents,
+    n_samples,
+    c_puct,
+    root_node,
+    valid_sentences,
+    t,
+):
+    if t == 2:
+        n_samples = valid_sentences.sum().item()
+    if not root_node.expanded:
+        priors, vals = prior_producer(root_node.state)
+        root_node.expand(priors, vals)
+    for _ in range(n_samples):
+        current_node = root_node
+
+        while not current_node.state.done and current_node.expanded:
+            Q = (
+                torch.stack([c.q_sum for c in current_node.children])
+                .mean(-1)
+                .squeeze(-1)
+            )
+            n_visits = torch.tensor(
+                [c.n_visits for c in current_node.children], dtype=torch.float32,
+            )
+
+            priors = torch.tensor(
+                [c.prior for c in current_node.children], dtype=torch.float32
+            )
+
+            uct_vals = (
+                Q / n_visits
+                + priors
+                * valid_sentences.sum().item()
+                * torch.sqrt(math.sqrt(current_node.n_visits + 1) / (n_visits + 1))
+                * c_puct
+            )
+
+            uct_vals[~valid_sentences] = -1
+
+            for idx in current_node.state.summary_idxs:
+                uct_vals[idx] = 0.0
+
+            sampled_action = uct_vals.argmax()
+            current_node = current_node.children[sampled_action.item()]
+
+        current_node.backprop()
+
+        if not current_node.expanded and not current_node.state.done:
+            priors, vals = prior_producer(current_node.state)
+            current_node.expand(priors, vals)
+
+    Q = torch.stack([c.q_sum for c in root_node.children]).mean(-1).squeeze(-1)
+
+    n_visits = torch.tensor(
+        [c.n_visits for c in root_node.children], dtype=torch.float32,
+    )
+    mcts_pure = Q / torch.clamp(n_visits, 1)
+
+    return mcts_pure
+
+
+class RLSumValueInferencePriorsProducer:
+    def __init__(
+        self, model, sent_contents, doc_contents, valid_sentences,
+    ):
+        self.model = model
+        self.sent_contents = sent_contents.unsqueeze(0)
+        self.doc_contents = doc_contents.unsqueeze(0)
+        self.valid_sentences = valid_sentences.unsqueeze(0)
+
+    def __call__(self, state):
+        action_dist, valid_sents, action_vals = self.model.produce_affinities(
+            self.sent_contents, self.doc_contents, [state], self.valid_sentences,
+        )
+
+        priors = action_dist.probs * valid_sents
+
+        return priors, action_vals
+
+
+class RLSumValuePureInferenceProcess:
+    def __init__(self, model, n_samples, c_puct, n_sents_per_summary):
+        self.model = model
+        self.n_samples = n_samples
+        self.c_puct = c_puct
+        self.n_sents_per_summary = n_sents_per_summary
+
+    def __call__(self, iterable):
+        (sent_contents, doc_contents, state, valid_sentences) = iterable
+        return rlsum_value_pure_inference(
+            sent_contents,
+            doc_contents,
+            state,
+            valid_sentences,
+            self.model,
+            self.n_samples,
+            self.c_puct,
+            self.n_sents_per_summary,
+        )
+
+
+class RLSumValuePureInferenceNode:
+    def __init__(self, state, reward, parent=None):
+        self.state = state
+        self.parent = parent
+        self.reward = reward
+
+        self.children = []
+        self.n_visits = 0
+        self.q_sum = reward.cpu()
+        self.expanded = False
+
+    def backprop(self, reward=None):
+        self.n_visits += 1
+
+        if reward is not None:
+            self.q_sum += reward
+
+            if self.parent:
+                self.parent.backprop(reward)
+
+        else:
+            if self.parent:
+                self.parent.backprop(self.reward)
+
+    def expand(self, rewards):
+        for i, reward in enumerate(rewards.squeeze(0).cpu()):
+            new_state = copy.deepcopy(self.state)
+            new_state.update(i)
+
+            new_node = RLSumValuePureInferenceNode(new_state, reward, parent=self)
+            self.children.append(new_node)
+
+        self.expanded = True
+
+
+def rlsum_value_pure_inference(
+    sent_contents,
+    doc_contents,
+    state,
+    valid_sentences,
+    model,
+    n_samples,
+    c_puct,
+    n_sents_per_summary,
+):
+    torch.set_grad_enabled(False)
+    text_lens = valid_sentences.sum(-1).unsqueeze(-1)
+
+    prior_producer = RLSumValuePureInferencePriorsProducer(
+        model, sent_contents, doc_contents, valid_sentences,
+    )
+
+    # Initial Node
+    root_node = RLSumValuePureInferenceNode(
+        reward=torch.zeros((3,), dtype=torch.float32), state=state,
+    )
+
+    idxs = []
+
+    for t in range(n_sents_per_summary - 1):
+        mcts_vals = rlsum_value_pure_inference_episode(
+            prior_producer,
+            sent_contents,
+            doc_contents,
+            n_samples,
+            c_puct,
+            root_node,
+            valid_sentences.cpu(),
+            t,
+        )
+
+        selected_action = mcts_vals.argmax()
+        idxs.append(selected_action)
+
+        valid_sentences[selected_action] = 0
+        root_node = root_node.children[selected_action]
+
+    Q = torch.stack([c.q_sum for c in root_node.children]).mean(-1).squeeze(-1)
+
+    idxs.append(Q.argmax())
+
+    return idxs
+
+
+def rlsum_value_pure_inference_episode(
+    prior_producer,
+    sent_contents,
+    doc_contents,
+    n_samples,
+    c_puct,
+    root_node,
+    valid_sentences,
+    t,
+):
+    if t == 2:
+        n_samples = valid_sentences.sum().item()
+    if not root_node.expanded:
+        vals = prior_producer(root_node.state)
+        root_node.expand(vals)
+    for _ in range(n_samples):
+        current_node = root_node
+
+        while not current_node.state.done and current_node.expanded:
+            Q = (
+                torch.stack([c.q_sum for c in current_node.children])
+                .mean(-1)
+                .squeeze(-1)
+            )
+            n_visits = torch.tensor(
+                [c.n_visits for c in current_node.children], dtype=torch.float32,
+            )
+
+            uct_vals = (
+                Q / n_visits
+                + torch.sqrt(math.sqrt(current_node.n_visits + 1) / (n_visits + 1))
+                * c_puct
+            )
+
+            uct_vals[~valid_sentences] = -1
+
+            for idx in current_node.state.summary_idxs:
+                uct_vals[idx] = 0.0
+
+            sampled_action = uct_vals.argmax()
+            current_node = current_node.children[sampled_action.item()]
+
+        current_node.backprop()
+
+        if not current_node.expanded and not current_node.state.done:
+            vals = prior_producer(current_node.state)
+            current_node.expand(vals)
+
+    Q = torch.stack([c.q_sum for c in root_node.children]).mean(-1).squeeze(-1)
+
+    n_visits = torch.tensor(
+        [c.n_visits for c in root_node.children], dtype=torch.float32,
+    )
+    mcts_pure = Q / torch.clamp(n_visits, 1)
+
+    return mcts_pure
+
+
+class RLSumValuePureInferencePriorsProducer:
+    def __init__(
+        self, model, sent_contents, doc_contents, valid_sentences,
+    ):
+        self.model = model
+        self.sent_contents = sent_contents.unsqueeze(0)
+        self.doc_contents = doc_contents.unsqueeze(0)
+        self.valid_sentences = valid_sentences.unsqueeze(0)
+
+    def __call__(self, state):
+        _, _, action_vals = self.model.produce_affinities(
+            self.sent_contents, self.doc_contents, [state], self.valid_sentences,
+        )
+
+        return action_vals
+
+
 class RLSumValueProcess:
     def __init__(self, model, n_samples, c_puct, n_sents_per_summary, epsilon):
         self.model = model
@@ -309,7 +684,7 @@ class RLSumValueProcess:
 
     def __call__(self, iterable):
         (sent_contents, doc_contents, state, valid_sentences, scores,) = iterable
-        return rlsum_pure(
+        return rlsum_value(
             sent_contents,
             doc_contents,
             state,
@@ -352,7 +727,7 @@ class RLSumValueNode:
         self.expanded = True
 
 
-def rlsum_pure(
+def rlsum_value(
     sent_contents,
     doc_contents,
     state,
@@ -378,41 +753,29 @@ def rlsum_pure(
     root_node = RLSumValueNode(
         prior=torch.zeros((1,), dtype=torch.float32), state=state
     )
-    level_t_nodes = [root_node]
-    level_t_valid = [valid_sentences]
 
     targets = []
 
     for t in range(n_sents_per_summary):
-        next_level_t_nodes = []
-        next_level_t_valid = []
+        mcts_vals = rlsum_value_episode(
+            prior_producer,
+            scores,
+            n_samples,
+            c_puct,
+            root_node,
+            valid_sentences.cpu(),
+            t,
+        )
 
-        for root_node, valid_sentences in zip(level_t_nodes, level_t_valid):
-            mcts_vals = rlsum_value_episode(
-                prior_producer,
-                scores,
-                n_samples,
-                c_puct,
-                root_node,
-                valid_sentences.cpu(),
-                t,
-            )
+        mcts_probs = mcts_vals.mean(-1)
+        mcts_probs[mcts_probs > 0] = (10 * mcts_probs[mcts_probs > 0]).exp()
+        mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
 
-            mcts_probs = mcts_vals.mean(-1)
-            mcts_probs[mcts_probs > 0] = mcts_probs[mcts_probs > 0].exp()
-            mcts_probs = mcts_probs / mcts_probs.sum(-1, keepdim=True)
+        selected_action = torch.distributions.Categorical(mcts_probs).sample()
+        targets.append((root_node.state, mcts_vals))
 
-            selected_actions = torch.distributions.Categorical(mcts_probs).sample((4,))
-            targets.append((root_node.state, mcts_vals))
-
-            for action in selected_actions:
-                next_valid = valid_sentences.clone()
-                next_valid[action] = 0
-                next_level_t_valid.append(next_valid)
-                next_level_t_nodes.append(root_node.children[action])
-
-        level_t_nodes = next_level_t_nodes
-        level_t_valid = next_level_t_valid
+        valid_sentences[selected_action] = 0
+        root_node = root_node.children[selected_action]
 
     return targets
 
@@ -420,9 +783,7 @@ def rlsum_pure(
 def rlsum_value_episode(
     prior_producer, scores, n_samples, c_puct, root_node, valid_sentences, t
 ):
-    if t == 0:
-        n_samples = n_samples * 4
-    elif t == 2:
+    if t == 2:
         n_samples = valid_sentences.sum().item()
     for _ in range(n_samples):
         current_node = root_node

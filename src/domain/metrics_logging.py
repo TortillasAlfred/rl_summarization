@@ -43,78 +43,80 @@ class DefaultLoggedMetrics:
         if q_vals is not None:
             q_vals = q_vals.mean(-1)
 
-        for i, (action, reward) in enumerate(zip(actions, rewards)):
-            # Policy logging 
-            if is_mcts:
-                self.mcts_entropies[i].append(actions_probs.entropy()[i])
-                self.mcts_max_action_prob[i].append(actions_probs.probs[i].max())
-                self.mcts_min_action_prob[i].append(actions_probs.probs[i].min())
-                self.mcts_mean_action_prob[i].append(actions_probs.probs[i].mean())
-                self.mcts_median_action_prob[i].append(actions_probs.probs[i].median())
-                
-                if len(action.shape) > 0 and len(action) > 1:
-                    self.mcts_selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
+        for i, reward in enumerate(rewards):
+            if actions_probs:
+                action = actions[i]
+                # Policy logging 
+                if is_mcts:
+                    self.mcts_entropies[i].append(actions_probs.entropy()[i])
+                    self.mcts_max_action_prob[i].append(actions_probs.probs[i].max())
+                    self.mcts_min_action_prob[i].append(actions_probs.probs[i].min())
+                    self.mcts_mean_action_prob[i].append(actions_probs.probs[i].mean())
+                    self.mcts_median_action_prob[i].append(actions_probs.probs[i].median())
+                    
+                    if len(action.shape) > 0 and len(action) > 1:
+                        self.mcts_selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
+                    else:
+                        self.mcts_selected_action_probs[i].append(actions_probs.probs[i][action])
+
+                    
+                    if policy is not None:
+                        self.mcts_max_action_policy[i].append(policy[i].max())
+                        self.mcts_min_action_policy[i].append(policy[i].min())
+                        self.mcts_mean_action_policy[i].append(policy[i].mean())
+                        self.mcts_median_action_policy[i].append(policy[i].median())
+                        
+                        if len(action.shape) > 1:
+                            self.mcts_selected_action_policy[i].extend(policy[i].index_select(0, action.long()))
+                        else:
+                            self.mcts_selected_action_policy[i].append(policy[i][action])
+
+
+                    if q_vals is not None:
+                        self.mcts_max_action_value[i].append(q_vals[i].max())
+                        self.mcts_min_action_value[i].append(q_vals[i].min())
+                        self.mcts_mean_action_value[i].append(q_vals[i].mean())
+                        self.mcts_median_action_value[i].append(q_vals[i].median())
+                        
+                        if len(action.shape) > 1:
+                            self.mcts_selected_action_value[i].extend(q_vals[i].index_select(0, action.long()))
+                        else:
+                            self.mcts_selected_action_value[i].append(q_vals[i][action])
                 else:
-                    self.mcts_selected_action_probs[i].append(actions_probs.probs[i][action])
-
-                
-                if policy is not None:
-                    self.mcts_max_action_policy[i].append(policy[i].max())
-                    self.mcts_min_action_policy[i].append(policy[i].min())
-                    self.mcts_mean_action_policy[i].append(policy[i].mean())
-                    self.mcts_median_action_policy[i].append(policy[i].median())
+                    self.entropies[i].append(actions_probs.entropy()[i])
+                    self.max_action_prob[i].append(actions_probs.probs[i].max())
+                    self.min_action_prob[i].append(actions_probs.probs[i].min())
+                    self.mean_action_prob[i].append(actions_probs.probs[i].mean())
+                    self.median_action_prob[i].append(actions_probs.probs[i].median())
                     
                     if len(action.shape) > 1:
-                        self.mcts_selected_action_policy[i].extend(policy[i].index_select(0, action.long()))
+                        self.selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
                     else:
-                        self.mcts_selected_action_policy[i].append(policy[i][action])
-
-
-                if q_vals is not None:
-                    self.mcts_max_action_value[i].append(q_vals[i].max())
-                    self.mcts_min_action_value[i].append(q_vals[i].min())
-                    self.mcts_mean_action_value[i].append(q_vals[i].mean())
-                    self.mcts_median_action_value[i].append(q_vals[i].median())
+                        self.selected_action_probs[i].append(actions_probs.probs[i][action])
                     
-                    if len(action.shape) > 1:
-                        self.mcts_selected_action_value[i].extend(q_vals[i].index_select(0, action.long()))
-                    else:
-                        self.mcts_selected_action_value[i].append(q_vals[i][action])
-            else:
-                self.entropies[i].append(actions_probs.entropy()[i])
-                self.max_action_prob[i].append(actions_probs.probs[i].max())
-                self.min_action_prob[i].append(actions_probs.probs[i].min())
-                self.mean_action_prob[i].append(actions_probs.probs[i].mean())
-                self.median_action_prob[i].append(actions_probs.probs[i].median())
-                
-                if len(action.shape) > 1:
-                    self.selected_action_probs[i].extend(actions_probs.probs[i].index_select(0, action.long()))
-                else:
-                    self.selected_action_probs[i].append(actions_probs.probs[i][action])
-                
-                if policy is not None:
-                    self.max_action_policy[i].append(policy[i].max())
-                    self.min_action_policy[i].append(policy[i].min())
-                    self.mean_action_policy[i].append(policy[i].mean())
-                    self.median_action_policy[i].append(policy[i].median())
-                    
-                    if len(action.shape) > 1:
-                        self.selected_action_policy[i].extend(policy[i].index_select(0, action.long()))
-                    else:
-                        self.selected_action_policy[i].append(policy[i][action])
+                    if policy is not None:
+                        self.max_action_policy[i].append(policy[i].max())
+                        self.min_action_policy[i].append(policy[i].min())
+                        self.mean_action_policy[i].append(policy[i].mean())
+                        self.median_action_policy[i].append(policy[i].median())
+                        
+                        if len(action.shape) > 1:
+                            self.selected_action_policy[i].extend(policy[i].index_select(0, action.long()))
+                        else:
+                            self.selected_action_policy[i].append(policy[i][action])
 
 
-                if q_vals is not None:
-                    self.max_action_value[i].append(q_vals[i].max())
-                    self.min_action_value[i].append(q_vals[i].min())
-                    self.mean_action_value[i].append(q_vals[i].mean())
-                    self.median_action_value[i].append(q_vals[i].median())
+                    if q_vals is not None:
+                        self.max_action_value[i].append(q_vals[i].max())
+                        self.min_action_value[i].append(q_vals[i].min())
+                        self.mean_action_value[i].append(q_vals[i].mean())
+                        self.median_action_value[i].append(q_vals[i].median())
+                        
+                        if len(action.shape) > 1:
+                            self.selected_action_value[i].extend(q_vals[i].index_select(0, action.long()))
+                        else:
+                            self.selected_action_value[i].append(q_vals[i][action])
                     
-                    if len(action.shape) > 1:
-                        self.selected_action_value[i].extend(q_vals[i].index_select(0, action.long()))
-                    else:
-                        self.selected_action_value[i].append(q_vals[i][action])
-                
 
             if done:
                 # Rewards
