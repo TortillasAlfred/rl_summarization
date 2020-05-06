@@ -29,7 +29,7 @@ def optimize_on_cluster(hparams):
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_command("sleep 120")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-lulam50", comment="CCDB account for running"
+        cmd="account", value="def-corbeilj", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
