@@ -27,7 +27,6 @@ def optimize_on_cluster(hparams):
 
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
-    cluster.add_command("sleep 120")
     cluster.add_slurm_cmd(
         cmd="account", value="def-corbeilj", comment="CCDB account for running"
     )
