@@ -100,6 +100,8 @@ class RLSumOFUL(pl.LightningModule):
         return sent_contents, doc_contents, valid_sentences, contents
 
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
+        device = "cpu"
+
         mcts_pures = self.pool.map(
             mcts_oful.RLSumOFULValueProcess(
                 n_samples=self.n_mcts_samples,
@@ -109,13 +111,13 @@ class RLSumOFUL(pl.LightningModule):
                 S=self.S,
                 C=self.C,
                 action_dim=sent_contents.shape[-1],
-                device="cpu",
+                device=device,
                 n_sents_per_summary=self.n_sents_per_summary,
             ),
             zip(
-                sent_contents,
+                sent_contents.to(device),
                 states,
-                valid_sentences,
+                valid_sentences.to(device),
                 [s.scores for s in self.environment.reward_scorers],
             ),
         )
