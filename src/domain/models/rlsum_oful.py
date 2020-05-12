@@ -59,6 +59,7 @@ class RLSumOFUL(pl.LightningModule):
             self.n_processes = os.cpu_count()
         else:
             self.n_processes = hparams.n_jobs_for_mcts
+        self.pool = mp.Pool(processes=self.n_processes)
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -99,7 +100,7 @@ class RLSumOFUL(pl.LightningModule):
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
         device = sent_contents.device
 
-        mcts_pures = mp.Pool(processes=self.n_processes).map(
+        mcts_pures = self.pool.map(
             mcts_oful.RLSumOFULValueProcess(
                 n_samples=self.n_mcts_samples,
                 lambda_oful=self.lambda_oful,

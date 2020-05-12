@@ -96,6 +96,8 @@ def rlsum_oful_value(
         del prev_root
         root_node.parent = None
 
+    del root_node
+
     return targets
 
 
