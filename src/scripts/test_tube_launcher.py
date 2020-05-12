@@ -55,7 +55,7 @@ if __name__ == "__main__":
         options=["word-level", "sentence-level"],
     )
     fine_tuned_items["n_mcts_samples"] = dict(
-        default=250, type=int, tunable=True, options=[50, 100, 250, 500]
+        default=25, type=int, tunable=True, options=[10, 25, 50]
     )
 
     for config, value in base_configs.items():
