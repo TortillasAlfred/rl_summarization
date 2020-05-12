@@ -12,7 +12,9 @@ from torchtext.data import BucketIterator
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import math
-import torch.multiprocessing as mp
+
+# import torch.multiprocessing as mp
+import multiprocessing as mp
 import os
 import functools
 
