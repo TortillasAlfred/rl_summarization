@@ -42,19 +42,19 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
 
-    fine_tuned_items["--C"] = dict(
+    fine_tuned_items["C"] = dict(
         default=0.0, type=float, tunable=True, options=[0.0, 0.5, 1.0]
     )
-    fine_tuned_items["--delta"] = dict(
+    fine_tuned_items["delta"] = dict(
         default=0.0001, type=float, tunable=True, options=[0.01, 0.0001, 0.000001]
     )
-    fine_tuned_items["--D_t_source"] = dict(
+    fine_tuned_items["D_t_source"] = dict(
         default="word-level",
         type=str,
         tunable=True,
         options=["word-level", "sentence-level"],
     )
-    fine_tuned_items["--n_mcts_samples"] = dict(
+    fine_tuned_items["n_mcts_samples"] = dict(
         default=250, type=int, tunable=True, options=[50, 100, 250, 500]
     )
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
                 )
 
     for name, kwargs in fine_tuned_items.items():
-        argument_parser.opt_list(name, **kwargs)
+        argument_parser.opt_list(f"--{name}", **kwargs)
 
     hparams = argument_parser.parse_args()
     optimize_on_cluster(hparams)
