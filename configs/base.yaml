@@ -28,7 +28,7 @@ C: 0.0
 S: 1.0
 R: 1.0
 delta: 0.00001
-D_t_source: 'word-level'
+D_t_source: "word-level"
 
 ####################
 ### DATASET ARGS ###
