@@ -97,7 +97,7 @@ class RLSumOFUL(pl.LightningModule):
         return sent_contents, doc_contents, valid_sentences, contents
 
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
-        device = "cpu"
+        device = sent_contents.device
 
         mcts_pures = mp.Pool(processes=self.n_processes).map(
             mcts_oful.RLSumOFULValueProcess(
