@@ -91,7 +91,10 @@ def rlsum_oful_value(
         targets.append((target_state, target_vals))
 
         selected_action = target_vals.argmax()
-        root_node = root_node.children[selected_action]
+        prev_root = root_node
+        root_node = prev_root.children[selected_action]
+        del prev_root
+        root_node.parent = None
 
     return targets
 
