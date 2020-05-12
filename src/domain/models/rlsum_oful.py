@@ -49,6 +49,7 @@ class RLSumOFUL(pl.LightningModule):
         self.R = hparams.R
         self.C = hparams.C
         self.delta = hparams.delta
+        self.D_t_source = hparams.D_t_source
 
         self.__build_model(hparams.hidden_dim)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
@@ -124,7 +125,7 @@ class RLSumOFUL(pl.LightningModule):
 
         out_values = torch.zeros(values_shape, device=values[0][0].device)
         for i, tensor in enumerate(values):
-            out_values[i, :tensor.shape[0]] = tensor
+            out_values[i, : tensor.shape[0]] = tensor
 
         return (
             states,
@@ -143,8 +144,13 @@ class RLSumOFUL(pl.LightningModule):
         ) = self.__extract_features(batch.content)
 
         if subset == "train":
+            if self.D_t_source == "word-level":
+                D_t = raw_sent_contents
+            elif self.D_t_source == "sentence-level":
+                D_t = sent_contents
+
             prediction_states, mcts_vals = self.mcts_oful(
-                raw_sent_contents, doc_contents, states, valid_sentences
+                D_t, doc_contents, states, valid_sentences
             )
 
             for _ in range(self.n_sents_per_summary):
