@@ -56,10 +56,9 @@ class RLSumOFUL(pl.LightningModule):
 
         mp.set_start_method("forkserver", force=True)
         if hparams.n_jobs_for_mcts == -1:
-            n_processes = os.cpu_count()
+            self.n_processes = os.cpu_count()
         else:
-            n_processes = hparams.n_jobs_for_mcts
-        self.pool = mp.Pool(processes=n_processes)
+            self.n_processes = hparams.n_jobs_for_mcts
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -100,7 +99,7 @@ class RLSumOFUL(pl.LightningModule):
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
         device = "cpu"
 
-        mcts_pures = self.pool.map(
+        mcts_pures = mp.Pool(processes=self.n_processes).map(
             mcts_oful.RLSumOFULValueProcess(
                 n_samples=self.n_mcts_samples,
                 lambda_oful=self.lambda_oful,
