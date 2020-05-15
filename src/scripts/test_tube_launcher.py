@@ -17,7 +17,7 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 3
+    cluster.per_experiment_nb_cpus = 5
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "24:00:00"
