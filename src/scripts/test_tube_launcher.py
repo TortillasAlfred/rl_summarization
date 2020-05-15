@@ -28,7 +28,7 @@ def optimize_on_cluster(hparams):
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-corbeilj", comment="CCDB account for running"
+        cmd="account", value="def-lulam50", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
@@ -42,8 +42,8 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
 
-    fine_tuned_items["C"] = dict(
-        default=0.0, type=float, tunable=True, options=[0.0, 0.5, 1.0]
+    fine_tuned_items["c_puct"] = dict(
+        default=1.0, type=float, tunable=True, options=[0.5, 1.0, 2.0, 5.0]
     )
     fine_tuned_items["delta"] = dict(
         default=0.0001, type=float, tunable=True, options=[0.01, 0.0001, 0.000001]
@@ -54,8 +54,8 @@ if __name__ == "__main__":
         tunable=True,
         options=["word-level", "sentence-level"],
     )
-    fine_tuned_items["n_mcts_samples"] = dict(
-        default=25, type=int, tunable=True, options=[10, 25, 50]
+    fine_tuned_items["lambda_oful"] = dict(
+        default=0.1, type=float, tunable=True, options=[0.001, 0.01, 0.1, 1.0]
     )
 
     for config, value in base_configs.items():
