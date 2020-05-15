@@ -3,7 +3,6 @@ import math
 import itertools
 import copy
 import numpy as np
-from random import randrange
 
 
 class RLSumOFULValueProcess:
@@ -14,7 +13,7 @@ class RLSumOFULValueProcess:
         delta,
         R,
         S,
-        C,
+        c_puct,
         action_dim,
         device,
         n_sents_per_summary,
@@ -24,7 +23,7 @@ class RLSumOFULValueProcess:
         self.delta = delta
         self.R = R
         self.S = S
-        self.C = C
+        self.c_puct = c_puct
         self.action_dim = action_dim
         self.device = device
         self.n_sents_per_summary = n_sents_per_summary
@@ -41,7 +40,7 @@ class RLSumOFULValueProcess:
             self.delta,
             self.R,
             self.S,
-            self.C,
+            self.c_puct,
             self.action_dim,
             self.device,
             self.n_sents_per_summary,
@@ -58,7 +57,7 @@ def rlsum_oful_value(
     delta,
     R,
     S,
-    C,
+    c_puct,
     action_dim,
     device,
     n_sents_per_summary,
@@ -83,7 +82,16 @@ def rlsum_oful_value(
 
     for t in range(n_sents_per_summary):
         target_vals = rlsum_value_oful_episode(
-            root_node, scores, n_samples, D, R, delta, S, n_sents_per_summary, device, C
+            root_node,
+            scores,
+            n_samples,
+            D,
+            R,
+            delta,
+            S,
+            n_sents_per_summary,
+            device,
+            c_puct,
         )
 
         target_state = copy.deepcopy(state)
@@ -117,8 +125,7 @@ class RLSumOFULValueNode:
         self.v_t_inv = (
             torch.eye(action_dim, dtype=torch.float32, device=device) / lambda_oful
         )
-        self.det_v_t = lambda_oful ** action_dim
-        self.det_v_tau = 0.0
+        self.log_det_v_t = action_dim * math.log(lambda_oful)
         self.xy = torch.zeros((action_dim, 1), dtype=torch.float32, device=device)
         self.mask = torch.ones(n_valid_actions, dtype=bool, device=device)
         self.theta_hat = torch.zeros(
@@ -134,7 +141,7 @@ class RLSumOFULValueNode:
         self.n_visits = 0
         self.q_sum = torch.zeros((3,), dtype=torch.float32, device=device)
 
-    def backprop(self, actions, reward, C, terminal=False):
+    def backprop(self, actions, reward, terminal=False):
         self.n_visits += 1
         self.q_sum += reward
 
@@ -142,19 +149,17 @@ class RLSumOFULValueNode:
             x_t = actions[-1].unsqueeze(-1)
             actions = actions[:-1]
 
-            self.det_v_t *= 1 + x_t.T.mm(self.v_t_inv).mm(x_t)
-            self.v_t_inv -= self.v_t_inv.mm(x_t).mm(x_t.T).mm(self.v_t_inv) / (
-                1 + x_t.T.mm(self.v_t_inv).mm(x_t)
-            )
+            x_Vinv = self.v_t_inv.mm(x_t)
+            x_Vinv_x = x_Vinv.T.mm(x_t)
+            self.log_det_v_t += (x_Vinv_x + 1).log().item()
+            self.v_t_inv -= x_Vinv.mm(x_Vinv.T) / (1 + x_Vinv_x)
             self.v_t += x_t.mm(x_t.T)
             self.xy += x_t * reward.mean()
 
-            if self.det_v_t > (1 + C) * self.det_v_tau:
-                self.theta_hat = self.v_t_inv.mm(self.xy)
-                self.det_v_tau = copy.deepcopy(self.det_v_t)
+            self.theta_hat = self.v_t_inv.mm(self.xy)
 
         if self.parent:
-            self.parent.backprop(actions, reward, C)
+            self.parent.backprop(actions, reward)
 
     def expand(self):
         for action in self.delayed_idxs:
@@ -173,72 +178,46 @@ class RLSumOFULValueNode:
 
         self.expanded = True
 
-    def select_action(self, D, R, delta, S):
+    def select_action(self, D, R, delta, S, c_puct):
         D_t = D[self.mask]
 
         if not self.expanded:
             self.expand()
 
-            random_idx = randrange(start=0, stop=D_t.shape[0])
-
-            return random_idx, D_t[random_idx]
-        else:
-            cf = (
-                R
-                * math.sqrt(
-                    2
-                    * math.log(
-                        (
-                            math.sqrt(self.det_v_t)
-                            * math.pow(self.lambda_oful, -self.action_dim / 2)
-                        )
-                        / delta
-                    )
-                )
-                + math.sqrt(self.lambda_oful) * S
+        cf = (
+            R
+            * math.sqrt(
+                self.log_det_v_t
+                - self.action_dim * math.log(self.lambda_oful)
+                + 2 * math.log(1 / delta)
             )
+            + math.sqrt(self.lambda_oful) * S
+        )
 
-            c = self.theta_hat.T.mm(self.v_t).mm(self.theta_hat) - math.pow(cf, 2)
-            alphas = []
+        D_Vinv_D_sqrt = (D_t.mm(self.v_t_inv) * D_t).sum(-1).sqrt()
+        ucb = D_t.mm(self.theta_hat).squeeze(-1) + c_puct * cf * D_Vinv_D_sqrt
 
-            # Parrallel that ?
-            for x_it in D_t:
-                x_it = x_it.unsqueeze(-1)
-                a = x_it.T.mm(self.v_t).mm(x_it)
-                b = -(
-                    self.theta_hat.T.mm(self.v_t).mm(x_it)
-                    + x_it.T.mm(self.v_t).mm(self.theta_hat)
-                )
+        selected_idx = ucb.argmax()
 
-                delt = b.pow(2) - 4 * a * c
-
-                if delt < 0:
-                    print("Negative delt !")
-                    alphas.append(-math.inf)
-                else:
-                    alphas.append((-b + math.sqrt(delt)) / (2 * a))
-
-            selected_idx = alphas.index(max(alphas))
-
-            return selected_idx, D_t[selected_idx]
+        return selected_idx, D_t[selected_idx]
 
 
 def rlsum_value_oful_episode(
-    root_node, scores, n_samples, D, R, delta, S, n_sents_per_summary, device, C
+    root_node, scores, n_samples, D, R, delta, S, n_sents_per_summary, device, c_puct
 ):
     for _ in range(n_samples):
         current_node = root_node
         actions = []
 
         while len(current_node.selected_idxs) < n_sents_per_summary:
-            idx, action = current_node.select_action(D, R, delta, S)
+            idx, action = current_node.select_action(D, R, delta, S, c_puct)
             actions.append(action)
             current_node = current_node.children[idx]
 
         reward = torch.tensor(
             scores[tuple(sorted(current_node.selected_idxs))], device=device
         )
-        current_node.backprop(actions, reward, C, terminal=True)
+        current_node.backprop(actions, reward, terminal=True)
 
     targets = D[root_node.mask].mm(root_node.theta_hat)
 

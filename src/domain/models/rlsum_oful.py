@@ -47,7 +47,6 @@ class RLSumOFUL(pl.LightningModule):
         self.lambda_oful = hparams.lambda_oful
         self.S = hparams.S
         self.R = hparams.R
-        self.C = hparams.C
         self.delta = hparams.delta
         self.D_t_source = hparams.D_t_source
 
@@ -107,7 +106,7 @@ class RLSumOFUL(pl.LightningModule):
                 delta=self.delta,
                 R=self.R,
                 S=self.S,
-                C=self.C,
+                c_puct=self.c_puct,
                 action_dim=sent_contents.shape[-1],
                 device=device,
                 n_sents_per_summary=self.n_sents_per_summary,

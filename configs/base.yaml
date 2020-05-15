@@ -23,11 +23,10 @@ lambda_loss: 0.5
 ######################
 ### MCTS OFUL ARGS ###
 ######################
-lambda_oful: 1.0
-C: 0.0
+lambda_oful: 0.1
 S: 1.0
 R: 1.0
-delta: 0.00001
+delta: 0.01
 D_t_source: "word-level"
 
 ####################
@@ -49,7 +48,7 @@ rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge
 ### MCTS ARGS  ###
 ##################
 c_puct: 0.1
-n_mcts_samples: 25
+n_mcts_samples: 250
 dirichlet_epsilon: 0.25
 
 ####################
