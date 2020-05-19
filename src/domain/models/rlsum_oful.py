@@ -49,6 +49,8 @@ class RLSumOFUL(pl.LightningModule):
         self.R = hparams.R
         self.delta = hparams.delta
         self.D_t_source = hparams.D_t_source
+        self.warmup_batches = hparams.warmup_batches
+        self.batch_idx = 0
 
         self.__build_model(hparams.hidden_dim)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
@@ -96,8 +98,32 @@ class RLSumOFUL(pl.LightningModule):
 
         return sent_contents, doc_contents, valid_sentences, contents
 
+    def warmup_oful(self, states, valid_sentences):
+        mcts_pures = self.pool.map(
+            mcts_oful.RLSumOFULWarmupProcess(),
+            zip(
+                states,
+                valid_sentences,
+                [s.scores for s in self.environment.reward_scorers],
+            ),
+        )
+
+        states = [m_i[0] for m in mcts_pures for m_i in m]
+        values = [m_i[1] for m in mcts_pures for m_i in m]
+
+        values_shape = (len(values), 50, 3)
+
+        out_values = torch.zeros(values_shape, device=values[0][0].device)
+        for i, tensor in enumerate(values):
+            out_values[i, : tensor.shape[0]] = tensor
+
+        return (
+            states,
+            out_values,
+        )
+
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
-        device = sent_contents.device
+        device = "cpu"
 
         mcts_pures = self.pool.map(
             mcts_oful.RLSumOFULValueProcess(
@@ -121,6 +147,7 @@ class RLSumOFUL(pl.LightningModule):
 
         states = [m_i[0] for m in mcts_pures for m_i in m]
         values = [m_i[1] for m in mcts_pures for m_i in m]
+        idxs = torch.tensor([m_i[2] for m in mcts_pures for m_i in m], device=device)
 
         values_shape = (len(values), 50, 1)
 
@@ -128,10 +155,7 @@ class RLSumOFUL(pl.LightningModule):
         for i, tensor in enumerate(values):
             out_values[i, : tensor.shape[0]] = tensor
 
-        return (
-            states,
-            out_values,
-        )
+        return (states, out_values, idxs)
 
     def forward(self, batch, subset):
         torch.set_grad_enabled(False)
@@ -145,52 +169,116 @@ class RLSumOFUL(pl.LightningModule):
         ) = self.__extract_features(batch.content)
 
         if subset == "train":
-            if self.D_t_source == "word-level":
-                D_t = raw_sent_contents
-            elif self.D_t_source == "sentence-level":
+            if self.batch_idx >= self.warmup_batches:
                 D_t = sent_contents
 
-            prediction_states, mcts_vals = self.mcts_oful(
-                D_t, doc_contents, states, valid_sentences
-            )
+                prediction_states, mcts_vals, mcts_idxs = self.mcts_oful(
+                    D_t, doc_contents, states, valid_sentences
+                )
 
-            for _ in range(self.n_sents_per_summary):
+                mcts_idxs = mcts_idxs.split(self.n_sents_per_summary)
+                mcts_vals_for_eval = mcts_vals.split(self.n_sents_per_summary)
+                for step in range(self.n_sents_per_summary):
+                    step_idxs = torch.stack([m[step] for m in mcts_idxs])
+                    step_vals = torch.stack([m[step] for m in mcts_vals_for_eval])
+                    _, mcts_rewards = self.environment.update(
+                        step_idxs,
+                        Categorical(probs=step_vals.squeeze(-1)),
+                        is_mcts=True,
+                    )
+
+                self.environment.soft_init(batch, subset)
+
+                for _ in range(self.n_sents_per_summary):
+                    (
+                        action_dist,
+                        valid_sentences,
+                        action_vals,
+                    ) = self.model.produce_affinities(
+                        sent_contents, doc_contents, states, valid_sentences
+                    )
+                    _, greedy_idxs = action_vals.mean(-1).max(dim=-1)
+                    states, greedy_rewards = self.environment.update(
+                        greedy_idxs, action_dist
+                    )
+
+                self.environment.soft_init(batch, subset)
+
+                torch.set_grad_enabled(True)
+
                 (
-                    action_dist,
+                    sent_contents,
+                    doc_contents,
                     valid_sentences,
-                    action_vals,
-                ) = self.model.produce_affinities(
-                    sent_contents, doc_contents, states, valid_sentences
+                    _,
+                ) = self.__extract_features(batch.content)
+                sent_contents = torch.repeat_interleave(
+                    sent_contents, int(len(prediction_states) / batch.batch_size), dim=0
                 )
-                _, greedy_idxs = action_vals.mean(-1).max(dim=-1)
-                states, greedy_rewards = self.environment.update(
-                    greedy_idxs, action_dist
+                doc_contents = torch.repeat_interleave(
+                    doc_contents, int(len(prediction_states) / batch.batch_size), dim=0
+                )
+                valid_sentences = torch.repeat_interleave(
+                    valid_sentences,
+                    int(len(prediction_states) / batch.batch_size),
+                    dim=0,
+                )
+                _, available_sents, action_vals = self.model.produce_affinities(
+                    sent_contents, doc_contents, prediction_states, valid_sentences
                 )
 
-            self.environment.soft_init(batch, subset)
+                loss = (
+                    mcts_vals.to(valid_sentences.device)
+                    - action_vals.mean(-1, keepdim=True)
+                ) ** 2
+                loss = loss.sum() / batch.batch_size
 
-            torch.set_grad_enabled(True)
+                return greedy_rewards, loss
+            else:
+                prediction_states, mcts_vals = self.warmup_oful(states, valid_sentences)
 
-            sent_contents, doc_contents, valid_sentences, _ = self.__extract_features(
-                batch.content
-            )
-            sent_contents = torch.repeat_interleave(
-                sent_contents, int(len(prediction_states) / batch.batch_size), dim=0
-            )
-            doc_contents = torch.repeat_interleave(
-                doc_contents, int(len(prediction_states) / batch.batch_size), dim=0
-            )
-            valid_sentences = torch.repeat_interleave(
-                valid_sentences, int(len(prediction_states) / batch.batch_size), dim=0
-            )
-            _, available_sents, action_vals = self.model.produce_affinities(
-                sent_contents, doc_contents, prediction_states, valid_sentences
-            )
+                for _ in range(self.n_sents_per_summary):
+                    (
+                        action_dist,
+                        valid_sentences,
+                        action_vals,
+                    ) = self.model.produce_affinities(
+                        sent_contents, doc_contents, states, valid_sentences
+                    )
+                    _, greedy_idxs = action_vals.mean(-1).max(dim=-1)
+                    states, greedy_rewards = self.environment.update(
+                        greedy_idxs, action_dist
+                    )
 
-            loss = (mcts_vals.to(valid_sentences.device) - action_vals) ** 2
-            loss = loss.sum() / batch.batch_size
+                self.environment.soft_init(batch, subset)
 
-            return greedy_rewards, loss
+                torch.set_grad_enabled(True)
+
+                (
+                    sent_contents,
+                    doc_contents,
+                    valid_sentences,
+                    _,
+                ) = self.__extract_features(batch.content)
+                sent_contents = torch.repeat_interleave(
+                    sent_contents, int(len(prediction_states) / batch.batch_size), dim=0
+                )
+                doc_contents = torch.repeat_interleave(
+                    doc_contents, int(len(prediction_states) / batch.batch_size), dim=0
+                )
+                valid_sentences = torch.repeat_interleave(
+                    valid_sentences,
+                    int(len(prediction_states) / batch.batch_size),
+                    dim=0,
+                )
+                _, available_sents, action_vals = self.model.produce_affinities(
+                    sent_contents, doc_contents, prediction_states, valid_sentences
+                )
+
+                loss = (mcts_vals.to(valid_sentences.device) - action_vals) ** 2
+                loss = loss.sum() / batch.batch_size
+
+                return greedy_rewards, loss
         else:
             for _ in range(self.n_sents_per_summary):
                 (
@@ -210,7 +298,10 @@ class RLSumOFUL(pl.LightningModule):
         output_dict = {}
 
         log_dict = self.environment.get_logged_metrics()
-        log_dict = {k: torch.tensor(v).mean() for k, v in log_dict.items()}
+        log_dict = {
+            k: torch.tensor(v).mean() if not torch.is_tensor(v) else v.mean()
+            for k, v in log_dict.items()
+        }
         for key, value in kwargs.items():
             log_dict[key] = value
         output_dict["log"] = log_dict
@@ -225,6 +316,7 @@ class RLSumOFUL(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         greedy_rewards, loss = self.forward(batch, subset="train")
+        self.batch_idx += 1
 
         return self.get_step_output(loss=loss, greedy_reward=greedy_rewards.mean())
 
@@ -354,7 +446,7 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Linear(hidden_dim * 2 * 3, decoder_dim),
             torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim, 1),
+            torch.nn.Linear(decoder_dim, 3),
             torch.nn.Sigmoid(),
         )
 

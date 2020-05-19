@@ -63,7 +63,6 @@ def rlsum_oful_value(
     n_sents_per_summary,
 ):
     torch.set_grad_enabled(False)
-
     n_valid_actions = valid_sentences.sum(-1)
     D = sent_contents[:n_valid_actions]
     D = D / D.norm(dim=-1, keepdim=True)
@@ -81,7 +80,7 @@ def rlsum_oful_value(
     targets = []
 
     for t in range(n_sents_per_summary):
-        target_vals = rlsum_value_oful_episode(
+        mcts_vals = rlsum_value_oful_episode(
             root_node,
             scores,
             n_samples,
@@ -94,11 +93,25 @@ def rlsum_oful_value(
             c_puct,
         )
 
+        perceived_vals = [(c.q_sum / c.n_visits).mean() for c in root_node.children]
+        target_tradeoffs = [min(c.n_visits, 10) / 10 for c in root_node.children]
+        target_vals = torch.tensor(
+            [
+                (1 - tradeoff) * mcts_val + tradeoff * perceived_val
+                if tradeoff > 0
+                else mcts_val
+                for tradeoff, mcts_val, perceived_val in zip(
+                    target_tradeoffs, mcts_vals, perceived_vals
+                )
+            ],
+            device=device,
+        )
+
         target_state = copy.deepcopy(state)
         target_state.summary_idxs = root_node.selected_idxs
-        targets.append((target_state, target_vals))
-
         selected_action = target_vals.argmax()
+        targets.append((target_state, target_vals.unsqueeze(-1), selected_action))
+
         prev_root = root_node
         root_node = prev_root.children[selected_action]
         del prev_root
@@ -220,5 +233,38 @@ def rlsum_value_oful_episode(
         current_node.backprop(actions, reward, terminal=True)
 
     targets = D[root_node.mask].mm(root_node.theta_hat)
+
+    return targets
+
+
+class RLSumOFULWarmupProcess:
+    def __call__(self, iterable):
+        (state, valid_sentences, scores,) = iterable
+        return rlsum_oful_warmup(state, valid_sentences, scores,)
+
+
+def rlsum_oful_warmup(state, valid_sentences, scores, n_warmup_summs=3):
+    torch.set_grad_enabled(False)
+
+    targets = []
+    selected_actions = []
+    n_sents = valid_sentences.sum().cpu().item()
+
+    all_bases = np.array(
+        list(itertools.product(list(range(n_sents)), list(range(n_sents))))
+    )
+
+    sampled_bases = np.random.choice(
+        range(n_sents ** 2), n_warmup_summs, replace=False,
+    )
+    sampled_bases = all_bases[sampled_bases]
+
+    for base_idxs in sampled_bases:
+        target_state = copy.deepcopy(state)
+        target_state.summary_idxs = base_idxs.tolist()
+        target_scores = torch.tensor(
+            scores[base_idxs[0], base_idxs[1], :50], device=valid_sentences.device
+        )
+        targets.append((target_state, target_scores))
 
     return targets
