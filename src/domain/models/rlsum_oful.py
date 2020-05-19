@@ -170,7 +170,7 @@ class RLSumOFUL(pl.LightningModule):
 
         if subset == "train":
             if self.batch_idx >= self.warmup_batches:
-                D_t = sent_contents
+                D_t = raw_sent_contents
 
                 prediction_states, mcts_vals, mcts_idxs = self.mcts_oful(
                     D_t, doc_contents, states, valid_sentences
