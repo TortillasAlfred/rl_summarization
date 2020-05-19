@@ -123,7 +123,7 @@ class RLSumOFUL(pl.LightningModule):
         )
 
     def mcts_oful(self, sent_contents, doc_contents, states, valid_sentences):
-        device = "cpu"
+        device = sent_contents.device
 
         mcts_pures = self.pool.map(
             mcts_oful.RLSumOFULValueProcess(
