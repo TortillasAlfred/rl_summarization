@@ -65,7 +65,7 @@ def rlsum_oful_value(
     torch.set_grad_enabled(False)
     n_valid_actions = valid_sentences.sum(-1)
     D = sent_contents[:n_valid_actions]
-    D = D / D.norm(dim=-1, keepdim=True)
+    D = D / D.norm(dim=-1, keepdim=True).min()
 
     # Initial Node
     root_node = RLSumOFULValueNode(
@@ -162,11 +162,17 @@ class RLSumOFULValueNode:
             x_t = actions[-1].unsqueeze(-1)
             actions = actions[:-1]
 
-            x_Vinv = self.v_t_inv.mm(x_t)
-            x_Vinv_x = x_Vinv.T.mm(x_t)
-            self.log_det_v_t += (x_Vinv_x + 1).log().item()
-            self.v_t_inv -= x_Vinv.mm(x_Vinv.T) / (1 + x_Vinv_x)
-            self.v_t += x_t.mm(x_t.T)
+            if self.n_visits % 20 == 0:
+                self.v_t += x_t.mm(x_t.T)
+                self.log_det_v_t = self.v_t.logdet()
+                self.v_t_inv = self.v_t.inverse()
+            else:
+                x_Vinv = self.v_t_inv.mm(x_t)
+                x_Vinv_x = x_Vinv.T.mm(x_t)
+                self.log_det_v_t += (x_Vinv_x + 1).log().item()
+                self.v_t_inv -= x_Vinv.mm(x_Vinv.T) / (1 + x_Vinv_x)
+                self.v_t += x_t.mm(x_t.T)
+
             self.xy += x_t * reward.mean()
 
             self.theta_hat = self.v_t_inv.mm(self.xy)

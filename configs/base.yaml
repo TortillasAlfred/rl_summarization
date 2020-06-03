@@ -24,7 +24,7 @@ warmup_batches: 100
 ######################
 ### MCTS OFUL ARGS ###
 ######################
-lambda_oful: 0.1
+lambda_oful: 1.0
 S: 1.0
 R: 1.0
 delta: 0.0001
