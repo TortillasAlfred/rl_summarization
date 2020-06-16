@@ -314,7 +314,9 @@ class RLSumOFUL(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         output_dict = self.generic_epoch_end(outputs)
 
-        self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
+        if self.batch_idx >= self.warmup_batches:
+            self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
+
         output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
             1
         ]["lr"]
