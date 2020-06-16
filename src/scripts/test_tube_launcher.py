@@ -41,15 +41,11 @@ if __name__ == "__main__":
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}
-
-    fine_tuned_items["c_puct"] = dict(
-        default=1.0, type=float, tunable=True, options=[1.0, 2.5, 5.0]
+    fine_tuned_items["alpha_oful"] = dict(
+        default=1.0, type=float, tunable=True, options=[0.1, 0.5, 1.0, 5.0, 10.0]
     )
-    fine_tuned_items["delta"] = dict(
-        default=0.0001, type=float, tunable=True, options=[0.01, 0.0001, 0.000001]
-    )
-    fine_tuned_items["lambda_oful"] = dict(
-        default=0.1, type=float, tunable=True, options=[0.001, 0.01, 0.1]
+    fine_tuned_items["n_mcts_samples"] = dict(
+        default=500, type=int, tunable=True, options=[250, 500, 1000]
     )
 
     for config, value in base_configs.items():

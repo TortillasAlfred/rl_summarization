@@ -25,6 +25,7 @@ warmup_batches: 100
 ### MCTS OFUL ARGS ###
 ######################
 lambda_oful: 1.0
+alpha_oful: 1.0
 S: 1.0
 R: 1.0
 delta: 0.0001
@@ -49,7 +50,7 @@ rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge
 ### MCTS ARGS  ###
 ##################
 c_puct: 1.0
-n_mcts_samples: 150
+n_mcts_samples: 500
 dirichlet_epsilon: 0.25
 
 ####################
