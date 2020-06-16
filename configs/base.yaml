@@ -17,7 +17,7 @@ n_repeats_per_sample: 16
 learning_rate: 0.0001
 epsilon: 0.1
 n_sents_per_summary: 3
-n_jobs_for_mcts: 4
+n_jobs_for_mcts: 16
 lambda_loss: 0.5
 warmup_batches: 100
 
