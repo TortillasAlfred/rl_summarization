@@ -44,9 +44,6 @@ if __name__ == "__main__":
     fine_tuned_items["alpha_oful"] = dict(
         default=1.0, type=float, tunable=True, options=[0.1, 0.5, 1.0, 5.0, 10.0]
     )
-    fine_tuned_items["n_mcts_samples"] = dict(
-        default=500, type=int, tunable=True, options=[250, 500, 1000]
-    )
 
     for config, value in base_configs.items():
         if config not in fine_tuned_items:
