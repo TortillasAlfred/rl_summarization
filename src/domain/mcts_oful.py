@@ -176,7 +176,9 @@ def rlsum_value_oful_episode(
                 [c.feature_vector.squeeze() for c in current_node.children]
             )
             all_n_visits = torch.tensor(
-                [c.n_visits + 1 for c in current_node.children], dtype=float
+                [c.n_visits + 1 for c in current_node.children],
+                dtype=float,
+                device=device,
             )
 
             p_t_a = (
