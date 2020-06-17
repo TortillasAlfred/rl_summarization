@@ -208,7 +208,7 @@ class RLSumOFUL(pl.LightningModule):
                     _, greedy_rewards = self.environment.update(selected_sents_step)
 
                 loss = (mcts_theta_hats.to(valid_sentences.device) - theta_hats) ** 2
-                loss = loss.sum() / batch.batch_size
+                loss = loss.sum()
 
                 return greedy_rewards, loss, mcts_rewards
             else:

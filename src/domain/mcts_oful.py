@@ -71,9 +71,9 @@ def rlsum_oful_value(
         device=device,
     )
 
-    n_samples = min(n_samples, int(n_samples * (int(n_valid_actions) / 20) ** 3))
+    n_samples = max(n_samples, int(n_samples * ((int(n_valid_actions) / 20) ** 3)))
 
-    theta_hat, regrets = rlsum_value_oful_episode(
+    theta_hat = rlsum_value_oful_episode(
         root_node,
         action_vectors,
         scores,
@@ -85,7 +85,7 @@ def rlsum_oful_value(
         lambda_oful,
     )
 
-    return theta_hat, regrets
+    return (theta_hat,)
 
 
 class RLSumOFULValueNode:
@@ -172,18 +172,20 @@ def rlsum_value_oful_episode(
             if not current_node.expanded:
                 current_node.expand(action_vectors)
 
-            exploit_a = torch.tensor(
-                [c.feature_vector.mm(theta_hat) for c in current_node.children]
+            all_fv_a = torch.stack(
+                [c.feature_vector.squeeze() for c in current_node.children]
             )
-            explor_a = torch.tensor(
-                [
-                    alpha
-                    * math.sqrt(n_updates / (c.n_visits + 1))
-                    * c.feature_vector.mm(A_inv).mm(c.feature_vector.T).sqrt()
-                    for c in current_node.children
-                ]
+            all_n_visits = torch.tensor(
+                [c.n_visits + 1 for c in current_node.children], dtype=float
             )
-            idx = (exploit_a + explor_a).argmax()
+
+            p_t_a = (
+                all_fv_a.matmul(theta_hat).squeeze()
+                + alpha
+                * (n_updates / (all_n_visits)).sqrt()
+                * (all_fv_a.matmul(A_inv) * all_fv_a).sum(-1).sqrt()
+            )
+            idx = p_t_a.argmax()
             current_node = current_node.children[idx]
 
         reward = torch.tensor(
@@ -193,7 +195,7 @@ def rlsum_value_oful_episode(
 
         fv = current_node.feature_vector
         A += fv.T.mm(fv)
-        if n_updates % 25 == 0:
+        if n_updates % 50 == 0:
             A_inv = A.inverse()
         else:
             fv_Vinv = A_inv.mm(fv.T)
@@ -204,7 +206,7 @@ def rlsum_value_oful_episode(
 
         regrets[n_updates] = max_score - reward.mean()
 
-    return theta_hat, regrets
+    return theta_hat
 
 
 class RLSumOFULWarmupProcess:
