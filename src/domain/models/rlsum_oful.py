@@ -57,7 +57,7 @@ class RLSumOFUL(pl.LightningModule):
         self.__build_model(hparams.hidden_dim)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-        mp.set_start_method("forkserver", force=True)
+        mp.set_start_method("spawn", force=True)
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
         else:
@@ -111,8 +111,9 @@ class RLSumOFUL(pl.LightningModule):
             sampled_summs = np.random.choice(len(all_sums), 250, replace=True)
             sampled_summs = [all_sums[summ] for summ in sampled_summs]
             scores = torch.tensor(
-                [scorer.scores[tuple(summ)] for summ in sampled_summs]
-            ).to(valid_sentences.device)
+                [scorer.scores[tuple(summ)] for summ in sampled_summs],
+                device=self.device,
+            )
             all_scores.append(scores)
             all_sampled_summs.append(sampled_summs)
 
@@ -123,21 +124,19 @@ class RLSumOFUL(pl.LightningModule):
     def mcts_oful(
         self, sent_contents, doc_contents, states, valid_sentences,
     ):
-        device = sent_contents.device
-
         mcts_pures = self.pool.map(
             mcts_oful.RLSumOFULValueProcess(
                 n_samples=self.n_mcts_samples,
                 lambda_oful=self.lambda_oful,
                 alpha_oful=self.alpha_oful,
                 action_dim=sent_contents.shape[-1],
-                device=device,
+                device=self.device,
                 n_sents_per_summary=self.n_sents_per_summary,
             ),
             zip(
-                sent_contents.to(device),
-                doc_contents.to(device),
-                valid_sentences.to(device),
+                sent_contents,
+                doc_contents,
+                valid_sentences,
                 [s.scores for s in self.environment.reward_scorers],
             ),
         )

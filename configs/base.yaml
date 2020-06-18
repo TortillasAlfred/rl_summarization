@@ -19,7 +19,7 @@ epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 16
 lambda_loss: 0.5
-warmup_batches: 100
+warmup_batches: 200
 
 ######################
 ### MCTS OFUL ARGS ###
@@ -58,7 +58,7 @@ dirichlet_epsilon: 0.25
 ####################
 trainer: "pl" # One of ['gradient_free', 'pl']
 gradient_clip_val: 1
-gpus: 1
+gpus: -1
 overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
