@@ -137,15 +137,15 @@ class RLSumOFUL(pl.LightningModule):
             zip(
                 sent_contents.to(device),
                 doc_contents.to(device),
-                states,
                 valid_sentences.to(device),
                 [s.scores for s in self.environment.reward_scorers],
             ),
         )
 
         mcts_theta_hats = torch.stack([m[0] for m in mcts_pures]).transpose(2, 1)
+        max_scores = torch.stack([m[1] for m in mcts_pures])
 
-        return mcts_theta_hats.cuda()
+        return mcts_theta_hats.cuda(), max_scores
 
     def forward(self, batch, subset):
         torch.set_grad_enabled(False)
@@ -161,7 +161,7 @@ class RLSumOFUL(pl.LightningModule):
         if subset == "train":
 
             if self.batch_idx >= self.warmup_batches:
-                mcts_theta_hats = self.mcts_oful(
+                mcts_theta_hats, max_scores = self.mcts_oful(
                     sent_contents, doc_contents, states, valid_sentences,
                 )
 
@@ -210,7 +210,7 @@ class RLSumOFUL(pl.LightningModule):
                 loss = (mcts_theta_hats.to(valid_sentences.device) - theta_hats) ** 2
                 loss = loss.sum()
 
-                return greedy_rewards, loss, mcts_rewards
+                return greedy_rewards, loss, mcts_rewards, max_scores
             else:
                 sampled_summs, sampled_scores = self.warmup_oful(valid_sentences)
 
@@ -250,7 +250,12 @@ class RLSumOFUL(pl.LightningModule):
                 ) ** 2
                 loss = loss.sum()
 
-                return greedy_rewards, loss, np.zeros_like(greedy_rewards)
+                return (
+                    greedy_rewards,
+                    loss,
+                    np.zeros_like(greedy_rewards),
+                    np.zeros_like(greedy_rewards),
+                )
         else:
             theta_hats = self.model.produce_theta_hat(doc_contents)
 
@@ -284,19 +289,22 @@ class RLSumOFUL(pl.LightningModule):
         if "loss" in log_dict:
             output_dict["loss"] = log_dict["loss"]
 
-        tqdm_keys = ["mcts_rewards", "greedy_reward"]
+        tqdm_keys = ["mcts_rewards", "greedy_reward", "max_rewards"]
         output_dict["progress_bar"] = {k: log_dict[k] for k in tqdm_keys}
 
         return output_dict
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, mcts_rewards = self.forward(batch, subset="train")
+        greedy_rewards, loss, mcts_rewards, max_scores = self.forward(
+            batch, subset="train"
+        )
         self.batch_idx += 1
 
         return self.get_step_output(
             loss=loss,
             greedy_reward=greedy_rewards.mean(),
             mcts_rewards=mcts_rewards.mean(),
+            max_rewards=max_scores.mean(),
         )
 
     def validation_step(self, batch, batch_idx):
@@ -367,7 +375,12 @@ class RLSumOFUL(pl.LightningModule):
                     "lr": self.learning_rate * 0.1,
                 },
                 {"params": self.wl_encoder.parameters()},
-                {"params": self.model.parameters()},
+                {"params": self.model.theta_decoder.parameters()},
+                {"params": self.model.sl_encoder.parameters()},
+                {
+                    "params": self.model.decoder.parameters(),
+                    "lr": self.learning_rate * 0.1,
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
@@ -435,6 +448,7 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim * 2, hidden_dim * 2),
+            torch.nn.Tanh(),
         )
 
     def sentence_level_encoding(self, contents):

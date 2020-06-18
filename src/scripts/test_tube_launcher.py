@@ -42,7 +42,10 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
     fine_tuned_items["alpha_oful"] = dict(
-        default=1.0, type=float, tunable=True, options=[0.1, 0.5, 1.0, 5.0, 10.0]
+        default=0.1,
+        type=float,
+        tunable=True,
+        options=[0.01, 0.05, 0.1, 0.25, 1.0, 5.0, 10.0],
     )
 
     for config, value in base_configs.items():

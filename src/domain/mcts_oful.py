@@ -4,7 +4,7 @@ import itertools
 import copy
 import numpy as np
 
-from itertools import combinations
+from itertools import combinations, chain
 
 
 class RLSumOFULValueProcess:
@@ -25,11 +25,10 @@ class RLSumOFULValueProcess:
         self.n_sents_per_summary = n_sents_per_summary
 
     def __call__(self, iterable):
-        (sent_contents, doc_contents, state, valid_sentences, scores,) = iterable
+        (sent_contents, doc_contents, valid_sentences, scores,) = iterable
         return rlsum_oful_value(
             sent_contents.to(self.device),
             doc_contents.to(self.device),
-            state,
             valid_sentences.to(self.device),
             scores,
             self.n_samples,
@@ -44,7 +43,6 @@ class RLSumOFULValueProcess:
 def rlsum_oful_value(
     sent_contents,
     doc_contents,
-    state,
     valid_sentences,
     scores,
     n_samples,
@@ -64,16 +62,13 @@ def rlsum_oful_value(
 
     # Initial Node
     root_node = RLSumOFULValueNode(
-        selected_idxs=state.summary_idxs,
+        selected_idxs=frozenset(),
         feature_vector=doc_contents,
         n_valid_actions=n_valid_actions,
-        parent=None,
         device=device,
     )
 
-    n_samples = max(n_samples, int(n_samples * ((int(n_valid_actions) / 20) ** 3)))
-
-    theta_hat = rlsum_value_oful_episode(
+    theta_hat, max_score = rlsum_value_oful_episode(
         root_node,
         action_vectors,
         scores,
@@ -84,13 +79,12 @@ def rlsum_oful_value(
         alpha_oful,
         lambda_oful,
     )
-
-    return (theta_hat,)
+    return (theta_hat, max_score)
 
 
 class RLSumOFULValueNode:
-    def __init__(self, selected_idxs, feature_vector, n_valid_actions, parent, device):
-        self.selected_idxs = selected_idxs
+    def __init__(self, selected_idxs, feature_vector, n_valid_actions, device):
+        self.selected_idxs = list(selected_idxs)
         self.feature_vector = feature_vector
         self.device = device
 
@@ -99,19 +93,57 @@ class RLSumOFULValueNode:
 
         for idx in selected_idxs:
             self.mask[idx] = 0
-        self.delayed_idxs = self.mask.nonzero()
+        self.delayed_idxs = self.mask.nonzero().tolist()
 
-        self.children = []
         self.expanded = False
-        self.parent = parent
+        self.connected = False
         self.n_visits = 0
         self.q_sum = torch.zeros((3,), dtype=torch.float32, device=device)
 
-    def backprop(self, reward, terminal=False):
+        self.parents_sets = chain.from_iterable(
+            combinations(self.selected_idxs, r)
+            for r in reversed(range(len(self.selected_idxs)))
+        )
+        self.parents_sets = [frozenset(ps) for ps in self.parents_sets]
+        self.parents = []
+        self.children = []
+
+    def backprop(self, reward, action_vectors, node_dict, terminal=False):
+        if not self.connected:
+            self.connect(action_vectors, node_dict)
+
+        for parent in self.parents:
+            parent.update(reward)
+
+    def connect(self, action_vectors, node_dict):
+        set_idxs = frozenset(self.selected_idxs)
+        for parent_set in self.parents_sets:
+            if parent_set in node_dict:
+                parent_node = node_dict[parent_set]
+            else:
+                actions_removed = set_idxs - parent_set
+
+                parent_feature_vector = self.feature_vector - sum(
+                    [action_vectors[action] for action in actions_removed]
+                )
+
+                parent_node = RLSumOFULValueNode(
+                    selected_idxs=parent_set,
+                    feature_vector=parent_feature_vector,
+                    n_valid_actions=self.n_valid_actions,
+                    device=self.device,
+                )
+                node_dict[parent_set] = parent_node
+
+            self.parents.append(parent_node)
+
+        self.connected = True
+
+    def update(self, reward, terminal=False):
         self.n_visits += 1
         self.q_sum += reward
 
-        if not terminal:
+        if self.expanded and not terminal:
             children_weights = [c.n_visits + 1 for c in self.children]
             denom = sum(children_weights)
             self.feature_vector = (
@@ -124,23 +156,23 @@ class RLSumOFULValueNode:
                 / denom
             )
 
-        if self.parent:
-            self.parent.backprop(reward)
-
-    def expand(self, action_vectors):
+    def expand(self, action_vectors, node_dict):
         for action in self.delayed_idxs:
-            new_selected = copy.deepcopy(self.selected_idxs)
-            new_selected.append(action.item())
+            new_selected = frozenset(self.selected_idxs + action)
 
-            new_feature_vector = self.feature_vector + action_vectors[action]
+            if new_selected in node_dict:
+                new_node = node_dict[new_selected]
+            else:
+                new_feature_vector = self.feature_vector + action_vectors[action]
 
-            new_node = RLSumOFULValueNode(
-                selected_idxs=new_selected,
-                feature_vector=new_feature_vector,
-                n_valid_actions=self.n_valid_actions,
-                parent=self,
-                device=self.device,
-            )
+                new_node = RLSumOFULValueNode(
+                    selected_idxs=new_selected,
+                    feature_vector=new_feature_vector,
+                    n_valid_actions=self.n_valid_actions,
+                    device=self.device,
+                )
+                node_dict[new_selected] = new_node
+
             self.children.append(new_node)
 
         self.expanded = True
@@ -157,6 +189,8 @@ def rlsum_value_oful_episode(
     alpha,
     lambda_oful,
 ):
+    node_dict = {frozenset(root_node.selected_idxs): root_node}
+
     A = torch.eye(action_dim, dtype=torch.float32, device=device) * lambda_oful
     A_inv = torch.eye(action_dim, dtype=torch.float32, device=device) / lambda_oful
     b = torch.zeros((action_dim, 1), dtype=torch.float32, device=device)
@@ -170,7 +204,7 @@ def rlsum_value_oful_episode(
 
         while len(current_node.selected_idxs) < n_sents_per_summary:
             if not current_node.expanded:
-                current_node.expand(action_vectors)
+                current_node.expand(action_vectors, node_dict)
 
             all_fv_a = torch.stack(
                 [c.feature_vector.squeeze() for c in current_node.children]
@@ -184,7 +218,7 @@ def rlsum_value_oful_episode(
             p_t_a = (
                 all_fv_a.matmul(theta_hat).squeeze()
                 + alpha
-                * (n_updates / (all_n_visits)).sqrt()
+                * (n_updates / all_n_visits).sqrt()
                 * (all_fv_a.matmul(A_inv) * all_fv_a).sum(-1).sqrt()
             )
             idx = p_t_a.argmax()
@@ -193,7 +227,7 @@ def rlsum_value_oful_episode(
         reward = torch.tensor(
             scores[tuple(sorted(current_node.selected_idxs))], device=device
         )
-        current_node.backprop(reward, terminal=True)
+        current_node.backprop(reward, action_vectors, node_dict, terminal=True)
 
         fv = current_node.feature_vector
         A += fv.T.mm(fv)
@@ -208,7 +242,7 @@ def rlsum_value_oful_episode(
 
         regrets[n_updates] = max_score - reward.mean()
 
-    return theta_hat
+    return theta_hat, max_score
 
 
 class RLSumOFULWarmupProcess:
