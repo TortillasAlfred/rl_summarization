@@ -18,21 +18,21 @@ def optimize_on_cluster(hparams):
 
     # configure cluster
     cluster.per_experiment_nb_cpus = 16
-    cluster.per_experiment_nb_gpus = 1
+    cluster.per_experiment_nb_gpus = 4
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "24:00:00"
-    cluster.gpu_type = "v100l"
-    cluster.memory_mb_per_node = int(6e4)
-    cluster.minutes_to_checkpoint_before_walltime = 1
+    cluster.job_time = "96:00:00"
+    cluster.gpu_type = "t4"
+    cluster.memory_mb_per_node = int(1e5)
+    cluster.minutes_to_checkpoint_before_walltime = 2
 
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-corbeilj", comment="CCDB account for running"
+        cmd="account", value="def-lulam50", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
+        main, nb_trials=6, job_name="rl_summarization"
     )
 
 
