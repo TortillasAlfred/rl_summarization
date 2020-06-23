@@ -18,7 +18,7 @@ def main(_config, cluster=None):
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)
-    trainer = TrainerFactory.get_trainer(_config, cluster)
+    trainer = TrainerFactory.get_trainer(_config)
     reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 

@@ -197,7 +197,9 @@ def rlsum_value_oful_episode(
     theta_hat = A_inv.mm(b)
 
     regrets = torch.zeros((n_samples,))
-    max_score = torch.tensor(scores.mean(-1).max())
+    max_score_idx = np.unravel_index(scores.mean(-1).argmax(), scores.shape[:-1])
+    max_score = torch.from_numpy(scores[max_score_idx])
+    max_score_mean = max_score.mean()
 
     for n_updates in range(n_samples):
         current_node = root_node
@@ -231,16 +233,13 @@ def rlsum_value_oful_episode(
 
         fv = current_node.feature_vector
         A += fv.T.mm(fv)
-        if n_updates % 50 == 0:
-            A_inv = A.inverse()
-        else:
-            fv_Vinv = A_inv.mm(fv.T)
-            fv_Vinv_fv = fv_Vinv.T.mm(fv.T)
-            A_inv -= fv_Vinv.mm(fv_Vinv.T) / (1 + fv_Vinv_fv)
+        fv_Vinv = A_inv.mm(fv.T)
+        fv_Vinv_fv = fv_Vinv.T.mm(fv.T)
+        A_inv -= fv_Vinv.mm(fv_Vinv.T) / (1 + fv_Vinv_fv)
         b += fv.T * reward.mean()
         theta_hat = A_inv.mm(b)
 
-        regrets[n_updates] = max_score - reward.mean()
+        regrets[n_updates] = max_score_mean - reward.mean()
 
     return theta_hat, max_score
 

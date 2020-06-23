@@ -22,13 +22,11 @@ class RougeRewardScorer:
     def __init__(self, read_path):
         self.scores = np.load(read_path)
 
-    def __call__(self, summ_ids):
-        if len(summ_ids) == 3:
-            return self.scores[tuple(sorted(summ_ids))]
+    def __call__(self, summary_idxs):
+        if len(summary_idxs) == 3:
+            return self.scores[tuple(sorted(summary_idxs))]
         else:
             return np.zeros((3,), dtype=np.float32)
 
-    def get_score(self, state):
-        summ_ids = state.summary_idxs
-
-        return self.__call__(summ_ids)
+    def get_score(self, summary_idxs):
+        return self.__call__(summary_idxs)

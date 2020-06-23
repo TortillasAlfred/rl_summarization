@@ -70,16 +70,15 @@ class PytorchLightningTrainer(Trainer):
             overfit_pct=overfit_pct,
             print_nan_grads=print_nan_grads,
             val_check_interval=val_check_interval,
-            default_save_path=default_save_path,
+            default_root_dir=default_save_path,
             weights_save_path=weights_save_path,
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
-            cluster=cluster,
         )
 
     @staticmethod
-    def from_config(config, cluster):
+    def from_config(config):
         return PytorchLightningTrainer(
             config.gradient_clip_val,
             config.gpus,
@@ -94,5 +93,4 @@ class PytorchLightningTrainer(Trainer):
             config.model,
             config.max_epochs,
             config,
-            cluster,
         )

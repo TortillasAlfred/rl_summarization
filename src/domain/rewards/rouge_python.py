@@ -132,8 +132,8 @@ class Rouge:
             with open(filepath, "r", encoding="utf-8") as fp:
                 for line in fp:
                     k, v = line.strip().split(Rouge.WORDNET_DB_DELIMITER)
-                    assert k not in Rouge.WORDNET_KEY_VALUE
-                    Rouge.WORDNET_KEY_VALUE[k] = v
+                    if k not in Rouge.WORDNET_KEY_VALUE:
+                        Rouge.WORDNET_KEY_VALUE[k] = v
 
     @staticmethod
     def tokenize_text(text, language="english"):
@@ -760,10 +760,10 @@ class RougePythonReward:
         results = self.evaluator.get_all_scores(pairs)
         return np.asarray(results[0][0], dtype=np.float32)
 
-    def get_score(self, state):
-        if len(state.summary_idxs) == 3:
-            hyps = [[state.raw_content[i] for i in state.summary_idxs]]
-            refs = [state.raw_abstract]
+    def get_score(self, summary_idxs, raw_content, raw_abstract):
+        if len(summary_idxs) == 3:
+            hyps = [[raw_content[i] for i in summary_idxs]]
+            refs = [raw_abstract]
 
             return self.__call__(hyps, refs)
         else:
