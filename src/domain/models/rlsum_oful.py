@@ -147,13 +147,13 @@ class RLSumOFUL(pl.LightningModule):
         return mcts_theta_hats, max_scores
 
     def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
-        if subset == "train":
+        if subset in ["train", "val", "test"]:
             return [
                 self.reward_builder.init_scorer(id, subset)
                 for id in ids[gpu_idx * batch_size : (gpu_idx + 1) * batch_size]
             ]
-        elif subset in ["val", "test"]:
-            return [RougePythonReward() for _ in range(batch_size)]
+        # elif subset in ["val", "test"]:
+        #     return [RougePythonReward() for _ in range(batch_size)]
         else:
             raise ValueError(
                 f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
@@ -287,13 +287,7 @@ class RLSumOFUL(pl.LightningModule):
                 sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
                 _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
                 greedy_rewards.append(
-                    torch.from_numpy(
-                        scorer.get_score(
-                            selected_sents.tolist(),
-                            raw_contents[decal + i],
-                            raw_abstracts[decal + i],
-                        )
-                    )
+                    torch.from_numpy(scorer.get_score(selected_sents.tolist()))
                 )
 
             greedy_rewards = torch.stack(greedy_rewards)
@@ -304,18 +298,18 @@ class RLSumOFUL(pl.LightningModule):
         output_dict = {}
 
         log_dict = {
-            "greedy_rouge_1": greedy_rewards[:, 0].mean(),
-            "greedy_rouge_2": greedy_rewards[:, 1].mean(),
-            "greedy_rouge_L": greedy_rewards[:, 2].mean(),
-            "greedy_rouge_mean": greedy_rewards.mean(),
-            "mcts_rouge_1": mcts_rewards[:, 0].mean(),
-            "mcts_rouge_2": mcts_rewards[:, 1].mean(),
-            "mcts_rouge_L": mcts_rewards[:, 2].mean(),
-            "mcts_rouge_mean": mcts_rewards.mean(),
-            "max_rouge_1": max_scores[:, 0].mean(),
-            "max_rouge_2": max_scores[:, 1].mean(),
-            "max_rouge_L": max_scores[:, 2].mean(),
-            "max_rouge_mean": max_scores.mean(),
+            "greedy_rouge_1": greedy_rewards[:, 0],
+            "greedy_rouge_2": greedy_rewards[:, 1],
+            "greedy_rouge_L": greedy_rewards[:, 2],
+            "greedy_rouge_mean": greedy_rewards.mean(-1),
+            "mcts_rouge_1": mcts_rewards[:, 0],
+            "mcts_rouge_2": mcts_rewards[:, 1],
+            "mcts_rouge_L": mcts_rewards[:, 2],
+            "mcts_rouge_mean": mcts_rewards.mean(-1),
+            "max_rouge_1": max_scores[:, 0],
+            "max_rouge_2": max_scores[:, 1],
+            "max_rouge_L": max_scores[:, 2],
+            "max_rouge_mean": max_scores.mean(-1),
         }
         log_dict["loss"] = loss
 
@@ -344,19 +338,38 @@ class RLSumOFUL(pl.LightningModule):
     def training_step_end(self, outputs):
         self.batch_idx += 1
 
-        return outputs
+        all_logs = {}
+        out_dict = {}
+
+        for key, vals in outputs["log"].items():
+            all_logs[key] = vals.mean()
+
+        out_dict["log"] = all_logs
+
+        out_dict["loss"] = all_logs["loss"]
+
+        tqdm_keys = ["mcts_rouge", "greedy_rouge", "max_rouge"]
+        out_dict["progress_bar"] = {k: all_logs[f"{k}_mean"] for k in tqdm_keys}
+
+        return out_dict
 
     def validation_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="val")
 
         reward_dict = {
-            "val_greedy_rouge_1": greedy_rewards[:, 0].mean(),
-            "val_greedy_rouge_2": greedy_rewards[:, 1].mean(),
-            "val_greedy_rouge_L": greedy_rewards[:, 2].mean(),
-            "val_greedy_rouge_mean": greedy_rewards.mean(),
+            "val_greedy_rouge_1": greedy_rewards[:, 0],
+            "val_greedy_rouge_2": greedy_rewards[:, 1],
+            "val_greedy_rouge_L": greedy_rewards[:, 2],
+            "val_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
         return reward_dict
+
+    def validation_step_end(self, outputs):
+        for vals in outputs.values():
+            vals = vals.mean()
+
+        return outputs
 
     def validation_epoch_end(self, outputs):
         output_dict = self.generic_epoch_end(outputs)
@@ -374,13 +387,20 @@ class RLSumOFUL(pl.LightningModule):
         greedy_rewards = self.forward(batch, subset="test")
 
         reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[:, 0].mean(),
-            "test_greedy_rouge_2": greedy_rewards[:, 1].mean(),
-            "test_greedy_rouge_L": greedy_rewards[:, 2].mean(),
-            "test_greedy_rouge_mean": greedy_rewards.mean(),
+            "test_greedy_rouge_1": greedy_rewards[:, 0],
+            "test_greedy_rouge_2": greedy_rewards[:, 1],
+            "test_greedy_rouge_L": greedy_rewards[:, 2],
+            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
         return reward_dict
+
+
+    def test_step_end(self, outputs):
+        for vals in outputs.values():
+            vals = vals.mean()
+
+        return outputs
 
     def generic_epoch_end(self, outputs, is_test=False):
         combined_outputs = {}
