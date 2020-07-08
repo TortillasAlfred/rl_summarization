@@ -9,6 +9,9 @@ class RougeRewardBuilder:
     def init_scorer(self, article_id, subset):
         assert subset in ["train", "test", "val"]
 
+        if subset == "test":
+            subset = "val"
+
         read_path = os.path.join(self.base_path, subset, f"{article_id}.npy")
 
         return RougeRewardScorer(read_path)

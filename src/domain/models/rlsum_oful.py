@@ -1,5 +1,7 @@
 from src.domain.rewards.rouge_python import RougePythonReward
 import src.domain.mcts_oful as mcts_oful
+import threading
+import pickle
 
 import pytorch_lightning as pl
 import logging
@@ -55,6 +57,41 @@ class RLSumOFUL(pl.LightningModule):
 
         self.__build_model(hparams.hidden_dim)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.raw_run_done = False
+
+        self.mcts_log_path = os.path.join(
+            "/project/def-lulam50/magod/rl_summ/mcts_exp", f"alpha_{self.alpha_oful}"
+        )
+        os.makedirs(self.mcts_log_path, exist_ok=True)
+
+        self.raw_path = os.path.join(self.mcts_log_path, "raw")
+        self.pretrained_path = os.path.join(self.mcts_log_path, "pretrained")
+
+        os.makedirs(self.raw_path, exist_ok=True)
+        with open(os.path.join(self.raw_path, "results.pck"), "wb") as f:
+            pickle.dump(
+                {
+                    "n_sents": [],
+                    "max_scores": [],
+                    "theta_hat_predictions": [],
+                    "regrets": [],
+                },
+                f,
+            )
+
+        os.makedirs(self.pretrained_path, exist_ok=True)
+        with open(os.path.join(self.pretrained_path, "results.pck"), "wb") as f:
+            pickle.dump(
+                {
+                    "n_sents": [],
+                    "max_scores": [],
+                    "theta_hat_predictions": [],
+                    "regrets": [],
+                },
+                f,
+            )
+
+        self.lock = threading.Lock()
 
         mp.set_start_method("forkserver", force=True)
         if hparams.n_jobs_for_mcts == -1:
@@ -143,8 +180,11 @@ class RLSumOFUL(pl.LightningModule):
 
         mcts_theta_hats = torch.stack([m[0] for m in mcts_pures]).transpose(2, 1)
         max_scores = torch.stack([m[1] for m in mcts_pures])
+        n_sents = torch.stack([m[2] for m in mcts_pures])
+        theta_hat_predictions = torch.stack([m[3] for m in mcts_pures]).T
+        regrets = torch.stack([m[4] for m in mcts_pures]).T
 
-        return mcts_theta_hats, max_scores
+        return mcts_theta_hats, max_scores, n_sents, theta_hat_predictions, regrets
 
     def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
         if subset in ["train", "val", "test"]:
@@ -275,6 +315,40 @@ class RLSumOFUL(pl.LightningModule):
                     torch.zeros_like(greedy_rewards),
                     torch.zeros_like(greedy_rewards),
                 )
+        elif subset == "test":
+            (
+                mcts_theta_hats,
+                max_scores,
+                n_sents,
+                theta_hat_predictions,
+                regrets,
+            ) = self.mcts_oful(
+                sent_contents, doc_contents, valid_sentences, scorers, gpu_idx,
+            )
+
+            theta_hats = self.model.produce_theta_hat(doc_contents)
+            greedy_rewards = []
+            decal = gpu_idx * batch_size
+
+            for (i, (theta_hat_doc, sent_conts, val_sents, scorer,),) in enumerate(
+                zip(theta_hats, sent_contents, valid_sentences, scorers,)
+            ):
+                sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
+                sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
+                _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
+                greedy_rewards.append(
+                    torch.from_numpy(scorer.get_score(selected_sents.tolist()))
+                )
+
+            greedy_rewards = torch.stack(greedy_rewards)
+
+            return (
+                greedy_rewards.to(self.device),
+                n_sents.to("cpu"),
+                max_scores.to("cpu"),
+                theta_hat_predictions.to("cpu"),
+                regrets.to("cpu"),
+            )
         else:
             theta_hats = self.model.produce_theta_hat(doc_contents)
             greedy_rewards = []
@@ -384,7 +458,13 @@ class RLSumOFUL(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="test")
+        (
+            greedy_rewards,
+            n_sents,
+            max_scores,
+            theta_hat_predictions,
+            regrets,
+        ) = self.forward(batch, subset="test")
 
         reward_dict = {
             "test_greedy_rouge_1": greedy_rewards[:, 0],
@@ -393,8 +473,27 @@ class RLSumOFUL(pl.LightningModule):
             "test_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
-        return reward_dict
+        if self.raw_run_done:
+            pickle_path = os.path.join(self.pretrained_path, "results.pck")
+        else:
+            pickle_path = os.path.join(self.raw_path, "results.pck")
 
+        self.lock.acquire()
+        try:
+            with open(pickle_path, "rb") as f:
+                d = pickle.load(f)
+
+            d["n_sents"].append(n_sents)
+            d["max_scores"].append(max_scores)
+            d["theta_hat_predictions"].append(theta_hat_predictions)
+            d["regrets"].append(regrets)
+
+            with open(pickle_path, "wb") as f:
+                pickle.dump(d, f)
+        finally:
+            self.lock.release()
+
+        return reward_dict
 
     def test_step_end(self, outputs):
         for vals in outputs.values():
@@ -472,7 +571,7 @@ class RLSumOFUL(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["test"]
+        dataset = self.splits["val"]
         return DataLoader(
             dataset,
             collate_fn=text_data_collator(dataset),
