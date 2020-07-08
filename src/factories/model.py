@@ -9,6 +9,7 @@ from src.domain.models.rlsum_value_inference import *
 from src.domain.models.rlsum_value_pure_inference import *
 from src.domain.models.rlsum_oh import *
 from src.domain.models.rlsum_oful import *
+from src.domain.models.rlsum_oful_exp import *
 from src.domain.models.azsum_mcts import *
 from src.domain.models.a2c import *
 
@@ -27,6 +28,7 @@ class ModelFactory:
     RLSUM_VALUE_INFERENCE = "rlsum_value_inference"
     RLSUM_VALUE_PURE_INFERENCE = "rlsum_value_pure_inference"
     RLSUM_OFUL = "rlsum_oful"
+    RLSUM_OFUL_EXP = "rlsum_oful_exp"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -58,5 +60,7 @@ class ModelFactory:
             return RLSumValuePureInference.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL:
             return RLSumOFUL.from_config(dataset, reward, config)
+        elif model == cls.RLSUM_OFUL_EXP:
+            return RLSumOFULEXP.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

@@ -1,4 +1,4 @@
-from src.scripts.training import main
+from src.scripts.mcts_exp import main
 
 import yaml
 from test_tube import SlurmCluster, HyperOptArgumentParser
@@ -17,10 +17,10 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 16
-    cluster.per_experiment_nb_gpus = 4
+    cluster.per_experiment_nb_cpus = 4
+    cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "5:00:00"
+    cluster.job_time = "20:00:00"
     cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(5e4)
     cluster.minutes_to_checkpoint_before_walltime = 2
