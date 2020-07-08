@@ -1,0 +1,74 @@
+
+#####################
+### MISCELLANEOUS ###
+#####################
+seed: 42 # Random seed
+dev: True
+slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
+
+##################
+### MODEL ARGS ###
+##################
+model: "rlsum_oful" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+train_batch_size: 64
+test_batch_size: 128
+hidden_dim: 200
+decoder_dim: 100
+n_repeats_per_sample: 16
+learning_rate: 0.001
+epsilon: 0.1
+n_sents_per_summary: 3
+n_jobs_for_mcts: 4
+lambda_loss: 0.5
+warmup_batches: 1000
+
+######################
+### MCTS OFUL ARGS ###
+######################
+lambda_oful: 1.0
+alpha_oful: 1.0
+S: 1.0
+R: 1.0
+delta: 0.0001
+D_t_source: "word-level"
+
+####################
+### DATASET ARGS ###
+####################
+dataset: "cnn_dailymail" # One of ['cnn_dailymail']
+data_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/" # Argument to the Dataset object
+embeddings: "glove.6B.100d"
+embeddings_location: "/scratch/magod/embeddings/"
+sets: "train-val-test" # If present, 'train' must be first
+
+###################
+### REWARD ARGS ###
+###################
+reward: "rouge" # One of ['rouge']
+rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/"
+
+##################
+### MCTS ARGS  ###
+##################
+c_puct: 1.0
+n_mcts_samples: 2500
+dirichlet_epsilon: 0.25
+
+####################
+### TRAINER ARGS ###
+####################
+trainer: "pl" # One of ['gradient_free', 'pl']
+gradient_clip_val: 1
+gpus: -1
+overfit_pct: 0.0
+fast_dev_run: False
+distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
+use_amp: False
+print_nan_grads: True
+val_check_interval: 0.1
+default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
+weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
+max_epochs: 4
+weight_decay: 0.000001
+dropout: 0.01
+accumulate_grad_batches: 1

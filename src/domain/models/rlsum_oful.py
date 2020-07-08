@@ -1,5 +1,5 @@
 from src.domain.rewards.rouge_python import RougePythonReward
-import src.domain.mcts_oful as mcts_oful
+import src.domain.mcts_oful_exp as mcts_oful
 import threading
 import pickle
 
@@ -75,6 +75,7 @@ class RLSumOFUL(pl.LightningModule):
                     "max_scores": [],
                     "theta_hat_predictions": [],
                     "regrets": [],
+                    "times": [],
                 },
                 f,
             )
@@ -87,6 +88,7 @@ class RLSumOFUL(pl.LightningModule):
                     "max_scores": [],
                     "theta_hat_predictions": [],
                     "regrets": [],
+                    "times": [],
                 },
                 f,
             )
@@ -183,8 +185,16 @@ class RLSumOFUL(pl.LightningModule):
         n_sents = torch.stack([m[2] for m in mcts_pures])
         theta_hat_predictions = torch.stack([m[3] for m in mcts_pures]).T
         regrets = torch.stack([m[4] for m in mcts_pures]).T
+        times = torch.stack([m[5] for m in mcts_pures])
 
-        return mcts_theta_hats, max_scores, n_sents, theta_hat_predictions, regrets
+        return (
+            mcts_theta_hats,
+            max_scores,
+            n_sents,
+            theta_hat_predictions,
+            regrets,
+            times,
+        )
 
     def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
         if subset in ["train", "val", "test"]:
@@ -322,6 +332,7 @@ class RLSumOFUL(pl.LightningModule):
                 n_sents,
                 theta_hat_predictions,
                 regrets,
+                times,
             ) = self.mcts_oful(
                 sent_contents, doc_contents, valid_sentences, scorers, gpu_idx,
             )
@@ -348,6 +359,7 @@ class RLSumOFUL(pl.LightningModule):
                 max_scores.to("cpu"),
                 theta_hat_predictions.to("cpu"),
                 regrets.to("cpu"),
+                times.to("cpu"),
             )
         else:
             theta_hats = self.model.produce_theta_hat(doc_contents)
@@ -464,6 +476,7 @@ class RLSumOFUL(pl.LightningModule):
             max_scores,
             theta_hat_predictions,
             regrets,
+            times,
         ) = self.forward(batch, subset="test")
 
         reward_dict = {
@@ -487,6 +500,7 @@ class RLSumOFUL(pl.LightningModule):
             d["max_scores"].append(max_scores)
             d["theta_hat_predictions"].append(theta_hat_predictions)
             d["regrets"].append(regrets)
+            d["times"].append(times)
 
             with open(pickle_path, "wb") as f:
                 pickle.dump(d, f)
