@@ -91,7 +91,7 @@ def rlsum_oful_value(
         n_valid_actions,
         theta_hat_predictions,
         regrets,
-        start - end,
+        torch.tensor(start - end, device=device),
     )
 
 

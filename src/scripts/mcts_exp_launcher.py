@@ -28,11 +28,11 @@ def optimize_on_cluster(hparams):
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-lulam50", comment="CCDB account for running"
+        cmd="account", value="def-adurand", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=4, job_name="rl_summarization"
+        main, nb_trials=12, job_name="rl_summarization"
     )
 
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
     fine_tuned_items["alpha_oful"] = dict(
-        default=0.1, type=float, tunable=True, options=[0.01, 0.1, 1.0, 10.0],
+        default=0.1, type=float, tunable=True, options=[0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0],
     )
 
     for config, value in base_configs.items():
