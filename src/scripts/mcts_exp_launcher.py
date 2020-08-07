@@ -17,10 +17,10 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 4
-    cluster.per_experiment_nb_gpus = 1
+    cluster.per_experiment_nb_cpus = 16
+    cluster.per_experiment_nb_gpus = 4
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "20:00:00"
+    cluster.job_time = "24:00:00"
     cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(5e4)
     cluster.minutes_to_checkpoint_before_walltime = 2
@@ -28,7 +28,7 @@ def optimize_on_cluster(hparams):
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-adurand", comment="CCDB account for running"
+        cmd="account", value="def-corbeilj", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
@@ -42,7 +42,10 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
     fine_tuned_items["alpha_oful"] = dict(
-        default=0.1, type=float, tunable=True, options=[0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0],
+        default=0.1,
+        type=float,
+        tunable=True,
+        options=[0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     )
 
     for config, value in base_configs.items():
