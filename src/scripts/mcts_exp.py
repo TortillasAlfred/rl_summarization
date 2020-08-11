@@ -25,7 +25,17 @@ def main(_config, cluster=None):
     # HACK
     # trainer.test(model)
     # trainer.fit(model)
-    trainer.test(model)
+    if _config.raw_run:
+        model.raw_run_done = False
+        trainer.test(model)
+    else:
+        model.raw_run_done = True
+        ckpt_paths_per_alpha = {
+            1.0: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving/rlsum_oful_248/epoch=3-val_greedy_rouge_mean=0.25333.ckpt",
+            0.1: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving/rlsum_oful_246/epoch=3-val_greedy_rouge_mean=0.30796.ckpt",
+            10.0: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving/rlsum_oful_249/epoch=3-val_greedy_rouge_mean=0.26634.ckpt",
+        }
+        trainer.test(model, ckpt_path=ckpt_paths_per_alpha[_config.alpha_oful])
 
     logging.info("Done")
 
