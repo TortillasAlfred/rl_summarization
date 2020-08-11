@@ -72,3 +72,5 @@ max_epochs: 4
 weight_decay: 0.000001
 dropout: 0.01
 accumulate_grad_batches: 1
+
+raw_run: False
