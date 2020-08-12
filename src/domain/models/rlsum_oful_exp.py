@@ -67,31 +67,32 @@ class RLSumOFULEXP(pl.LightningModule):
         self.raw_path = os.path.join(self.mcts_log_path, "raw")
         self.pretrained_path = os.path.join(self.mcts_log_path, "pretrained")
 
-        # os.makedirs(self.raw_path, exist_ok=True)
-        # with open(os.path.join(self.raw_path, "results.pck"), "wb") as f:
-        #     pickle.dump(
-        #         {
-        #             "n_sents": [],
-        #             "max_scores": [],
-        #             "theta_hat_predictions": [],
-        #             "regrets": [],
-        #             "times": [],
-        #         },
-        #         f,
-        #     )
-
-        os.makedirs(self.pretrained_path, exist_ok=True)
-        with open(os.path.join(self.pretrained_path, "results.pck"), "wb") as f:
-            pickle.dump(
-                {
-                    "n_sents": [],
-                    "max_scores": [],
-                    "theta_hat_predictions": [],
-                    "regrets": [],
-                    "times": [],
-                },
-                f,
-            )
+        if hparams.raw_run == 0:
+            os.makedirs(self.raw_path, exist_ok=True)
+            with open(os.path.join(self.raw_path, "results.pck"), "wb") as f:
+                pickle.dump(
+                    {
+                        "n_sents": [],
+                        "max_scores": [],
+                        "theta_hat_predictions": [],
+                        "regrets": [],
+                        "times": [],
+                    },
+                    f,
+                )
+        else:
+            os.makedirs(self.pretrained_path, exist_ok=True)
+            with open(os.path.join(self.pretrained_path, "results.pck"), "wb") as f:
+                pickle.dump(
+                    {
+                        "n_sents": [],
+                        "max_scores": [],
+                        "theta_hat_predictions": [],
+                        "regrets": [],
+                        "times": [],
+                    },
+                    f,
+                )
 
         self.lock = threading.Lock()
 
@@ -595,7 +596,7 @@ class RLSumOFULEXP(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return RLSumOFUL(dataset, reward, config,)
+        return RLSumOFULEXP(dataset, reward, config,)
 
 
 def text_data_collator(dataset):

@@ -47,7 +47,7 @@ def main(_config, cluster=None):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
+    base_configs = yaml.load(open("./configs/mcts_exp.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser()
     for config, value in base_configs.items():
         if type(value) is bool:
