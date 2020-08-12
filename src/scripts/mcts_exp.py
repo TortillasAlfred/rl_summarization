@@ -38,7 +38,7 @@ def main(_config, cluster=None):
             10.0: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving/rlsum_oful_249/epoch=3-val_greedy_rouge_mean=0.26634.ckpt",
         }
         model = RLSumOFULEXP.load_from_checkpoint(
-            ckpt_paths_per_alpha[_config.alpha_oful]
+            ckpt_paths_per_alpha[_config.alpha_oful], dataset, reward, _config)
         )
         model.raw_run_done = True
         trainer.test(model)
