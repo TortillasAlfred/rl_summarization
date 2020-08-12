@@ -45,7 +45,7 @@ if __name__ == "__main__":
         default=0.1, type=float, tunable=True, options=[0.1, 1.0, 10.0],
     )
     fine_tuned_items["raw_run"] = dict(
-        default=True, type=bool, tunable=True, options=[True, False],
+        default=0, type=int, tunable=True, options=[0, 1],
     )
 
     for config, value in base_configs.items():

@@ -25,7 +25,7 @@ def main(_config, cluster=None):
     # HACK
     # trainer.test(model)
     # trainer.fit(model)
-    if _config.raw_run:
+    if _config.raw_run == 0:
         model.raw_run_done = False
         trainer.test(model)
     else:
