@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=6, job_name="rl_summarization"
+        main, nb_trials=3, job_name="rl_summarization"
     )
 
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         default=0.1, type=float, tunable=True, options=[0.1, 1.0, 10.0],
     )
     fine_tuned_items["raw_run"] = dict(
-        default=0, type=int, tunable=True, options=[0, 1],
+        default=1, type=int, tunable=True, options=[1],
     )
 
     for config, value in base_configs.items():
