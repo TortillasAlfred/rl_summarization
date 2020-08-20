@@ -20,7 +20,7 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_cpus = 16
     cluster.per_experiment_nb_gpus = 4
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "24:00:00"
+    cluster.job_time = "12:00:00"
     cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(5e4)
     cluster.minutes_to_checkpoint_before_walltime = 2
@@ -37,15 +37,15 @@ def optimize_on_cluster(hparams):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(open("./configs/base.yaml"), Loader=yaml.FullLoader)
+    base_configs = yaml.load(open("./configs/mcts_exp.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}
     fine_tuned_items["alpha_oful"] = dict(
-        default=0.1, type=float, tunable=True, options=[0.1, 1.0, 10.0],
-    )
-    fine_tuned_items["raw_run"] = dict(
-        default=1, type=int, tunable=True, options=[0, 1],
+        default=0.1,
+        type=float,
+        tunable=True,
+        options=[0.001, 0.01, 0.1, 1.0, 10.0, 100.0],
     )
 
     for config, value in base_configs.items():

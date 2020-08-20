@@ -41,10 +41,7 @@ class PytorchLightningTrainer(Trainer):
         cluster=None,
     ):
         if hasattr(config, "hpc_exp_number"):
-            # HACK
-            # name = f"{model}_{config.hpc_exp_number}"
-            ancient_exp_dict = {0.1: 246, 1.0: 248, 10.0: 249}
-            name = f"{model}_{ancient_exp_dict[config.alpha_oful]}"
+            name = f"{model}_{config.hpc_exp_number}"
         else:
             name = model
         checkpoint_callback = ModelCheckpoint(
