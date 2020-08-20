@@ -20,7 +20,7 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_cpus = 16
     cluster.per_experiment_nb_gpus = 4
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "12:00:00"
+    cluster.job_time = "24:00:00"
     cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(5e4)
     cluster.minutes_to_checkpoint_before_walltime = 2
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         default=0.1,
         type=float,
         tunable=True,
-        options=[0.001, 0.01, 0.1, 1.0, 10.0, 100.0],
+        options=[0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     )
 
     for config, value in base_configs.items():

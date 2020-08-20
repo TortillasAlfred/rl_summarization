@@ -255,7 +255,7 @@ def rlsum_value_oful_episode(
 
         regrets[n_updates] = max_score_mean - reward.mean()
 
-        sent_predicted_vals = theta_hat.T.mm(action_vectors.T)
+        sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
         _, selected_sents = sent_predicted_vals.topk(n_sents_per_summary)
         theta_predictions[n_updates] = torch.tensor(
             scores[tuple(sorted(selected_sents.tolist()))], device=device
