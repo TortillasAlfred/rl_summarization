@@ -60,7 +60,9 @@ class RLSumOFULEXP(pl.LightningModule):
         self.raw_run_done = False
 
         self.mcts_log_path = os.path.join(
-            "/project/def-lulam50/magod/rl_summ/mcts_exp", f"alpha_{self.alpha_oful}"
+            "/project/def-lulam50/magod/rl_summ/mcts_exp",
+            f"alpha_{self.alpha_oful}",
+            f"{self.warmup_batches}_warmup_batches",
         )
         os.makedirs(self.mcts_log_path, exist_ok=True)
 

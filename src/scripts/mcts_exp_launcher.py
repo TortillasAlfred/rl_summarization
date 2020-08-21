@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=6, job_name="rl_summarization"
+        main, nb_trials=12, job_name="rl_summarization"
     )
 
 
@@ -46,6 +46,9 @@ if __name__ == "__main__":
         type=float,
         tunable=True,
         options=[0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
+    )
+    fine_tuned_items["warmup_batches"] = dict(
+        default=100, type=int, tunable=True, options=[100, 1000],
     )
 
     for config, value in base_configs.items():
