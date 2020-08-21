@@ -75,7 +75,7 @@ class PytorchLightningTrainer(Trainer):
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
-            limit_train_batches=100,
+            max_steps=config.warmup_batches,  # HACK FOR MCTS EXP
         )
 
     @staticmethod
