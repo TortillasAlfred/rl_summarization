@@ -44,9 +44,11 @@ class PytorchLightningTrainer(Trainer):
             name = f"{model}_{config.hpc_exp_number}"
         else:
             name = model
+
+        weights_save_path = "/".join([weights_save_path, name])
         checkpoint_callback = ModelCheckpoint(
             filepath="/".join(
-                [weights_save_path, name, "{epoch}-{val_greedy_rouge_mean:.5f}"]
+                [weights_save_path, "{epoch}-{val_greedy_rouge_mean:.5f}"]
             ),
             save_top_k=3,
             verbose=True,

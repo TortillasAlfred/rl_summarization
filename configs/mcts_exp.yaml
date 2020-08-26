@@ -51,7 +51,7 @@ rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge
 ### MCTS ARGS  ###
 ##################
 c_puct: 1.0
-n_mcts_samples: 2500
+n_mcts_samples: 500
 dirichlet_epsilon: 0.25
 
 ####################
