@@ -63,8 +63,6 @@ gpus: -1
 overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
-use_amp: False
-print_nan_grads: True
 val_check_interval: 0.1
 default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
