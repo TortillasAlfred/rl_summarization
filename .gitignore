@@ -133,3 +133,5 @@ dmypy.json
 
 results
 weights
+*.pck
+*.csv 
