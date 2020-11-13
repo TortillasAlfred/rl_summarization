@@ -12,6 +12,7 @@ from src.domain.models.rlsum_oful import *
 from src.domain.models.rlsum_oful_exp import *
 from src.domain.models.azsum_mcts import *
 from src.domain.models.a2c import *
+from src.domain.models.banditsum_exp import *
 
 
 class ModelFactory:
@@ -29,6 +30,7 @@ class ModelFactory:
     RLSUM_VALUE_PURE_INFERENCE = "rlsum_value_pure_inference"
     RLSUM_OFUL = "rlsum_oful"
     RLSUM_OFUL_EXP = "rlsum_oful_exp"
+    BANDITUM_MCS_EXP = "banditsum_mcs_exp"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -62,5 +64,7 @@ class ModelFactory:
             return RLSumOFUL.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL_EXP:
             return RLSumOFULEXP.from_config(dataset, reward, config)
+        elif model == cls.BANDITUM_MCS_EXP:
+            return BanditSumMCSExperiment.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

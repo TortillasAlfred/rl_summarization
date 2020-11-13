@@ -15,7 +15,7 @@ def main(_config, cluster=None):
     configure_logging()
     set_random_seed(_config.seed)
 
-    logging.info("Beginning mcts experiment script with following config :")
+    logging.info("Beginning MCS experiment script with following config :")
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)
@@ -23,16 +23,13 @@ def main(_config, cluster=None):
     reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 
-    trainer.test(model)
-    trainer.fit(model)
-    model.raw_run_done = True
-    trainer.test(model)
+    trainer.test(model, ckpt_path=None)
 
     logging.info("Done")
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(open("./configs/mcts_exp.yaml"), Loader=yaml.FullLoader)
+    base_configs = yaml.load(open("./configs/mcs_exp.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser()
     for config, value in base_configs.items():
         if type(value) is bool:
