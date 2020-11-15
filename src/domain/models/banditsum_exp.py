@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import os
 from itertools import combinations
 from collections import defaultdict, namedtuple
-from scipy.stats import entropy
+from scipy.special import entr
 from joblib import Parallel, delayed
 
 
@@ -397,14 +397,14 @@ def collect_sim(scorer, tau, combs, n_sents, n_samples=1000):
     comb_probas /= comb_probas.sum()
     if np.isnan(distro).any():
         return None, None, None, None
-        
+
     f = np.sum(
         [
             proba * scorer.scores[i, j, k].mean()
             for (i, j, k), proba in zip(combs, comb_probas)
         ]
     )
-    ent = entropy(distro)
+    ent = entr(comb_probas).sum()
     top3 = np.partition(distro, -3)[-3:].sum()
 
     sampled_combs = np.random.choice(
