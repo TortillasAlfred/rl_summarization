@@ -390,12 +390,10 @@ def collect_sim(scorer, tau, combs, n_sents, n_samples=1000):
     distro[distro < 0] = 0
     distro /= distro.sum()
 
-    if np.isnan(distro).any():
-        return None, None, None, None
-
     comb_probas = np.array([distro[i] * distro[j] * distro[k] for i, j, k in combs])
     comb_probas /= comb_probas.sum()
-    if np.isnan(distro).any():
+
+    if np.isnan(distro).any() or np.isnan(comb_probas).any():
         return None, None, None, None
 
     f = np.sum(
