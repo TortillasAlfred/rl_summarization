@@ -15,7 +15,7 @@ def main(_config, cluster=None):
     configure_logging()
     set_random_seed(_config.seed)
 
-    logging.info("Beginning MCTS PRIORS experiment script with following config :")
+    logging.info("Beginning MCTS experiment script with following config :")
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)
@@ -29,9 +29,7 @@ def main(_config, cluster=None):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(
-        open("./configs/mcts_exp_priors.yaml"), Loader=yaml.FullLoader
-    )
+    base_configs = yaml.load(open("./configs/mcts_exp.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser()
     for config, value in base_configs.items():
         if type(value) is bool:
