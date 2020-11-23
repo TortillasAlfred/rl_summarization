@@ -27,7 +27,7 @@ np.seterr(invalid="ignore")
 class RLSumMCTSEXP(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        self.hparams = hparams
+        # self.hparams = hparams
         self.dataset = dataset
         self.reward_builder = reward
 
