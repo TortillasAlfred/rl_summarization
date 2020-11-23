@@ -434,7 +434,7 @@ def collect_sim(scorer, c_puct, n_sents, n_samples=1000):
         n_visits[sampled_idxs] += 1
         threshold = np.partition(n_visits, -3)[-3]
         elligible_idxs = np.argwhere(n_visits >= threshold)[:, 0]
-        best_idxs = np.random.choice(elligible_idxs)
+        best_idxs = np.random.choice(elligible_idxs, 3)
         argmax_sims[n - 1] = scorer.scores[best_idxs].mean()
 
     return argmax_sims
