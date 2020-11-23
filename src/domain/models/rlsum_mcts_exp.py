@@ -410,7 +410,7 @@ def collect_sims(scorer, id, c_puct):
     max_rouge = scorer.scores.mean(-1).max()
     results = collect_sim(scorer, c_puct, n_sents)
 
-    return [(c_puct, n_sents, max_rouge)], [results]
+    return [(c_puct, n_sents, max_rouge, id)], [results]
 
 
 def collect_sim(scorer, c_puct, n_sents, n_samples=1000):
