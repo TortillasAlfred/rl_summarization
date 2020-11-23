@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --array=1-1                                                            # Launch an array of 1 jobs
-#SBATCH --account=rrg-corbeilj-ac                                              # Account with resources
+#SBATCH --account=def-corbeilj                                              # Account with resources
 #SBATCH --cpus-per-task=32                                                     # Number of CPUs
 #SBATCH --mem=70G                                                              # memory (per node)
 #SBATCH --time=0-24:00                                                         # time (DD-HH:MM)
