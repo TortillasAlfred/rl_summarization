@@ -2,8 +2,8 @@
 
 #SBATCH --array=1-1                                                            # Launch an array of 1 jobs
 #SBATCH --account=def-corbeilj                                              # Account with resources
-#SBATCH --cpus-per-task=32                                                     # Number of CPUs
-#SBATCH --mem=70G                                                              # memory (per node)
+#SBATCH --cpus-per-task=64                                                     # Number of CPUs
+#SBATCH --mem=120G                                                              # memory (per node)
 #SBATCH --time=0-12:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails
