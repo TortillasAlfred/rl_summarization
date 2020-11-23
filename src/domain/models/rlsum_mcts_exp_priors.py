@@ -66,7 +66,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         os.makedirs(self.mcts_log_path, exist_ok=True)
         self.mcts_log_path += "/results.pck"
         with open(self.mcts_log_path, "wb") as f:
-            pickle.dump({}, f)
+            pickle.dump({"argmax": {}, "q_vals": {}}, f)
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -128,9 +128,10 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
         results = self.mcts_exp(scorers, ids, c_pucts)
         keys = [key for r in results for key in r[0]]
-        f_hats = [vals for r in results for vals in r[1]]
+        argmax_hats = [vals for r in results for vals in r[1]]
+        q_vals_hats = [vals for r in results for vals in r[2]]
 
-        return (keys, f_hats)
+        return (keys, argmax_hats, q_vals_hats)
 
     def get_step_output(self, loss, greedy_rewards, mcts_rewards, max_scores):
         output_dict = {}
@@ -222,13 +223,14 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        keys, f_hats = self.forward(batch, subset="test")
+        keys, argmax_hats, q_vals_hats = self.forward(batch, subset="test")
 
         with open(self.mcts_log_path, "rb") as f:
             d = pickle.load(f)
 
-        for key, val in zip(keys, f_hats):
-            d[key] = val
+        for key, argmax_vals, q_vals in zip(keys, argmax_hats, q_vals_hats):
+            d["argmax"][key] = argmax_vals
+            d["q_vals"][key] = q_vals
 
         with open(self.mcts_log_path, "wb") as f:
             pickle.dump(d, f)
@@ -407,24 +409,26 @@ class RLSummModel(torch.nn.Module):
 @delayed
 def collect_sims(scorer, id, c_puct):
     keys = []
-    f_hats = []
+    argmax_hats = []
+    q_vals_hats = []
 
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
     results = [
         collect_sim(scorer, c_puct, n_sents, tau)
-        for tau in np.linspace(0.0, 1.0, num=11)
+        for tau in np.linspace(0.0, 1.0, num=21)
     ]
 
-    for f_sims, prior_max_score, prior_max_proba in results:
+    for argmax_sims, q_val_sims, prior_max_score, prior_max_proba in results:
         if prior_max_score:
             keys.append(
                 (c_puct, n_sents, max_rouge, prior_max_score, prior_max_proba, id)
             )
-            f_hats.append(f_sims)
+            argmax_hats.append(argmax_sims)
+            q_vals_hats.append(q_val_sims)
 
-    return keys, f_hats
+    return keys, argmax_hats, q_vals_hats
 
 
 def collect_sim(scorer, c_puct, n_sents, tau, n_samples=1000):
@@ -446,6 +450,7 @@ def collect_sim(scorer, c_puct, n_sents, tau, n_samples=1000):
     n_visits = np.zeros(n_sents, dtype=int)
     q_vals = np.zeros(n_sents, dtype=np.float32)
     argmax_sims = np.zeros(n_samples, dtype=np.float32)
+    q_vals_sims = np.zeros(n_samples, dtype=np.float32)
 
     if np.isnan(priors).any():
         return None, None, None
@@ -455,19 +460,25 @@ def collect_sim(scorer, c_puct, n_sents, tau, n_samples=1000):
     prior_max_proba = priors[best_idxs].sum()
 
     for n in range(1, n_samples + 1):
-        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(n) / n_visits)
+        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(3 * n) / n_visits)
         ucb = np.nan_to_num(ucb, nan=np.inf)
         threshold = np.partition(ucb, -3)[-3]
         elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]
-        sampled_idxs = np.random.choice(elligible_idxs, 3)
-        summ_score = scorer.scores[sampled_idxs].mean()
+        sampled_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        summ_score = scorer.scores[tuple(sampled_idxs)].mean()
         q_vals[sampled_idxs] = (
             summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]
         ) / (n_visits[sampled_idxs] + 1)
         n_visits[sampled_idxs] += 1
+
         threshold = np.partition(n_visits, -3)[-3]
         elligible_idxs = np.argwhere(n_visits >= threshold)[:, 0]
-        best_idxs = np.random.choice(elligible_idxs, 3)
-        argmax_sims[n - 1] = scorer.scores[best_idxs].mean()
+        best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        argmax_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
 
-    return argmax_sims, prior_max_score, prior_max_proba
+        threshold = np.partition(q_vals, -3)[-3]
+        elligible_idxs = np.argwhere(q_vals >= threshold)[:, 0]
+        best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        q_vals_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
+
+    return argmax_sims, q_vals_sims, prior_max_score, prior_max_proba
