@@ -1,4 +1,4 @@
-from src.scripts.mcts_exp import main
+from src.scripts.oful_exp import main
 
 import yaml
 from test_tube import SlurmCluster, HyperOptArgumentParser
@@ -9,7 +9,7 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
-    cluster.script_name = "-um src.scripts.mcts_exp_launcher"
+    cluster.script_name = "-um src.scripts.oful_exp_launcher"
 
     # email for cluster coms
     cluster.notify_job_status(
@@ -40,7 +40,7 @@ def optimize_on_cluster(hparams):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(open("./configs/mcts_exp.yaml"), Loader=yaml.FullLoader)
+    base_configs = yaml.load(open("./configs/oful_exp.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}
