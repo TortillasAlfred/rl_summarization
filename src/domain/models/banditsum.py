@@ -126,8 +126,6 @@ class BanditSum(pl.LightningModule):
             )
 
     def forward(self, batch, subset):
-        if subset == "train":
-            torch.set_grad_enabled(True)
         raw_contents, contents, raw_abstracts, abstracts, ids = batch
         batch_size = len(contents)
 
@@ -138,9 +136,9 @@ class BanditSum(pl.LightningModule):
 
         action_dist, action_vals, valid_sentences = self.__extract_features(contents)
 
-        greedy_idxs = action_dist.probs.argsort(descending=True)[
-            :, : self.n_sents_per_summary
-        ]
+        _, greedy_idxs = torch.topk(
+            action_dist.probs, self.n_sents_per_summary, sorted=False
+        )
         greedy_rewards = []
         for scorer, sent_idxs in zip(scorers, greedy_idxs):
             greedy_rewards.append(

@@ -21,9 +21,12 @@ class RougeRewardBuilder:
 class RougeRewardScorer:
     def __init__(self, read_path):
         self.scores = np.load(read_path)
+        self.n_sents = self.scores.shape[0]
 
     def __call__(self, summary_idxs):
-        if len(summary_idxs) == 3:
+        if len(summary_idxs) == 3 and all(
+            [s_idx < self.n_sents for s_idx in summary_idxs]
+        ):
             return self.scores[tuple(sorted(summary_idxs))]
         else:
             return np.zeros((3,), dtype=np.float32)
