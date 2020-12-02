@@ -318,6 +318,7 @@ class BanditSum(pl.LightningModule):
             collate_fn=text_data_collator(dataset),
             batch_size=self.train_batch_size,
             shuffle=True,
+            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -326,6 +327,7 @@ class BanditSum(pl.LightningModule):
             dataset,
             collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
+            drop_last=True,
         )
 
     def test_dataloader(self):
@@ -334,6 +336,7 @@ class BanditSum(pl.LightningModule):
             dataset,
             collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
+            drop_last=True,
         )
 
     @staticmethod
