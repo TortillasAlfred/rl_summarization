@@ -2,6 +2,7 @@ import logging
 import os
 
 from pytorch_lightning import Trainer
+from pytorch_lightning import accelerators
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger, TestTubeLogger
 
@@ -65,15 +66,14 @@ class PytorchLightningTrainer(Trainer):
             gradient_clip_val=gradient_clip_val,
             gpus=gpus,
             fast_dev_run=fast_dev_run,
-            distributed_backend=distributed_backend,
-            overfit_pct=overfit_pct,
+            accelerator=distributed_backend,
+            overfit_batches=overfit_pct,
             val_check_interval=val_check_interval,
             default_root_dir=default_save_path,
             weights_save_path=weights_save_path,
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
-            max_steps=config.warmup_batches,  # HACK FOR MCTS EXP
         )
 
     @staticmethod
