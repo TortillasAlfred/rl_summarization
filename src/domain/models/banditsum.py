@@ -1,4 +1,4 @@
-from src.domain.rewards.rouge_python import RougePythonReward
+from src.domain.loader_utils import text_data_collator
 
 
 import pytorch_lightning as pl
@@ -112,21 +112,8 @@ class BanditSum(pl.LightningModule):
 
         return idxs, logits.sum(-1)
 
-    def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
-        if subset in ["train", "val", "test"]:
-            return [
-                self.reward_builder.init_scorer(id, subset)
-                for id in ids[gpu_idx * batch_size : (gpu_idx + 1) * batch_size]
-            ]
-        # elif subset in ["val", "test"]:
-        #     return [RougePythonReward() for _ in range(batch_size)]
-        else:
-            raise ValueError(
-                f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
-            )
-
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         batch_size = len(contents)
 
         self.wl_encoder.flatten_parameters()
@@ -319,6 +306,7 @@ class BanditSum(pl.LightningModule):
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
+            num_workers=16,
         )
 
     def val_dataloader(self):
@@ -330,6 +318,7 @@ class BanditSum(pl.LightningModule):
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=16,
         )
 
     def test_dataloader(self):
@@ -341,40 +330,12 @@ class BanditSum(pl.LightningModule):
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=16,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
         return BanditSum(dataset, reward, config,)
-
-
-def text_data_collator(fields, reward_builder, subset):
-    def collate(data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
-
-        batch = {name: field.process(batch[name]) for name, field in fields.items()}
-        batch["scorers"] = get_reward_scorers(reward_builder, batch["id"], subset)
-
-        batch = namedtuple("batch", batch.keys())(**batch)
-
-        return batch
-
-    return collate
-
-
-def get_reward_scorers(reward_builder, ids, subset):
-    if subset in ["train", "val", "test"]:
-        return [reward_builder.init_scorer(id, subset) for id in ids]
-    # elif subset in ["val", "test"]:
-    #     return [RougePythonReward() for _ in range(batch_size)]
-    else:
-        raise ValueError(
-            f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
-        )
 
 
 class RLSummModel(torch.nn.Module):
