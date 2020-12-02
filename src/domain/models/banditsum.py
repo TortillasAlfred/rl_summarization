@@ -100,8 +100,6 @@ class BanditSum(pl.LightningModule):
                     if uniform_sampler.sample() <= self.epsilon:
                         idx = Categorical(val_sents.float()).sample()
                     else:
-                        if (probs < 0).any():
-                            print(probs, affinities, val_sents)
                         idx = Categorical(probs).sample()
                     logit = (
                         self.epsilon / val_sents.sum()
@@ -147,10 +145,6 @@ class BanditSum(pl.LightningModule):
         greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":
-            self.batch_idx += 1
-
-            if self.batch_idx >= 1928:
-                print(batch, action_vals)
             selected_idxs, selected_logits = self.select_idxs(
                 action_vals, valid_sentences
             )
