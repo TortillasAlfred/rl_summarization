@@ -308,7 +308,7 @@ class BanditSum(pl.LightningModule):
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=3, factor=0.1, verbose=True
+            optimizer, mode="max", patience=6, factor=0.1, verbose=True
         )
 
         return optimizer
