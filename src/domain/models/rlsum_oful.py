@@ -55,7 +55,7 @@ class RLSumOFUL(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model(hparams.hidden_dim)
+        self.__build_model()
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
@@ -105,7 +105,7 @@ class RLSumOFUL(pl.LightningModule):
             for _ in range(torch.cuda.device_count())
         ]
 
-    def __build_model(self, hidden_dim):
+    def __build_model(self):
         self.embeddings = torch.nn.Embedding.from_pretrained(
             self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
@@ -585,7 +585,7 @@ class RLSumOFUL(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["test"]
         return DataLoader(
             dataset,
             collate_fn=text_data_collator(dataset),
