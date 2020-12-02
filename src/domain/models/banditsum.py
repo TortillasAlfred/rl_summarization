@@ -320,7 +320,7 @@ class BanditSum(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="test"
+                dataset.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
