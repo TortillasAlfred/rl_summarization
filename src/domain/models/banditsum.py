@@ -100,7 +100,7 @@ class BanditSum(pl.LightningModule):
                     if uniform_sampler.sample() <= self.epsilon:
                         idx = Categorical(val_sents.float()).sample()
                     else:
-                        idx = Categorical(probs).sample()
+                        idx = Categorical(probs[probs > 0]).sample()
                     logit = (
                         self.epsilon / val_sents.sum()
                         + (1 - self.epsilon) * probs[idx] / probs.sum()
@@ -395,7 +395,6 @@ class RLSummModel(torch.nn.Module):
 
     def produce_affinities(self, sent_contents):
         affinities = self.decoder(sent_contents).squeeze(-1)
-        affinities[affinities < 0] = 0
 
         return affinities
 
