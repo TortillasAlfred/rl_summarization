@@ -394,7 +394,10 @@ class RLSummModel(torch.nn.Module):
         return sent_contents, doc_contents
 
     def produce_affinities(self, sent_contents):
-        return self.decoder(sent_contents).squeeze(-1)
+        affinities = self.decoder(sent_contents).squeeze(-1)
+        affinities[affinities < 0] = 0
+
+        return affinities
 
     def get_sents_from_summs(self, sent_contents, sampled_summs):
         all_sents = []
