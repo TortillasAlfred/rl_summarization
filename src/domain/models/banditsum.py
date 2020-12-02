@@ -1,15 +1,16 @@
-from src.domain.environment import BanditSummarizationEnvironment
+from src.domain.rewards.rouge_python import RougePythonReward
+
 
 import pytorch_lightning as pl
-import logging
 import torch
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import DataLoader
 from torch.distributions.uniform import Uniform
 from torch.distributions.categorical import Categorical
 import numpy as np
 from torchtext.data import BucketIterator
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from collections import defaultdict, namedtuple
 
 
 class BanditSum(pl.LightningModule):
@@ -17,7 +18,7 @@ class BanditSum(pl.LightningModule):
         super(BanditSum, self).__init__()
         self.hparams = hparams
         self.dataset = dataset
-        self.environment = BanditSummarizationEnvironment(reward, episode_length=1)
+        self.reward_builder = reward
 
         self.embedding_dim = self.dataset.embedding_dim
         self.pad_idx = self.dataset.pad_idx
@@ -32,38 +33,27 @@ class BanditSum(pl.LightningModule):
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary
+        self.dropout = hparams.dropout
+        self.weight_decay = hparams.weight_decay
+        self.batch_idx = 0
 
-        self.__build_model(hparams.hidden_dim, hparams.decoder_dim)
+        self.__build_model()
+        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-    def __build_model(self, hidden_dim, decoder_dim):
+    def __build_model(self):
         self.embeddings = torch.nn.Embedding.from_pretrained(
             self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
-            hidden_size=hidden_dim,
+            hidden_size=self.hidden_dim,
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=0.1,
-        )
-        self.sl_encoder = torch.nn.LSTM(
-            input_size=2 * hidden_dim,
-            hidden_size=hidden_dim,
-            num_layers=2,
-            bidirectional=True,
-            batch_first=True,
-            dropout=0.1,
-        )
-        self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(hidden_dim * 2, decoder_dim),
-            torch.nn.Dropout(0.1),
-            torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim, 1),
-            torch.nn.Sigmoid(),
+            dropout=self.dropout,
         )
 
-    def __word_level_encoding(self, contents):
+    def word_level_encoding(self, contents):
         valid_tokens = ~(contents == self.pad_idx)
         sentences_len = valid_tokens.sum(dim=-1)
         valid_sentences = sentences_len > 0
@@ -80,22 +70,15 @@ class BanditSum(pl.LightningModule):
         ] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
-    def __sentence_level_encoding(self, contents):
-        return self.sl_encoder(contents)[0]
+    def __extract_features(self, contents):
+        contents, valid_sentences = self.word_level_encoding(contents)
+        sent_contents, doc_contents = self.model.sentence_level_encoding(contents)
+        affinities = self.model.produce_affinities(sent_contents)
+        affinities = affinities * valid_sentences
 
-    def __decoding(self, contents):
-        return self.decoder(contents).squeeze(-1)
-
-    def __produce_affinities(self, contents, states):
-        contents, valid_sentences = self.__word_level_encoding(contents)
-        contents = self.__sentence_level_encoding(contents)
-        contents = self.__decoding(contents)
-        contents = contents * valid_sentences
-
-        return Categorical(probs=contents), valid_sentences
+        return Categorical(probs=affinities), affinities, valid_sentences
 
     def select_idxs(self, affinities, valid_sentences):
-        affinities = affinities.probs
         n_docs = affinities.shape[0]
         idxs = torch.zeros(
             (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
@@ -113,7 +96,6 @@ class BanditSum(pl.LightningModule):
                 probs = affinities[doc].clone()
                 val_sents = valid_sentences[doc].clone()
                 for sent in range(self.n_sents_per_summary):
-                    probs = F.softmax(probs, dim=-1)
                     probs = probs * val_sents
                     probs = probs / probs.sum()
                     if uniform_sampler.sample() <= self.epsilon:
@@ -129,107 +111,163 @@ class BanditSum(pl.LightningModule):
                     idxs[doc, repeat, sent] = idx
                     logits[doc, repeat, sent] = logit
 
-        return idxs, logits.sum(-1).view(-1)
+        return idxs, logits.sum(-1)
+
+    def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
+        if subset in ["train", "val", "test"]:
+            return [
+                self.reward_builder.init_scorer(id, subset)
+                for id in ids[gpu_idx * batch_size : (gpu_idx + 1) * batch_size]
+            ]
+        # elif subset in ["val", "test"]:
+        #     return [RougePythonReward() for _ in range(batch_size)]
+        else:
+            raise ValueError(
+                f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
+            )
 
     def forward(self, batch, subset):
-        states = self.environment.init(batch, subset)
-        action_dist, valid_sentences = self.__produce_affinities(batch.content, states)
+        if subset == "train":
+            torch.set_grad_enabled(True)
+        raw_contents, contents, raw_abstracts, abstracts, ids = batch
+        batch_size = len(contents)
+
+        self.wl_encoder.flatten_parameters()
+        self.model.sl_encoder.flatten_parameters()
+
+        scorers = self.__get_reward_scorers(ids, subset, 0, batch_size)
+
+        action_dist, action_vals, valid_sentences = self.__extract_features(contents)
+
         greedy_idxs = action_dist.probs.argsort(descending=True)[
             :, : self.n_sents_per_summary
         ]
-        _, greedy_rewards = self.environment.update(greedy_idxs, action_dist)
+        greedy_rewards = []
+        for scorer, sent_idxs in zip(scorers, greedy_idxs):
+            greedy_rewards.append(
+                torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
+            )
+        greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":
-            _ = self.environment.init(
-                batch, subset, n_repeats=self.n_repeats_per_sample
-            )
             selected_idxs, selected_logits = self.select_idxs(
-                action_dist, valid_sentences
+                action_vals, valid_sentences
             )
 
-            action_dist = Categorical(
-                probs=action_dist.probs.repeat_interleave(
-                    repeats=self.n_repeats_per_sample, dim=0
+            generated_rewards = []
+            for scorer, batch_idxs in zip(scorers, selected_idxs):
+                generated_rewards.append(
+                    torch.stack(
+                        [
+                            torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
+                            for sent_idxs in batch_idxs
+                        ]
+                    )
                 )
-            )
-            _, generated_rewards = self.environment.update(
-                selected_idxs.reshape(batch.batch_size * self.n_repeats_per_sample, -1),
-                action_dist,
+            generated_rewards = torch.stack(generated_rewards)
+
+            greedy_rewards = greedy_rewards.unsqueeze(1).repeat(
+                1, self.n_repeats_per_sample, 1
             )
 
-            greedy_rewards = greedy_rewards.repeat(self.n_repeats_per_sample, axis=0)
+            rewards = torch.tensor(
+                (generated_rewards - greedy_rewards).mean(-1),
+                device=selected_logits.device,
+            )
+            loss = -rewards * selected_logits
+            loss = loss.mean()
 
-            return generated_rewards, greedy_rewards, selected_logits
+            return generated_rewards, loss, greedy_rewards
         else:
             return greedy_rewards
 
-    def get_step_output(self, **kwargs):
+    def get_step_output(self, loss, greedy_rewards, generated_rewards):
         output_dict = {}
 
-        log_dict = self.environment.get_logged_metrics()
-        log_dict = {k: torch.tensor(v).mean() for k, v in log_dict.items()}
-        for key, value in kwargs.items():
-            log_dict[key] = value
+        log_dict = {
+            "greedy_rouge_1": greedy_rewards[:, :, 0].mean(),
+            "greedy_rouge_2": greedy_rewards[:, :, 1].mean(),
+            "greedy_rouge_L": greedy_rewards[:, :, 2].mean(),
+            "greedy_rouge_mean": greedy_rewards.mean(-1).mean(),
+            "generated_rouge_1": generated_rewards[:, :, 0].mean(),
+            "generated_rouge_2": generated_rewards[:, :, 1].mean(),
+            "generated_rouge_L": generated_rewards[:, :, 2].mean(),
+            "generated_rouge_mean": generated_rewards.mean(-1).mean(),
+        }
+        log_dict["loss"] = loss
+
         output_dict["log"] = log_dict
 
         if "loss" in log_dict:
             output_dict["loss"] = log_dict["loss"]
 
-        tqdm_keys = ["rouge_mean", "greedy_reward"]
-        output_dict["progress_bar"] = {k: log_dict[k] for k in tqdm_keys}
+        tqdm_keys = ["greedy_rouge", "generated_rouge"]
+        output_dict["progress_bar"] = {k: log_dict[f"{k}_mean"] for k in tqdm_keys}
 
         return output_dict
 
     def training_step(self, batch, batch_idx):
-        generated_rewards, greedy_rewards, selected_logits = self.forward(
-            batch, subset="train"
-        )
+        generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
 
-        rewards = torch.tensor(
-            (generated_rewards - greedy_rewards).mean(-1), device=selected_logits.device
+        return self.get_step_output(
+            loss=loss.to(self.device),
+            greedy_rewards=greedy_rewards.to(self.device),
+            generated_rewards=generated_rewards.to(self.device),
         )
-        loss = -rewards * selected_logits
-        loss = loss.mean()
-
-        return self.get_step_output(loss=loss, greedy_reward=greedy_rewards.mean())
 
     def validation_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="val").mean(0)
+        greedy_rewards = self.forward(batch, subset="val")
 
         reward_dict = {
-            "val_greedy_rouge_1": greedy_rewards[0],
-            "val_greedy_rouge_2": greedy_rewards[1],
-            "val_greedy_rouge_L": greedy_rewards[2],
-            "val_greedy_rouge_mean": greedy_rewards.mean(),
+            "val_greedy_rouge_1": greedy_rewards[:, 0],
+            "val_greedy_rouge_2": greedy_rewards[:, 1],
+            "val_greedy_rouge_L": greedy_rewards[:, 2],
+            "val_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
         return reward_dict
+
+    def validation_step_end(self, outputs):
+        for vals in outputs.values():
+            vals = vals.mean()
+
+        return outputs
 
     def validation_epoch_end(self, outputs):
         output_dict = self.generic_epoch_end(outputs)
 
         self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
 
+        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
+            1
+        ]["lr"]
+
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="test").mean(0)
+        greedy_rewards = self.forward(batch, subset="test")
 
         reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[0],
-            "test_greedy_rouge_2": greedy_rewards[1],
-            "test_greedy_rouge_L": greedy_rewards[2],
-            "test_greedy_rouge_mean": greedy_rewards.mean(),
+            "val_greedy_rouge_1": greedy_rewards[:, 0],
+            "val_greedy_rouge_2": greedy_rewards[:, 1],
+            "val_greedy_rouge_L": greedy_rewards[:, 2],
+            "val_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
         return reward_dict
+
+    def test_step_end(self, outputs):
+        for vals in outputs.values():
+            vals = vals.mean()
+
+        return outputs
 
     def generic_epoch_end(self, outputs, is_test=False):
         combined_outputs = {}
         log_dict = {}
 
         for key in outputs[0]:
-            log_dict[key] = np.mean([output[key] for output in outputs])
+            log_dict[key] = torch.stack([output[key] for output in outputs]).mean()
 
         combined_outputs["log"] = log_dict
 
@@ -256,47 +294,116 @@ class BanditSum(pl.LightningModule):
                     "lr": self.learning_rate * 0.1,
                 },
                 {"params": self.wl_encoder.parameters()},
-                {"params": self.sl_encoder.parameters()},
-                {"params": self.decoder.parameters()},
+                {"params": self.model.sl_encoder.parameters()},
+                {
+                    "params": self.model.decoder.parameters(),
+                    "lr": self.learning_rate * 0.1,
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
-            weight_decay=1e-6,
+            weight_decay=self.weight_decay,
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=5, factor=0.2
+            optimizer, mode="max", patience=3, factor=0.1, verbose=True
         )
 
         return optimizer
 
     def train_dataloader(self):
-        return BucketIterator(
-            self.splits["train"],
-            train=True,
+        dataset = self.splits["train"]
+        return DataLoader(
+            dataset,
+            collate_fn=text_data_collator(dataset),
             batch_size=self.train_batch_size,
-            sort=False,
-            device=self.embeddings.weight.device,
+            shuffle=True,
+            drop_last=True,
         )
 
     def val_dataloader(self):
-        return BucketIterator(
-            self.splits["val"],
-            train=False,
+        dataset = self.splits["val"]
+        return DataLoader(
+            dataset,
+            collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
-            sort=False,
-            device=self.embeddings.weight.device,
+            drop_last=True,
         )
 
     def test_dataloader(self):
-        return BucketIterator(
-            self.splits["test"],
-            train=False,
+        dataset = self.splits["test"]
+        return DataLoader(
+            dataset,
+            collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
-            sort=False,
-            device=self.embeddings.weight.device,
+            drop_last=True,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
         return BanditSum(dataset, reward, config,)
+
+
+def text_data_collator(dataset):
+    def collate(data):
+        batch = defaultdict(list)
+
+        for datum in data:
+            for name, field in dataset.fields.items():
+                batch[name].append(field.preprocess(getattr(datum, name)))
+
+        batch = {
+            name: field.process(batch[name]) for name, field in dataset.fields.items()
+        }
+
+        batch = namedtuple("batch", batch.keys())(**batch)
+
+        return batch
+
+    return collate
+
+
+class RLSummModel(torch.nn.Module):
+    def __init__(self, hidden_dim, decoder_dim, dropout):
+        super().__init__()
+        self.sl_encoder = torch.nn.LSTM(
+            input_size=2 * hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=2,
+            bidirectional=True,
+            batch_first=True,
+            dropout=dropout,
+        )
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(hidden_dim * 2, decoder_dim),
+            torch.nn.Dropout(dropout),
+            torch.nn.ReLU(),
+            torch.nn.Linear(decoder_dim, 1),
+            torch.nn.Sigmoid(),
+        )
+
+    def sentence_level_encoding(self, contents):
+        sent_contents, (doc_contents, _) = self.sl_encoder(contents)
+        doc_contents = doc_contents.view(2, 2, *doc_contents.shape[-2:])
+        doc_contents = (
+            torch.cat([d_i for d_i in doc_contents], dim=-1)
+            .mean(0, keepdim=True)
+            .permute(1, 0, 2)
+        )
+
+        return sent_contents, doc_contents
+
+    def produce_affinities(self, sent_contents):
+        return self.decoder(sent_contents).squeeze(-1)
+
+    def get_sents_from_summs(self, sent_contents, sampled_summs):
+        all_sents = []
+
+        for sents_doc, sampled_sents in zip(sent_contents, sampled_summs):
+            for summ in sampled_sents:
+                all_sents.append(torch.cat([sents_doc[sent_id] for sent_id in summ]))
+
+        return torch.stack(all_sents)
+
+    def forward(self, x):
+        pass

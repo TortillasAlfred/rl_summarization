@@ -22,7 +22,6 @@ def main(_config, cluster=None):
     reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 
-    trainer.test(model)
     trainer.fit(model)
     trainer.test(model)
 
