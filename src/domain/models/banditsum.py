@@ -16,7 +16,6 @@ from collections import defaultdict, namedtuple
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(BanditSum, self).__init__()
-        self.hparams = hparams
         self.dataset = dataset
         self.reward_builder = reward
 
@@ -170,9 +169,12 @@ class BanditSum(pl.LightningModule):
                 1, self.n_repeats_per_sample, 1
             )
 
-            rewards = torch.tensor(
-                (generated_rewards - greedy_rewards).mean(-1),
-                device=selected_logits.device,
+            rewards = (
+                (generated_rewards - greedy_rewards)
+                .mean(-1)
+                .clone()
+                .detach()
+                .to(device=selected_logits.device)
             )
             loss = -rewards * selected_logits
             loss = loss.mean()
@@ -319,6 +321,7 @@ class BanditSum(pl.LightningModule):
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
+            num_workers=-1,
         )
 
     def val_dataloader(self):
@@ -328,6 +331,7 @@ class BanditSum(pl.LightningModule):
             collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=-1,
         )
 
     def test_dataloader(self):
@@ -337,6 +341,7 @@ class BanditSum(pl.LightningModule):
             collate_fn=text_data_collator(dataset),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=-1,
         )
 
     @staticmethod
