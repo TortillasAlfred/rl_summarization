@@ -100,7 +100,9 @@ class BanditSum(pl.LightningModule):
                     if uniform_sampler.sample() <= self.epsilon:
                         idx = Categorical(val_sents.float()).sample()
                     else:
-                        idx = Categorical(probs[probs > 0]).sample()
+                        if (probs < 0).any():
+                            print(probs, affinities, val_sents)
+                        idx = Categorical(probs).sample()
                     logit = (
                         self.epsilon / val_sents.sum()
                         + (1 - self.epsilon) * probs[idx] / probs.sum()
