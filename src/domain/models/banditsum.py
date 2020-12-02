@@ -252,7 +252,7 @@ class BanditSum(pl.LightningModule):
         log_dict = {}
 
         for key in outputs[0]:
-            log_dict[key] = torch.stack([output[key] for output in outputs]).mean()
+            log_dict[key] = torch.hstack([output[key] for output in outputs]).mean()
 
         combined_outputs["log"] = log_dict
 
@@ -297,16 +297,15 @@ class BanditSum(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["val"]
         return DataLoader(
             dataset,
             collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
+                dataset.fields, self.reward_builder, subset="val"
             ),
             batch_size=self.train_batch_size,
-            shuffle=True,
-            drop_last=True,
             num_workers=16,
+            pin_memory=True,
         )
 
     def val_dataloader(self):
@@ -317,8 +316,8 @@ class BanditSum(pl.LightningModule):
                 dataset.fields, self.reward_builder, subset="val"
             ),
             batch_size=self.test_batch_size,
-            drop_last=True,
             num_workers=16,
+            pin_memory=True,
         )
 
     def test_dataloader(self):
@@ -329,8 +328,8 @@ class BanditSum(pl.LightningModule):
                 dataset.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
-            drop_last=True,
             num_workers=16,
+            pin_memory=True,
         )
 
     @staticmethod
