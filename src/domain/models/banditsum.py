@@ -297,11 +297,11 @@ class BanditSum(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
             collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="val"
+                dataset.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
             num_workers=16,
