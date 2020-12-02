@@ -28,7 +28,7 @@ def optimize_on_cluster(hparams):
     # any modules for code to run in env
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-lulam50", comment="CCDB account for running"
+        cmd="account", value="def-adurand", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
