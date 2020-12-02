@@ -108,7 +108,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         all_files = os.listdir(reading_path)
 
         if dev:
-            all_files = all_files[:25000]
+            all_files = all_files[:3000]
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
