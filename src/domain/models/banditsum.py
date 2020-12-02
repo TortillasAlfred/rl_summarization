@@ -128,13 +128,11 @@ class BanditSum(pl.LightningModule):
             )
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids = batch
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
-
-        scorers = self.__get_reward_scorers(ids, subset, 0, batch_size)
 
         action_dist, action_vals, valid_sentences = self.__extract_features(contents)
 
@@ -149,6 +147,10 @@ class BanditSum(pl.LightningModule):
         greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":
+            self.batch_idx += 1
+
+            if self.batch_idx >= 1928:
+                print(batch, action_vals)
             selected_idxs, selected_logits = self.select_idxs(
                 action_vals, valid_sentences
             )
@@ -317,7 +319,9 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="test"
+            ),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -327,7 +331,9 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="val"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -336,7 +342,9 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="test"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -346,23 +354,33 @@ class BanditSum(pl.LightningModule):
         return BanditSum(dataset, reward, config,)
 
 
-def text_data_collator(dataset):
+def text_data_collator(fields, reward_builder, subset):
     def collate(data):
         batch = defaultdict(list)
 
         for datum in data:
-            for name, field in dataset.fields.items():
+            for name, field in fields.items():
                 batch[name].append(field.preprocess(getattr(datum, name)))
 
-        batch = {
-            name: field.process(batch[name]) for name, field in dataset.fields.items()
-        }
+        batch = {name: field.process(batch[name]) for name, field in fields.items()}
+        batch["scorers"] = get_reward_scorers(reward_builder, batch["id"], subset)
 
         batch = namedtuple("batch", batch.keys())(**batch)
 
         return batch
 
     return collate
+
+
+def get_reward_scorers(reward_builder, ids, subset):
+    if subset in ["train", "val", "test"]:
+        return [reward_builder.init_scorer(id, subset) for id in ids]
+    # elif subset in ["val", "test"]:
+    #     return [RougePythonReward() for _ in range(batch_size)]
+    else:
+        raise ValueError(
+            f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
+        )
 
 
 class RLSummModel(torch.nn.Module):
