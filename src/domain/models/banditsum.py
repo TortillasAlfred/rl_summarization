@@ -1,6 +1,5 @@
 from src.domain.loader_utils import text_data_collator
 
-
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
@@ -31,6 +30,8 @@ class BanditSum(pl.LightningModule):
         self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
+        self.epsilon_min = hparams.epsilon_min
+        self.epsilon_decay = hparams.epsilon_decay
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
@@ -75,7 +76,7 @@ class BanditSum(pl.LightningModule):
         affinities = self.model.produce_affinities(sent_contents)
         affinities = affinities * valid_sentences
 
-        return Categorical(probs=affinities), affinities, valid_sentences
+        return affinities, valid_sentences
 
     def select_idxs(self, affinities, valid_sentences):
         n_docs = affinities.shape[0]
@@ -96,7 +97,6 @@ class BanditSum(pl.LightningModule):
                 val_sents = valid_sentences[doc].clone()
                 for sent in range(self.n_sents_per_summary):
                     probs = probs * val_sents
-                    probs = probs / probs.sum()
                     if uniform_sampler.sample() <= self.epsilon:
                         idx = Categorical(val_sents.float()).sample()
                     else:
@@ -119,11 +119,9 @@ class BanditSum(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        action_dist, action_vals, valid_sentences = self.__extract_features(contents)
+        action_vals, valid_sentences = self.__extract_features(contents)
 
-        _, greedy_idxs = torch.topk(
-            action_dist.probs, self.n_sents_per_summary, sorted=False
-        )
+        _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
         greedy_rewards = []
         for scorer, sent_idxs in zip(scorers, greedy_idxs):
             greedy_rewards.append(
@@ -153,13 +151,15 @@ class BanditSum(pl.LightningModule):
             )
 
             rewards = (
-                (generated_rewards - greedy_rewards)
-                .mean(-1)
+                (
+                    (greedy_rewards.mean(-1) - generated_rewards.mean(-1))
+                    / (greedy_rewards.mean(-1) + 1e-6)
+                )
                 .clone()
                 .detach()
                 .to(device=selected_logits.device)
             )
-            loss = -rewards * selected_logits
+            loss = rewards * selected_logits
             loss = loss.mean()
 
             return generated_rewards, loss, greedy_rewards
@@ -193,6 +193,8 @@ class BanditSum(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
+
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
         return self.get_step_output(
             loss=loss.to(self.device),
@@ -280,10 +282,7 @@ class BanditSum(pl.LightningModule):
                 },
                 {"params": self.wl_encoder.parameters()},
                 {"params": self.model.sl_encoder.parameters()},
-                {
-                    "params": self.model.decoder.parameters(),
-                    "lr": self.learning_rate * 0.1,
-                },
+                {"params": self.model.decoder.parameters()},
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
@@ -371,15 +370,6 @@ class RLSummModel(torch.nn.Module):
         affinities = self.decoder(sent_contents).squeeze(-1)
 
         return affinities
-
-    def get_sents_from_summs(self, sent_contents, sampled_summs):
-        all_sents = []
-
-        for sents_doc, sampled_sents in zip(sent_contents, sampled_summs):
-            for summ in sampled_sents:
-                all_sents.append(torch.cat([sents_doc[sent_id] for sent_id in summ]))
-
-        return torch.stack(all_sents)
 
     def forward(self, x):
         pass
