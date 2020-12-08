@@ -1,5 +1,5 @@
-from src.domain.rewards.rouge_python import RougePythonReward
-import src.domain.mcts_oful_exp as mcts_oful
+from src.domain.loader_utils import text_data_collator
+
 import threading
 import pickle
 
@@ -292,7 +292,9 @@ class RLSumMCTSEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -302,7 +304,9 @@ class RLSumMCTSEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -311,7 +315,9 @@ class RLSumMCTSEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=text_data_collator(
+                dataset.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -319,25 +325,6 @@ class RLSumMCTSEXP(pl.LightningModule):
     @staticmethod
     def from_config(dataset, reward, config):
         return RLSumMCTSEXP(dataset, reward, config,)
-
-
-def text_data_collator(dataset):
-    def collate(data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in dataset.fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
-
-        batch = {
-            name: field.process(batch[name]) for name, field in dataset.fields.items()
-        }
-
-        batch = namedtuple("batch", batch.keys())(**batch)
-
-        return batch
-
-    return collate
 
 
 class RLSummModel(torch.nn.Module):
