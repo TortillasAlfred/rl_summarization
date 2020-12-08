@@ -407,7 +407,7 @@ class RLSummModel(torch.nn.Module):
 
 
 @delayed
-def collect_sims(scorer, id, c_puct):
+def collect_sims(scorer, id, c_puct, n_samples):
     keys = []
     argmax_hats = []
     q_vals_hats = []
@@ -415,31 +415,42 @@ def collect_sims(scorer, id, c_puct):
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
-    results = [
-        collect_sim(scorer, c_puct, n_sents, tau)
-        for tau in np.linspace(0.0, 1.0, num=21)
-    ]
+    results = [do_one_sample(scorer, c_puct, n_sents) for _ in range(20)]
 
-    for argmax_sims, q_val_sims, prior_max_score, prior_max_proba in results:
-        if prior_max_score:
-            keys.append(
-                (c_puct, n_sents, max_rouge, prior_max_score, prior_max_proba, id)
-            )
-            argmax_hats.append(argmax_sims)
-            q_vals_hats.append(q_val_sims)
+    for i, r in results:
+        for argmax_sims, q_val_sims, prior_max_score, prior_max_proba in r:
+            if prior_max_score:
+                keys.append(
+                    (
+                        c_puct,
+                        n_sents,
+                        max_rouge,
+                        prior_max_score,
+                        prior_max_proba,
+                        id,
+                        i,
+                    )
+                )
+                argmax_hats.append(argmax_sims)
+                q_vals_hats.append(q_val_sims)
 
     return keys, argmax_hats, q_vals_hats
 
 
-def collect_sim(scorer, c_puct, n_sents, tau, n_samples=1000):
-    unif = np.ones((n_sents,)) / n_sents
+def do_one_sample(scorer, c_puct, n_sents):
     selected_sents = np.random.choice(list(range(n_sents)), size=3, replace=False)
-    noise = np.random.normal(scale=0.1, size=(3,))
-    noise -= noise.mean()
     grdy = np.ones((3,)) / 3
-    grdy += noise
     greedy = np.zeros((n_sents,))
     greedy[selected_sents] = grdy
+
+    return [
+        collect_sim(scorer, c_puct, n_sents, greedy, tau)
+        for tau in np.linspace(0.0, 1.0, num=21)
+    ]
+
+
+def collect_sim(scorer, c_puct, n_sents, greedy, tau, n_samples=250):
+    unif = np.ones((n_sents,)) / n_sents
 
     priors = (1 - tau) * unif + tau * greedy
     priors[priors < 0] = 0
@@ -460,7 +471,7 @@ def collect_sim(scorer, c_puct, n_sents, tau, n_samples=1000):
     prior_max_proba = priors[best_idxs].sum()
 
     for n in range(1, n_samples + 1):
-        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(3 * n) / n_visits)
+        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(n) / n_visits)
         ucb = np.nan_to_num(ucb, nan=np.inf)
         threshold = np.partition(ucb, -3)[-3]
         elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]

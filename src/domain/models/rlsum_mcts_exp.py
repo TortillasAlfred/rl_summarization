@@ -416,7 +416,7 @@ def collect_sims(scorer, id, c_puct):
     return [(c_puct, n_sents, max_rouge, id)], [argmax_hats], [q_vals_hats]
 
 
-def collect_sim(scorer, c_puct, n_sents, n_samples=1000):
+def collect_sim(scorer, c_puct, n_sents, n_samples=250):
     n_sents = min(scorer.scores.shape[0], 50)
 
     n_visits = np.zeros(n_sents, dtype=int)
