@@ -405,7 +405,7 @@ def collect_sims(scorer, id, c_puct, n_samples):
     results = [do_one_sample(scorer, c_puct, n_sents) for _ in range(20)]
 
     for i, r in results:
-        for argmax_sims, q_val_sims, prior_max_score, prior_max_proba in r:
+        for argmax_sims, q_val_sims, prior_max_score, prior_max_proba, tau in r:
             if prior_max_score:
                 keys.append(
                     (
@@ -414,8 +414,8 @@ def collect_sims(scorer, id, c_puct, n_samples):
                         max_rouge,
                         prior_max_score,
                         prior_max_proba,
-                        id,
-                        i,
+                        tau,
+                        (id, i),
                     )
                 )
                 argmax_hats.append(argmax_sims)
@@ -479,4 +479,4 @@ def collect_sim(scorer, c_puct, n_sents, greedy, tau, n_samples=250):
         best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
         q_vals_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
 
-    return argmax_sims, q_vals_sims, prior_max_score, prior_max_proba
+    return argmax_sims, q_vals_sims, prior_max_score, prior_max_proba, tau
