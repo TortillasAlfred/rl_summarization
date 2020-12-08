@@ -1,110 +1,91 @@
 from src.domain.dataset import CnnDailyMailDataset
-from src.domain.utils import set_random_seed, configure_logging, datetime_tqdm
-from src.domain.rewards.rouge_python import RougeReward
-from src.domain.rewards.rouge import RougeRewardScorer
-
-from graal_utils import timed
+from src.domain.utils import set_random_seed, configure_logging
+from src.domain.loader_utils import text_data_collator
+from src.domain.rewards.rouge import RougeRewardBuilder
+from src.domain.rewards.rouge_pearl import RougePearlReward
+from src.domain.rewards.rouge_python import RougePythonReward
 
 import logging
 import numpy as np
 import json
 import os
 import pickle
-from joblib import delayed, Parallel
+from tqdm import tqdm
+
+from rouge import Rouge
+
+rouge = Rouge()
 
 
-@delayed
-def python_rouge_sample(fpath, article_summs):
-    rouge_reward = RougeReward(n_jobs=1)
+def RougeTest_rouge(ref, hyp, max_num_of_bytes=-1):
+    ref = [_.lower() for _ in ref]
+    ref = [
+        " ".join(ref)
+    ]  # join for managing the cases where we have different number of sentence.
+    hyp = [_.lower().replace(".", " .") for _ in hyp]
+    hyp = [" ".join(hyp)]
 
-    with open(fpath, "rb") as f:
-        article = json.load(f)
+    if max_num_of_bytes > 0:
+        ref = cutwords(ref)
+        hyp = cutwords(hyp)
 
-    summs = []
-    if len(article["article"]) > 6:
-        for article_summ in article_summs:
-            hyp_summ = [article["article"][i] for i in article_summ]
-            summs.append(rouge_reward([hyp_summ], [article["abstract"]], "cpu"))
-
-        return summs
-
-
-@timed
-def python_rouge(fpaths, samples):
-    summ_scores = Parallel(n_jobs=-1)(
-        python_rouge_sample(fpath, article_summs)
-        for fpath, article_summs in datetime_tqdm(list(zip(fpaths, samples)))
+    rouge_score = rouge.get_scores(hyp, ref)
+    return (
+        rouge_score[0]["rouge-1"]["f"],
+        rouge_score[0]["rouge-2"]["f"],
+        rouge_score[0]["rouge-l"]["f"],
     )
 
-    summ_scores = filter(None, summ_scores)
 
-    return np.asarray([[t.numpy()[0][0] for t in summ] for summ in summ_scores])
-
-
-@delayed
-def numpy_rouge_sample(fpath, article_summs, subset, rouge_npy_path):
-    with open(fpath, "rb") as f:
-        article = json.load(f)
-
-    summs = []
-    if len(article["article"]) > 6:
-        scorer = RougeRewardScorer(
-            os.path.join(rouge_npy_path, subset, f'{article["id"]}.npy')
-        )
-
-        for article_summ in article_summs:
-            summs.append(scorer.get_score(article_summ))
-
-    return summs
-
-
-@timed
-def numpy_rouge(fpaths, samples, subset, rouge_npy_path):
-    summ_scores = Parallel(n_jobs=-1)(
-        numpy_rouge_sample(fpath, article_summs, subset, rouge_npy_path)
-        for fpath, article_summs in datetime_tqdm(list(zip(fpaths, samples)))
-    )
-
-    summ_scores = list(filter(None, summ_scores))
-
-    return np.asarray(summ_scores)
+def cutwords(sens, max_num_of_chars):
+    output = []
+    quota = max_num_of_chars
+    for sen in sens:
+        if quota > len(sen):
+            output.append(sen)
+            quota -= len(sen)
+        else:
+            output.append(sen[:quota])
+            break
+    return output
 
 
 if __name__ == "__main__":
     configure_logging()
     logging.info("Begin")
     set_random_seed(42)
-    subsets = ["train", "val", "test"]
+    subsets = ["val"]
 
     dataset = CnnDailyMailDataset(
-        "/scratch/magod/summarization_datasets/cnn_dailymail/data/",
+        "./data/cnn_dailymail",
         "glove.6B.100d",
         dev=False,
-        vectors_cache="/scratch/magod/embeddings/",
+        vectors_cache="./data/embeddings/",
         sets=subsets,
     )
+    dataset = dataset.get_splits()["val"]
+    collator = text_data_collator(
+        dataset.fields, RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val"
+    )
 
-    bad_files = []
+    samples = [[list(range(3)), list(range(3, 6))] for _ in dataset]
+    rouge_python = RougePythonReward()
+    rouge_pearl = RougePearlReward()
 
-    for subset in subsets:
-        fpaths = dataset.fpaths[subset]
+    for data in tqdm(dataset):
+        batch = collator([data])
 
-        samples = [[list(range(3)), list(range(3, 6))] for _ in fpaths]
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
 
-        python_rouge_scores = python_rouge(fpaths, samples)
-        numpy_rouge_scores = numpy_rouge(
-            fpaths,
-            samples,
-            subset=subset,
-            rouge_npy_path="/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/",
-        )
+        l3 = raw_contents[0][:3]
 
-        diffs = np.absolute(python_rouge_scores - numpy_rouge_scores).sum(-1).sum(-1)
-        outliers = diffs > 0.05
-        bad_files.extend([fpaths[i] for i in np.argwhere(outliers).T.tolist()[0]])
-        print(outliers.sum())
-        print(diffs[outliers].mean())
-        print(diffs.max())
+        scores_python = rouge_python([l3], raw_abstracts)
+        # scores_pearl = rouge_pearl(
+        #     [[" ".join(l3)]], [[[" ".join(r)] for r in raw_abstracts]]
+        # )
+        scores_numpy = scorers[0].get_score([0, 1, 2])
 
-    with open("bad_files.pck", "wb") as f:
-        pickle.dump(bad_files, f)
+        diff = np.abs(scores_numpy - scores_python).mean()
+        if diff > 0.04:
+            print(diff, scores_python, scores_numpy, ids)
+

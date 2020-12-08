@@ -12,8 +12,6 @@ def text_data_collator(fields, reward_builder, subset):
         batch = {name: field.process(batch[name]) for name, field in fields.items()}
         batch["scorers"] = get_reward_scorers(reward_builder, batch["id"], subset)
 
-        # batch = namedtuple("batch", batch.keys())(**batch)
-
         return batch
 
     return lambda d: collate(fields, reward_builder, subset, d)
