@@ -426,7 +426,7 @@ def collect_sim(scorer, c_puct, n_sents, n_samples=1000):
     q_vals_sims = np.zeros(n_samples, dtype=np.float32)
 
     for n in range(1, n_samples + 1):
-        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(3 * n) / n_visits)
+        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(n) / n_visits)
         ucb = np.nan_to_num(ucb, nan=np.inf)
         threshold = np.partition(ucb, -3)[-3]
         elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]
