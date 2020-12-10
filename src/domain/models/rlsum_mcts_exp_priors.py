@@ -114,9 +114,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     def mcts_exp(self, scorers, ids, c_pucts):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
-            collect_sims(scorer, id, c_puct, 20)
-            for scorer, id in zip(scorers, ids)
-            for c_puct in c_pucts
+            collect_sims(scorer, id, c_pucts, 20) for scorer, id in zip(scorers, ids)
         )
 
     def forward(self, batch, subset):
@@ -393,7 +391,7 @@ class RLSummModel(torch.nn.Module):
 
 
 @delayed
-def collect_sims(scorer, id, c_puct, n_samples):
+def collect_sims(scorer, id, c_pucts, n_samples):
     keys = []
     argmax_hats = []
     q_vals_hats = []
@@ -401,37 +399,44 @@ def collect_sims(scorer, id, c_puct, n_samples):
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
-    results = [do_one_sample(scorer, c_puct, n_sents) for _ in range(n_samples)]
+    results = [do_one_sample(scorer, c_pucts, n_sents) for _ in range(n_samples)]
 
-    for i, r in enumerate(results):
-        for argmax_sims, q_val_sims, prior_max_score, prior_max_proba, tau in r:
-            if prior_max_score:
-                keys.append(
-                    (
-                        c_puct,
-                        n_sents,
-                        max_rouge,
-                        prior_max_score,
-                        prior_max_proba,
-                        tau,
-                        (id, i),
+    for i, res in enumerate(results):
+        for c_puct, r in res:
+            for argmax_sims, q_val_sims, prior_max_score, prior_max_proba, tau in r:
+                if prior_max_score:
+                    keys.append(
+                        (
+                            c_puct,
+                            n_sents,
+                            max_rouge,
+                            prior_max_score,
+                            prior_max_proba,
+                            tau,
+                            (id, i),
+                        )
                     )
-                )
-                argmax_hats.append(argmax_sims)
-                q_vals_hats.append(q_val_sims)
+                    argmax_hats.append(argmax_sims)
+                    q_vals_hats.append(q_val_sims)
 
     return keys, argmax_hats, q_vals_hats
 
 
-def do_one_sample(scorer, c_puct, n_sents):
+def do_one_sample(scorer, c_pucts, n_sents):
     selected_sents = np.random.choice(list(range(n_sents)), size=3, replace=False)
     grdy = np.ones((3,)) / 3
     greedy = np.zeros((n_sents,))
     greedy[selected_sents] = grdy
 
     return [
-        collect_sim(scorer, c_puct, n_sents, greedy, tau)
-        for tau in np.linspace(0.0, 1.0, num=21)
+        (
+            c_puct,
+            [
+                collect_sim(scorer, c_puct, n_sents, greedy, tau)
+                for tau in np.linspace(0.0, 1.0, num=21)
+            ],
+        )
+        for c_puct in c_pucts
     ]
 
 
