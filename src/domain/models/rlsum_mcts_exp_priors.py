@@ -114,13 +114,13 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     def mcts_exp(self, scorers, ids, c_pucts):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
-            collect_sims(scorer, id, c_puct)
+            collect_sims(scorer, id, c_puct, 20)
             for scorer, id in zip(scorers, ids)
             for c_puct in c_pucts
         )
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         torch.set_grad_enabled(False)
 
         c_pucts = np.logspace(-2, 2, 5)
@@ -401,9 +401,9 @@ def collect_sims(scorer, id, c_puct, n_samples):
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
-    results = [do_one_sample(scorer, c_puct, n_sents) for _ in range(20)]
+    results = [do_one_sample(scorer, c_puct, n_sents) for _ in range(n_samples)]
 
-    for i, r in results:
+    for i, r in enumerate(results):
         for argmax_sims, q_val_sims, prior_max_score, prior_max_proba, tau in r:
             if prior_max_score:
                 keys.append(
