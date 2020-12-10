@@ -114,7 +114,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     def mcts_exp(self, scorers, ids, c_pucts):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
-            collect_sims(scorer, id, c_pucts, 20) for scorer, id in zip(scorers, ids)
+            collect_sims(scorer, id, c_pucts, 5) for scorer, id in zip(scorers, ids)
         )
 
     def forward(self, batch, subset):
