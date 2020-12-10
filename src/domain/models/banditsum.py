@@ -235,10 +235,10 @@ class BanditSum(pl.LightningModule):
         greedy_rewards = self.forward(batch, subset="test")
 
         reward_dict = {
-            "val_greedy_rouge_1": greedy_rewards[:, 0],
-            "val_greedy_rouge_2": greedy_rewards[:, 1],
-            "val_greedy_rouge_L": greedy_rewards[:, 2],
-            "val_greedy_rouge_mean": greedy_rewards.mean(-1),
+            "test_greedy_rouge_1": greedy_rewards[:, 0],
+            "test_greedy_rouge_2": greedy_rewards[:, 1],
+            "test_greedy_rouge_L": greedy_rewards[:, 2],
+            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
         return reward_dict
