@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --account=def-lulam50                                                  # Account with resources
+#SBATCH --account=def-adurand                                                 # Account with resources
 #SBATCH --cpus-per-task=32                                                     # Number of CPUs
 #SBATCH --mem=70G                                                              # memory (per node)
 #SBATCH --time=0-12:00                                                         # time (DD-HH:MM)
