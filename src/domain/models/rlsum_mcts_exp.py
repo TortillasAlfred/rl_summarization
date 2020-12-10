@@ -120,10 +120,9 @@ class RLSumMCTSEXP(pl.LightningModule):
         )
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids = batch
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         torch.set_grad_enabled(False)
 
-        scorers = self.__get_reward_scorers(ids, subset)
         c_pucts = np.logspace(-2, 2, 5)
 
         results = self.mcts_exp(scorers, ids, c_pucts)
