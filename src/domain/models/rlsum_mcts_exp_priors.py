@@ -114,7 +114,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     def mcts_exp(self, scorers, ids, c_pucts):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
-            collect_sims(scorer, id, c_pucts, 5) for scorer, id in zip(scorers, ids)
+            collect_sims(scorer, id, c_pucts, 20) for scorer, id in zip(scorers, ids)
         )
 
     def forward(self, batch, subset):
@@ -433,7 +433,7 @@ def do_one_sample(scorer, c_pucts, n_sents):
             c_puct,
             [
                 collect_sim(scorer, c_puct, n_sents, greedy, tau)
-                for tau in np.linspace(0.0, 1.0, num=21)
+                for tau in [0.0, 0.25, 0.5, 0.75, 1.0]
             ],
         )
         for c_puct in c_pucts
