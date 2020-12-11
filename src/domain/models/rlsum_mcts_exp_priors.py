@@ -295,6 +295,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
+            num_workers=16,
         )
 
     def val_dataloader(self):
@@ -306,6 +307,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=16,
         )
 
     def test_dataloader(self):
@@ -317,6 +319,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
+            num_workers=16,
         )
 
     @staticmethod

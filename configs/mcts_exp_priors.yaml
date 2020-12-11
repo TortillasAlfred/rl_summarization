@@ -10,7 +10,7 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ##################
 model: "rlsum_mcts_exp_priors" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
 train_batch_size: 64
-test_batch_size: 512
+test_batch_size: 128
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
