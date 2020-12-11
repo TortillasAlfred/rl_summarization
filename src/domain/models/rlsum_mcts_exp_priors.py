@@ -27,7 +27,6 @@ np.seterr(invalid="ignore")
 class RLSumMCTSEXPPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        # self.hparams = hparams
         self.dataset = dataset
         self.reward_builder = reward
 
@@ -64,9 +63,6 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
         self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors"
         os.makedirs(self.mcts_log_path, exist_ok=True)
-        self.mcts_log_path += "/results.pck"
-        with open(self.mcts_log_path, "wb") as f:
-            pickle.dump({"argmax": {}, "q_vals": {}}, f)
 
     def __build_model(self, hidden_dim):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -125,10 +121,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
         results = self.mcts_exp(scorers, ids, c_pucts)
         keys = [key for r in results for key in r[0]]
-        argmax_hats = [vals for r in results for vals in r[1]]
-        q_vals_hats = [vals for r in results for vals in r[2]]
+        q_vals_hats = [vals for r in results for vals in r[1]]
 
-        return (keys, argmax_hats, q_vals_hats)
+        return (keys, q_vals_hats)
 
     def get_step_output(self, loss, greedy_rewards, mcts_rewards, max_scores):
         output_dict = {}
@@ -220,16 +215,14 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        keys, argmax_hats, q_vals_hats = self.forward(batch, subset="test")
+        keys, q_vals_hats = self.forward(batch, subset="test")
 
-        with open(self.mcts_log_path, "rb") as f:
-            d = pickle.load(f)
+        d = {}
 
-        for key, argmax_vals, q_vals in zip(keys, argmax_hats, q_vals_hats):
-            d["argmax"][key] = argmax_vals
-            d["q_vals"][key] = q_vals
+        for key, q_vals in zip(keys, q_vals_hats):
+            d[key] = q_vals
 
-        with open(self.mcts_log_path, "wb") as f:
+        with open(f"{self.mcts_log_path}results_{batch_idx}.pck", "wb") as f:
             pickle.dump(d, f)
 
     def test_step_end(self, outputs):
@@ -257,7 +250,18 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return combined_outputs
 
     def test_epoch_end(self, outputs):
-        return self.generic_epoch_end(outputs, is_test=True)
+        all_dict_paths = os.listdir(self.mcts_log_path)
+        d = {}
+
+        for path in all_dict_paths:
+            with open(os.path.join(self.mcts_log_path, path), "rb") as f:
+                d_i = pickle.load(f)
+
+            for k, v in d_i.items():
+                d[k] = v
+
+        with open(os.path.join(self.mcts_log_path, "results.pck"), "wb") as f:
+            pickle.dump(d, f)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -396,7 +400,6 @@ class RLSummModel(torch.nn.Module):
 @delayed
 def collect_sims(scorer, id, c_pucts, n_samples):
     keys = []
-    argmax_hats = []
     q_vals_hats = []
 
     n_sents = min(scorer.scores.shape[0], 50)
@@ -406,7 +409,7 @@ def collect_sims(scorer, id, c_pucts, n_samples):
 
     for i, res in enumerate(results):
         for c_puct, r in res:
-            for argmax_sims, q_val_sims, prior_max_score, prior_max_proba, tau in r:
+            for q_val_sims, prior_max_score, prior_max_proba, tau in r:
                 if prior_max_score:
                     keys.append(
                         (
@@ -419,10 +422,9 @@ def collect_sims(scorer, id, c_pucts, n_samples):
                             (id, i),
                         )
                     )
-                    argmax_hats.append(argmax_sims)
                     q_vals_hats.append(q_val_sims)
 
-    return keys, argmax_hats, q_vals_hats
+    return keys, q_vals_hats
 
 
 def do_one_sample(scorer, c_pucts, n_sents):
@@ -454,7 +456,6 @@ def collect_sim(scorer, c_puct, n_sents, greedy, tau, n_samples=250):
 
     n_visits = np.zeros(n_sents, dtype=int)
     q_vals = np.zeros(n_sents, dtype=np.float32)
-    argmax_sims = np.zeros(n_samples, dtype=np.float32)
     q_vals_sims = np.zeros(n_samples, dtype=np.float32)
 
     if np.isnan(priors).any():
@@ -476,14 +477,9 @@ def collect_sim(scorer, c_puct, n_sents, greedy, tau, n_samples=250):
         ) / (n_visits[sampled_idxs] + 1)
         n_visits[sampled_idxs] += 1
 
-        threshold = np.partition(n_visits, -3)[-3]
-        elligible_idxs = np.argwhere(n_visits >= threshold)[:, 0]
-        best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
-        argmax_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
-
         threshold = np.partition(q_vals, -3)[-3]
         elligible_idxs = np.argwhere(q_vals >= threshold)[:, 0]
         best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
         q_vals_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
 
-    return argmax_sims, q_vals_sims, prior_max_score, prior_max_proba, tau
+    return q_vals_sims, prior_max_score, prior_max_proba, tau
