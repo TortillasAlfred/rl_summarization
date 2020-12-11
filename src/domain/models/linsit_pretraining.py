@@ -290,7 +290,7 @@ class LinSIT(pl.LightningModule):
                 dataset.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
-            num_workers=16,
+            num_workers=6,
             pin_memory=True,
         )
 
@@ -302,7 +302,7 @@ class LinSIT(pl.LightningModule):
                 dataset.fields, self.reward_builder, subset="val"
             ),
             batch_size=self.test_batch_size,
-            num_workers=16,
+            num_workers=6,
             pin_memory=True,
         )
 
@@ -314,7 +314,7 @@ class LinSIT(pl.LightningModule):
                 dataset.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
-            num_workers=16,
+            num_workers=6,
             pin_memory=True,
         )
 
