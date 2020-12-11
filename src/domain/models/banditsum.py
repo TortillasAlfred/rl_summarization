@@ -30,8 +30,6 @@ class BanditSum(pl.LightningModule):
         self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
-        self.epsilon_min = hparams.epsilon_min
-        self.epsilon_decay = hparams.epsilon_decay
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
@@ -193,8 +191,6 @@ class BanditSum(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
-
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
         return self.get_step_output(
             loss=loss.to(self.device),
