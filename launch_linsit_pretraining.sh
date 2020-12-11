@@ -1,6 +1,7 @@
 #!/bin/bash
 
 #SBATCH --account=def-corbeilj                                                 # Account with resources
+#SBATCH --gres=gpu:p100:1                                                      # Number of GPUs
 #SBATCH --cpus-per-task=6                                                      # Number of CPUs
 #SBATCH --mem=50G                                                              # memory (per node)
 #SBATCH --time=0-10:00                                                         # time (DD-HH:MM)
