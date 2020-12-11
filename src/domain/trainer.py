@@ -66,7 +66,7 @@ class PytorchLightningTrainer(Trainer):
             gradient_clip_val=gradient_clip_val,
             gpus=gpus,
             fast_dev_run=fast_dev_run,
-            # accelerator=distributed_backend,
+            accelerator=distributed_backend,
             overfit_batches=overfit_pct,
             val_check_interval=val_check_interval,
             default_root_dir=default_save_path,
@@ -74,6 +74,7 @@ class PytorchLightningTrainer(Trainer):
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
+            max_steps=10000,
         )
 
     @staticmethod
