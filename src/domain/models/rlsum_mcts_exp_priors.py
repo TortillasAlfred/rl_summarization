@@ -222,7 +222,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         for key, q_vals in zip(keys, q_vals_hats):
             d[key] = q_vals
 
-        with open(f"{self.mcts_log_path}results_{batch_idx}.pck", "wb") as f:
+        with open(
+            os.path.join(self.mcts_log_path, f"results_{batch_idx}.pck"), "wb"
+        ) as f:
             pickle.dump(d, f)
 
     def test_step_end(self, outputs):
