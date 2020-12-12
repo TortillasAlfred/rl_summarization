@@ -1,5 +1,5 @@
-from src.domain.models.rlsum_mcts import *
-from src.domain.models.rlsum_mcts_pure import *
+# from src.domain.models.rlsum_mcts import *
+# from src.domain.models.rlsum_mcts_pure import *
 from src.domain.models.rlsum_oful import *
 from src.domain.models.rlsum_oful_exp import *
 from src.domain.models.banditsum import *
@@ -26,10 +26,10 @@ class ModelFactory:
 
         if model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
-        elif model == cls.RLSUM_MCTS:
-            return RLSumMCTS.from_config(dataset, reward, config)
-        elif model == cls.RLSUM_MCTS_PURE:
-            return RLSumMCTSPure.from_config(dataset, reward, config)
+        # elif model == cls.RLSUM_MCTS:
+        #     return RLSumMCTS.from_config(dataset, reward, config)
+        # elif model == cls.RLSUM_MCTS_PURE:
+        #     return RLSumMCTSPure.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL:
             return RLSumOFUL.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL_EXP:
