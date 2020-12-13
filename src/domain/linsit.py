@@ -119,6 +119,11 @@ def linsit_exp_prior(
         action_vectors, priors, scores, n_samples, c_puct, device,
     )
 
+    priors - priors.detach().cpu().numpy()
+    best_idxs = np.argpartition(priors, -3)[-3:]
+    prior_max_score = scores[tuple(best_idxs)].mean()
+    prior_max_proba = priors[best_idxs].sum()
+
     key = (
         c_puct,
         n_pretraining_steps,
@@ -127,6 +132,8 @@ def linsit_exp_prior(
         id,
         tau,
         prior_index,
+        prior_max_score,
+        prior_max_proba,
     )
 
     return key, theta_hat_predictions
