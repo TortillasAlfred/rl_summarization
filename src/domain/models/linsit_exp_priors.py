@@ -370,7 +370,7 @@ class LinSITExpPriors(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=0,
             pin_memory=True,
-            drop_last=False,
+            drop_last=True,
         )
 
     def test_dataloader(self):
@@ -381,7 +381,7 @@ class LinSITExpPriors(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=0,
             pin_memory=True,
-            drop_last=False,
+            drop_last=True,
         )
 
     @staticmethod
