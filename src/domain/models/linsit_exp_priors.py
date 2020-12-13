@@ -364,7 +364,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
             drop_last=True,
         )
@@ -375,7 +375,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
             drop_last=True,
         )
@@ -386,7 +386,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
             drop_last=True,
         )
