@@ -2,7 +2,7 @@
 ### MISCELLANEOUS ###
 #####################
 seed: 42 # Random seed
-dev: False
+dev: True
 slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 
 ##################
