@@ -44,6 +44,11 @@ class LinSITExpPriors(pl.LightningModule):
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
+        import resource
+
+        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+
         mp.set_start_method("forkserver", force=True)
         mp.set_sharing_strategy("file_system")
 
