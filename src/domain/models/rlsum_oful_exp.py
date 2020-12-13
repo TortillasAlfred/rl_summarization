@@ -1,4 +1,5 @@
 from src.domain.rewards.rouge_python import RougePythonReward
+from src.domain.loader_utils import TextDataCollator
 import src.domain.mcts_oful_exp as mcts_oful
 import threading
 import pickle
@@ -24,26 +25,20 @@ from collections import defaultdict, namedtuple
 class RLSumOFULEXP(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        self.hparams = hparams
-        self.dataset = dataset
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
-        self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
-        self.dirichlet_epsilon = hparams.dirichlet_epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary
-        self.c_puct = hparams.c_puct
-        self.n_mcts_samples = hparams.n_mcts_samples
         self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
         self.lambda_oful = hparams.lambda_oful
@@ -55,7 +50,7 @@ class RLSumOFULEXP(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model(hparams.hidden_dim)
+        self.__build_model(hparams.hidden_dim, dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
@@ -106,9 +101,9 @@ class RLSumOFULEXP(pl.LightningModule):
             for _ in range(torch.cuda.device_count())
         ]
 
-    def __build_model(self, hidden_dim):
+    def __build_model(self, hidden_dim, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -141,25 +136,6 @@ class RLSumOFULEXP(pl.LightningModule):
         sent_contents, doc_contents = self.model.sentence_level_encoding(contents)
 
         return sent_contents, doc_contents, valid_sentences, contents
-
-    def warmup_oful(self, valid_sentences, scorers):
-        all_sampled_summs = []
-        all_scores = []
-
-        for valid_sents, scorer in zip(valid_sentences, scorers):
-            all_sums = list(combinations(list(range(valid_sents.sum())), 3))
-            sampled_summs = np.random.choice(len(all_sums), 250, replace=True)
-            sampled_summs = [all_sums[summ] for summ in sampled_summs]
-            scores = torch.tensor(
-                [scorer.scores[tuple(summ)] for summ in sampled_summs],
-                device=self.device,
-            )
-            all_scores.append(scores)
-            all_sampled_summs.append(sampled_summs)
-
-        all_scores = torch.cat(all_scores)
-
-        return all_sampled_summs, all_scores
 
     def mcts_oful(
         self, sent_contents, doc_contents, valid_sentences, scorers, gpu_device_idx
@@ -570,7 +546,7 @@ class RLSumOFULEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -580,7 +556,7 @@ class RLSumOFULEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -589,7 +565,7 @@ class RLSumOFULEXP(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -597,25 +573,6 @@ class RLSumOFULEXP(pl.LightningModule):
     @staticmethod
     def from_config(dataset, reward, config):
         return RLSumOFULEXP(dataset, reward, config,)
-
-
-def text_data_collator(dataset):
-    def collate(data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in dataset.fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
-
-        batch = {
-            name: field.process(batch[name]) for name, field in dataset.fields.items()
-        }
-
-        batch = namedtuple("batch", batch.keys())(**batch)
-
-        return batch
-
-    return collate
 
 
 class RLSummModel(torch.nn.Module):

@@ -1,4 +1,4 @@
-from src.domain.loader_utils import text_data_collator
+from src.domain.loader_utils import TextDataCollator
 
 import threading
 import pickle
@@ -27,12 +27,11 @@ np.seterr(invalid="ignore")
 class RLSumMCTSEXPPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        self.dataset = dataset
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -57,16 +56,16 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model(hparams.hidden_dim)
+        self.__build_model(hparams.hidden_dim, dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
         self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors/"
         os.makedirs(self.mcts_log_path, exist_ok=True)
 
-    def __build_model(self, hidden_dim):
+    def __build_model(self, hidden_dim, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -295,9 +294,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -308,9 +305,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=16,
@@ -320,9 +315,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=16,

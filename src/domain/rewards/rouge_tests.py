@@ -1,6 +1,6 @@
 from src.domain.dataset import CnnDailyMailDataset
 from src.domain.utils import set_random_seed, configure_logging
-from src.domain.loader_utils import text_data_collator
+from src.domain.loader_utils import TextDataCollator
 from src.domain.rewards.rouge import RougeRewardBuilder
 from src.domain.rewards.rouge_pearl import RougePearlReward
 from src.domain.rewards.rouge_python import RougePythonReward
@@ -64,8 +64,8 @@ if __name__ == "__main__":
         sets=subsets,
     )
     dataset = dataset.get_splits()["val"]
-    collator = text_data_collator(
-        dataset.fields, RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val"
+    collator = TextDataCollator(
+        RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val"
     )
 
     samples = [[list(range(3)), list(range(3, 6))] for _ in dataset]

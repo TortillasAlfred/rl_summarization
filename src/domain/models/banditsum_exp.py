@@ -1,5 +1,6 @@
 import pickle
 
+from src.domain.loader_utils import TextDataCollator
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
@@ -15,13 +16,11 @@ from joblib import Parallel, delayed
 class BanditSumMCSExperiment(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        # self.hparams = hparams
-        self.dataset = dataset
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -46,7 +45,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model(hparams.hidden_dim)
+        self.__build_model(hparams.hidden_dim, dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
@@ -56,9 +55,9 @@ class BanditSumMCSExperiment(pl.LightningModule):
         with open(self.mcs_log_path, "wb") as f:
             pickle.dump({}, f)
 
-    def __build_model(self, hidden_dim):
+    def __build_model(self, hidden_dim, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -242,7 +241,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=False,
@@ -252,7 +251,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=False,
         )
@@ -261,7 +260,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=False,
         )
@@ -269,25 +268,6 @@ class BanditSumMCSExperiment(pl.LightningModule):
     @staticmethod
     def from_config(dataset, reward, config):
         return BanditSumMCSExperiment(dataset, reward, config,)
-
-
-def text_data_collator(dataset):
-    def collate(data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in dataset.fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
-
-        batch = {
-            name: field.process(batch[name]) for name, field in dataset.fields.items()
-        }
-
-        batch = namedtuple("batch", batch.keys())(**batch)
-
-        return batch
-
-    return collate
 
 
 class RLSummModel(torch.nn.Module):

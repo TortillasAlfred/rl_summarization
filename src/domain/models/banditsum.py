@@ -1,4 +1,4 @@
-from src.domain.loader_utils import text_data_collator
+from src.domain.loader_utils import TextDataCollator
 
 import pytorch_lightning as pl
 import torch
@@ -15,12 +15,11 @@ from collections import defaultdict, namedtuple
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(BanditSum, self).__init__()
-        self.dataset = dataset
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -35,12 +34,12 @@ class BanditSum(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
 
-        self.__build_model()
+        self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-    def __build_model(self):
+    def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -295,9 +294,7 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=16,
             pin_memory=True,
@@ -307,9 +304,7 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="val"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             num_workers=16,
             pin_memory=True,
@@ -319,9 +314,7 @@ class BanditSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=16,
             pin_memory=True,

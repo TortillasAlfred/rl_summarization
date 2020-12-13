@@ -1,3 +1,4 @@
+from src.domain.loader_utils import TextDataCollator
 from src.domain.rewards.rouge_python import RougePythonReward
 import src.domain.mcts_oful_exp as mcts_oful
 import threading
@@ -17,20 +18,17 @@ import math
 import torch.multiprocessing as mp
 import os
 import functools
-from itertools import combinations
 from collections import defaultdict, namedtuple
 
 
 class RLSumOFUL(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        self.hparams = hparams
-        self.dataset = dataset
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -55,7 +53,7 @@ class RLSumOFUL(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model()
+        self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
@@ -105,9 +103,9 @@ class RLSumOFUL(pl.LightningModule):
             for _ in range(torch.cuda.device_count())
         ]
 
-    def __build_model(self):
+    def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -140,25 +138,6 @@ class RLSumOFUL(pl.LightningModule):
         sent_contents, doc_contents = self.model.sentence_level_encoding(contents)
 
         return sent_contents, doc_contents, valid_sentences, contents
-
-    def warmup_oful(self, valid_sentences, scorers):
-        all_sampled_summs = []
-        all_scores = []
-
-        for valid_sents, scorer in zip(valid_sentences, scorers):
-            all_sums = list(combinations(list(range(valid_sents.sum())), 3))
-            sampled_summs = np.random.choice(len(all_sums), 250, replace=True)
-            sampled_summs = [all_sums[summ] for summ in sampled_summs]
-            scores = torch.tensor(
-                [scorer.scores[tuple(summ)] for summ in sampled_summs],
-                device=self.device,
-            )
-            all_scores.append(scores)
-            all_sampled_summs.append(sampled_summs)
-
-        all_scores = torch.cat(all_scores)
-
-        return all_sampled_summs, all_scores
 
     def mcts_oful(
         self, sent_contents, doc_contents, valid_sentences, scorers, gpu_device_idx
@@ -569,7 +548,7 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -579,7 +558,7 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(datasetself.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -588,7 +567,7 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(dataset),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -598,7 +577,7 @@ class RLSumOFUL(pl.LightningModule):
         return RLSumOFUL(dataset, reward, config,)
 
 
-def text_data_collator(dataset):
+def TextDataCollator(dataset):
     def collate(data):
         batch = defaultdict(list)
 
