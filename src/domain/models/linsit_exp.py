@@ -1,4 +1,7 @@
-from src.domain.loader_utils import text_data_collator
+from torch.utils import data
+from src.domain.loader_utils import TextDataCollator
+from src.domain.linsit import LinSITExpProcess
+from src.factories.dataset import DatasetFactory
 
 import pytorch_lightning as pl
 import torch
@@ -8,42 +11,53 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from itertools import combinations
 import random
 import os
+import torch.multiprocessing as mp
+import pickle
 
 
-class LinSIT(pl.LightningModule):
+class LinSITExp(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
-        super(LinSIT, self).__init__()
-        self.dataset = dataset
+        super(LinSITExp, self).__init__()
         self.reward_builder = reward
 
-        self.embedding_dim = self.dataset.embedding_dim
-        self.pad_idx = self.dataset.pad_idx
-        self.splits = self.dataset.get_splits()
+        self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
+        self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
-        self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
-        self.epsilon_min = hparams.epsilon_min
-        self.epsilon_decay = hparams.epsilon_decay
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
         self.pretraining_path = hparams.pretraining_path
+        self.log_path = hparams.log_path
+        self.dev = False
+        self.n_mcts_samples = hparams.n_mcts_samples
         self.batch_idx = 0
 
-        os.makedirs(self.pretraining_path, exist_ok=True)
-
-        self.__build_model()
+        os.makedirs(self.log_path, exist_ok=True)
+        self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-    def __build_model(self):
+        mp.set_start_method("forkserver", force=True)
+
+        if hparams.n_jobs_for_mcts == -1:
+            self.n_processes = os.cpu_count()
+        else:
+            self.n_processes = hparams.n_jobs_for_mcts
+        self.pools = [
+            mp.Pool(processes=self.n_processes)
+            for _ in range(torch.cuda.device_count())
+        ]
+
+    def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
-            self.dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
+            dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
         self.wl_encoder = torch.nn.LSTM(
             input_size=self.embedding_dim,
@@ -79,72 +93,82 @@ class LinSIT(pl.LightningModule):
 
         return affinities, valid_sentences, sent_contents
 
-    def warmup_oful(self, valid_sentences, scorers):
-        all_sampled_summs = []
-        all_scores = []
+    def linsit_exp(
+        self,
+        sent_contents,
+        valid_sentences,
+        priors,
+        scorers,
+        ids,
+        c_pucts,
+        n_pretraining_steps,
+        gpu_device_idx,
+    ):
+        results = self.pools[gpu_device_idx].map(
+            LinSITExpProcess(
+                n_samples=self.n_mcts_samples,
+                c_pucts=c_pucts,
+                n_pretraining_steps=n_pretraining_steps,
+                device=sent_contents.device,
+            ),
+            zip(
+                sent_contents, valid_sentences, priors, [s.scores for s in scorers], ids
+            ),
+        )
 
-        for valid_sents, scorer in zip(valid_sentences, scorers):
-            all_sums = list(combinations(list(range(valid_sents.sum())), 3))
-            sampled_summs = np.random.choice(len(all_sums), 8, replace=True)
-            sampled_summs = [list(all_sums[summ]) for summ in sampled_summs]
-            [random.shuffle(summ) for summ in sampled_summs]
-            scores = torch.tensor(
-                [scorer.scores[tuple(summ)].mean() for summ in sampled_summs],
-                device=self.device,
-            )
-            all_scores.append(scores)
-            all_sampled_summs.append(sampled_summs)
-
-        all_scores = torch.cat(all_scores)
-
-        return all_sampled_summs, all_scores
+        return [r for res in results for r in res]
 
     def forward(self, batch, subset):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         batch_size = len(contents)
 
+        gpu_idx = contents.device.index
+        torch.set_grad_enabled(False)
+
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        (action_vals, valid_sentences, sent_contents,) = self.__extract_features(
-            contents
-        )
+        c_pucts = np.logspace(-2, 2, 5)
 
-        _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
-        greedy_rewards = []
-        for scorer, sent_idxs in zip(scorers, greedy_idxs):
-            greedy_rewards.append(
-                torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
+        (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
+        priors = torch.ones_like(valid_sentences, dtype=torch.float32)
+        priors /= valid_sentences.sum(-1, keepdim=True)
+
+        all_keys = []
+        all_theta_hat_predictions = []
+
+        for n_pretraining_steps in [1, 1000, 10000]:
+            self.load_from_n_pretraining_steps(n_pretraining_steps)
+
+            (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
+
+            results = self.linsit_exp(
+                sent_contents,
+                valid_sentences,
+                priors,
+                scorers,
+                ids,
+                c_pucts,
+                n_pretraining_steps,
+                gpu_idx,
             )
-        greedy_rewards = torch.stack(greedy_rewards)
 
-        if subset == "train":
-            self.batch_idx += 1
+            keys = [r[0] for r in results]
+            theta_hat_predictions = [r[1] for r in results]
 
-            if self.batch_idx == 1 or self.batch_idx == 1000 or self.batch_idx == 10000:
-                self.save_pretraining()
+            all_keys.extend(keys)
+            all_theta_hat_predictions.extend(theta_hat_predictions)
 
-            generated_rewards = torch.zeros_like(greedy_rewards)
+        return all_keys, all_theta_hat_predictions, gpu_idx
 
-            summs, targets = self.warmup_oful(valid_sentences, scorers)
+    def load_from_n_pretraining_steps(self, n_steps):
+        load_path = f"{self.pretraining_path}/{n_steps}_batches.pt"
 
-            predicted_scores = self.model.pretraining_output(sent_contents, summs)
+        state_dict = torch.load(load_path)
+        if self.dev:
+            state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
 
-            loss = (targets.to(valid_sentences.device) - predicted_scores) ** 2
-            loss = loss.sum()
-
-            return generated_rewards, loss, greedy_rewards
-        else:
-            return greedy_rewards
-
-    def save_pretraining(self):
-        save_path = f"{self.pretraining_path}/{self.batch_idx}_batches.pt"
-
-        filtered_model_dict = {
-            k: v for k, v in self.state_dict().items() if not "decoder" in k
-        }
-
-        torch.save(filtered_model_dict, save_path)
+        self.load_state_dict(state_dict, strict=False)
 
     def get_step_output(self, loss, greedy_rewards, generated_rewards):
         output_dict = {}
@@ -173,8 +197,6 @@ class LinSIT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
-
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
         return self.get_step_output(
             loss=loss.to(self.device),
@@ -212,22 +234,20 @@ class LinSIT(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="test")
+        keys, theta_hat_predictions, gpu_idx = self.forward(batch, subset="test")
 
-        reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[:, 0],
-            "test_greedy_rouge_2": greedy_rewards[:, 1],
-            "test_greedy_rouge_L": greedy_rewards[:, 2],
-            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
-        }
+        d = {}
 
-        return reward_dict
+        for key, preds in zip(keys, theta_hat_predictions):
+            d[key] = preds
+
+        with open(
+            os.path.join(self.log_path, f"results_{batch_idx}_{gpu_idx}.pck"), "wb"
+        ) as f:
+            pickle.dump(d, f)
 
     def test_step_end(self, outputs):
-        for vals in outputs.values():
-            vals = vals.mean()
-
-        return outputs
+        pass
 
     def generic_epoch_end(self, outputs, is_test=False):
         combined_outputs = {}
@@ -251,7 +271,18 @@ class LinSIT(pl.LightningModule):
         return combined_outputs
 
     def test_epoch_end(self, outputs):
-        return self.generic_epoch_end(outputs, is_test=True)
+        all_dict_paths = os.listdir(self.log_path)
+        d = {}
+
+        for path in all_dict_paths:
+            with open(os.path.join(self.log_path, path), "rb") as f:
+                d_i = pickle.load(f)
+
+            for k, v in d_i.items():
+                d[k] = v
+
+        with open(os.path.join(self.log_path, "results.pck"), "wb") as f:
+            pickle.dump(d, f)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -286,41 +317,35 @@ class LinSIT(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
-            num_workers=6,
+            num_workers=8,
             pin_memory=True,
         )
 
     def val_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="val"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=6,
+            num_workers=8,
             pin_memory=True,
         )
 
     def test_dataloader(self):
-        dataset = self.splits["test"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=text_data_collator(
-                dataset.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=6,
+            num_workers=8,
             pin_memory=True,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSIT(dataset, reward, config,)
+        return LinSITExp(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):
@@ -352,23 +377,6 @@ class RLSummModel(torch.nn.Module):
         affinities = self.decoder(sent_contents).squeeze(-1)
 
         return affinities
-
-    def get_sents_from_summs(self, sent_contents, sampled_summs):
-        all_sents = []
-
-        for sents_doc, sampled_sents in zip(sent_contents, sampled_summs):
-            for summ in sampled_sents:
-                all_sents.append(
-                    torch.stack([sents_doc[sent_id] for sent_id in summ]).sum(0)
-                )
-
-        return torch.stack(all_sents)
-
-    def pretraining_output(self, sent_contents, sampled_summs):
-        summ_contents = self.get_sents_from_summs(sent_contents, sampled_summs)
-        predicted_scores = self.pretraining_decoder(summ_contents)
-
-        return predicted_scores
 
     def forward(self, x):
         pass

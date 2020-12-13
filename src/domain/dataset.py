@@ -5,6 +5,8 @@ import io
 import os
 import logging
 import json
+import torch
+from collections import defaultdict
 
 from joblib import Parallel, delayed
 from collections import OrderedDict
@@ -28,7 +30,7 @@ class SummarizationDataset(Dataset):
         raise NotImplementedError()
 
     def get_splits(self):
-        return self.subsets
+        return {name: TextDataset(dataset) for name, dataset in self.subsets.items()}
 
 
 def not_empty_example(example):
@@ -151,6 +153,41 @@ class CnnDailyMailDataset(SummarizationDataset):
             dev=config.dev,
             vectors_cache=config.embeddings_location,
         )
+
+
+class TextDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset):
+        self.__process_dataset(dataset)
+
+    def __process_dataset(self, dataset):
+        dict_examples = defaultdict(list)
+
+        for example in dataset.examples:
+            for name, field in dataset.fields.items():
+                dict_examples[name].append(field.preprocess(getattr(example, name)))
+
+        dict_examples = {
+            name: field.process(dict_examples[name])
+            for name, field in dataset.fields.items()
+        }
+
+        self.examples = [
+            {name: dict_examples[name][i] for name in dataset.fields.keys()}
+            for i in range(len(dataset.examples))
+        ]
+
+    def __getitem__(self, i):
+        return self.examples[i]
+
+    def __len__(self):
+        try:
+            return len(self.examples)
+        except TypeError:
+            return 2 ** 32
+
+    def __iter__(self):
+        for x in self.examples:
+            yield x
 
 
 def load_fname(fname, reading_path, fields):

@@ -1,20 +1,29 @@
 from collections import defaultdict, namedtuple
+import torch
 
 
-def text_data_collator(fields, reward_builder, subset):
-    def collate(fields, reward_builder, subset, data):
+class TextDataCollator:
+    def __init__(self, reward_builder, subset):
+        self.reward_builder = reward_builder
+        self.subset = subset
+
+    def __call__(self, data):
         batch = defaultdict(list)
 
         for datum in data:
-            for name, field in fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
+            for name, field in datum.items():
+                batch[name].append(field)
 
-        batch = {name: field.process(batch[name]) for name, field in fields.items()}
-        batch["scorers"] = get_reward_scorers(reward_builder, batch["id"], subset)
+        batch["scorers"] = get_reward_scorers(
+            self.reward_builder, batch["id"], self.subset
+        )
+
+        tensor_keys = [k for k, d in batch.items() if isinstance(d[0], torch.Tensor)]
+
+        for key in tensor_keys:
+            batch[key] = torch.stack(batch[key])
 
         return batch
-
-    return lambda d: collate(fields, reward_builder, subset, d)
 
 
 def get_reward_scorers(reward_builder, ids, subset):
