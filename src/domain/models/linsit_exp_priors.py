@@ -52,7 +52,7 @@ class LinSITExpPriors(pl.LightningModule):
         else:
             self.n_processes = hparams.n_jobs_for_mcts
         self.pools = [
-            mp.Pool(processes=self.n_processes, maxtasksperchild=1)
+            mp.Pool(processes=self.n_processes)
             for _ in range(torch.cuda.device_count())
         ]
 
@@ -357,7 +357,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )
@@ -368,7 +368,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
             drop_last=False,
         )
@@ -379,7 +379,7 @@ class LinSITExpPriors(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
             drop_last=False,
         )
