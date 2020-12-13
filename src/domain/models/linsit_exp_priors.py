@@ -129,7 +129,7 @@ class LinSITExpPriors(pl.LightningModule):
             ),
         )
 
-        return results
+        return [r for res in results for r in res]
 
     def get_device_nontensors(
         self, raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
@@ -181,8 +181,8 @@ class LinSITExpPriors(pl.LightningModule):
                 gpu_idx,
             )
 
-            keys = [r for res in results for r in res[0]]
-            theta_hat_predictions = [r for res in results for r in res[1]]
+            keys = [res[0] for res in results]
+            theta_hat_predictions = [res[1] for res in results]
 
             all_keys.extend(keys)
             all_theta_hat_predictions.extend(theta_hat_predictions)
