@@ -36,7 +36,6 @@ class LinSITExp(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.pretraining_path = hparams.pretraining_path
         self.log_path = hparams.log_path
-        self.dev = False
         self.n_mcts_samples = hparams.n_mcts_samples
         self.batch_idx = 0
 
@@ -166,8 +165,7 @@ class LinSITExp(pl.LightningModule):
         load_path = f"{self.pretraining_path}/{n_steps}_batches.pt"
 
         state_dict = torch.load(load_path)
-        if self.dev:
-            state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
+        state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
 
         self.load_state_dict(state_dict, strict=False)
 
