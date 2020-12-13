@@ -52,7 +52,7 @@ class LinSITExpPriors(pl.LightningModule):
         else:
             self.n_processes = hparams.n_jobs_for_mcts
         self.pools = [
-            mp.Pool(processes=self.n_processes)
+            mp.Pool(processes=self.n_processes, maxtasksperchild=1)
             for _ in range(torch.cuda.device_count())
         ]
 
