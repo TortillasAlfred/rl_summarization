@@ -114,7 +114,7 @@ class LinSITExpPriors(pl.LightningModule):
             LinSITExpPriorsProcess(
                 n_samples=self.n_mcts_samples,
                 c_pucts=c_pucts,
-                taus=[0.0, 0.25, 0.5, 0.75, 1.0],
+                taus=[0.0, 0.25, 0.5, 0.75],
                 n_pretraining_steps=n_pretraining_steps,
                 device=sent_contents.device,
             ),
@@ -155,10 +155,10 @@ class LinSITExpPriors(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(-2, 2, 5)
+        c_pucts = np.logspace(-2, 2, 1)
 
         (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
-        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 5)
+        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 1)
 
         all_keys = []
         all_theta_hat_predictions = []
