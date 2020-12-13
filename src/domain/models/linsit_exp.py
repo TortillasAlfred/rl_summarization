@@ -118,11 +118,28 @@ class LinSITExp(pl.LightningModule):
 
         return [r for res in results for r in res]
 
+    def get_device_nontensors(
+        self, raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
+    ):
+        begin_idx = gpu_idx * batch_size
+        end_idx = (gpu_idx + 1) * batch_size
+
+        return (
+            raw_contents[begin_idx:end_idx],
+            raw_abstracts[begin_idx:end_idx],
+            ids[begin_idx:end_idx],
+            scorers[begin_idx:end_idx],
+        )
+
     def forward(self, batch, subset):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         batch_size = len(contents)
 
         gpu_idx = contents.device.index
+        raw_contents, raw_abstracts, ids, scorers = self.get_device_nontensors(
+            raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
+        )
+
         torch.set_grad_enabled(False)
 
         self.wl_encoder.flatten_parameters()
@@ -320,6 +337,7 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.train_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -330,6 +348,7 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=False,
         )
 
     def test_dataloader(self):
@@ -340,6 +359,7 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=False,
         )
 
     @staticmethod
