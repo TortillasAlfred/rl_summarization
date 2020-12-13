@@ -1,6 +1,7 @@
+from numpy.lib.function_base import select
 from torch.utils import data
 from src.domain.loader_utils import TextDataCollator
-from src.domain.linsit import LinSITExpProcess
+from src.domain.linsit import LinSITExpPriorsProcess
 from src.factories.dataset import DatasetFactory
 
 import pytorch_lightning as pl
@@ -15,9 +16,9 @@ import torch.multiprocessing as mp
 import pickle
 
 
-class LinSITExp(pl.LightningModule):
+class LinSITExpPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
-        super(LinSITExp, self).__init__()
+        super(LinSITExpPriors, self).__init__()
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
@@ -36,7 +37,6 @@ class LinSITExp(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.pretraining_path = hparams.pretraining_path
         self.log_path = hparams.log_path
-        self.dev = False
         self.n_mcts_samples = hparams.n_mcts_samples
         self.batch_idx = 0
 
@@ -45,6 +45,7 @@ class LinSITExp(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
         mp.set_start_method("forkserver", force=True)
+        mp.set_sharing_strategy("file_system")
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -93,11 +94,11 @@ class LinSITExp(pl.LightningModule):
 
         return affinities, valid_sentences, sent_contents
 
-    def linsit_exp(
+    def linsit_exp_priors(
         self,
         sent_contents,
         valid_sentences,
-        priors,
+        greedy_priors,
         scorers,
         ids,
         c_pucts,
@@ -105,24 +106,45 @@ class LinSITExp(pl.LightningModule):
         gpu_device_idx,
     ):
         results = self.pools[gpu_device_idx].map(
-            LinSITExpProcess(
+            LinSITExpPriorsProcess(
                 n_samples=self.n_mcts_samples,
                 c_pucts=c_pucts,
+                taus=[0.0, 0.25, 0.5, 0.75, 1.0],
                 n_pretraining_steps=n_pretraining_steps,
                 device=sent_contents.device,
             ),
             zip(
-                sent_contents, valid_sentences, priors, [s.scores for s in scorers], ids
+                sent_contents,
+                valid_sentences,
+                greedy_priors,
+                [s.scores for s in scorers],
+                ids,
             ),
         )
 
-        return [r for res in results for r in res]
+        return results
+
+    def get_device_nontensors(
+        self, raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
+    ):
+        begin_idx = gpu_idx * batch_size
+        end_idx = (gpu_idx + 1) * batch_size
+
+        return (
+            raw_contents[begin_idx:end_idx],
+            raw_abstracts[begin_idx:end_idx],
+            ids[begin_idx:end_idx],
+            scorers[begin_idx:end_idx],
+        )
 
     def forward(self, batch, subset):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         batch_size = len(contents)
 
         gpu_idx = contents.device.index
+        raw_contents, raw_abstracts, ids, scorers = self.get_device_nontensors(
+            raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
+        )
         torch.set_grad_enabled(False)
 
         self.wl_encoder.flatten_parameters()
@@ -131,21 +153,20 @@ class LinSITExp(pl.LightningModule):
         c_pucts = np.logspace(-2, 2, 5)
 
         (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
-        priors = torch.ones_like(valid_sentences, dtype=torch.float32)
-        priors /= valid_sentences.sum(-1, keepdim=True)
+        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 5)
 
         all_keys = []
         all_theta_hat_predictions = []
 
-        for n_pretraining_steps in [1, 1000, 10000]:
+        for n_pretraining_steps in [1000, 10000]:
             self.load_from_n_pretraining_steps(n_pretraining_steps)
 
             (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
 
-            results = self.linsit_exp(
+            results = self.linsit_exp_priors(
                 sent_contents,
                 valid_sentences,
-                priors,
+                greedy_priors,
                 scorers,
                 ids,
                 c_pucts,
@@ -153,20 +174,37 @@ class LinSITExp(pl.LightningModule):
                 gpu_idx,
             )
 
-            keys = [r[0] for r in results]
-            theta_hat_predictions = [r[1] for r in results]
+            keys = [r for res in results for r in res[0]]
+            theta_hat_predictions = [r for res in results for r in res[1]]
 
             all_keys.extend(keys)
             all_theta_hat_predictions.extend(theta_hat_predictions)
 
         return all_keys, all_theta_hat_predictions, gpu_idx
 
+    def sample_greedy_priors(self, batch_size, valid_sentences, n_samples):
+        greedy_priors = torch.zeros(
+            (batch_size, n_samples, valid_sentences.shape[-1]),
+            dtype=torch.float32,
+            device=valid_sentences.device,
+        )
+
+        for batch_idx, val_sents in enumerate(valid_sentences):
+            n_sents = val_sents.sum()
+            for sample_idx in range(n_samples):
+                selected_sents = np.random.choice(
+                    list(range(n_sents)), size=3, replace=False
+                )
+                selected_sents = torch.from_numpy(selected_sents)
+                greedy_priors[batch_idx][sample_idx][selected_sents] = 1 / 3
+
+        return greedy_priors
+
     def load_from_n_pretraining_steps(self, n_steps):
         load_path = f"{self.pretraining_path}/{n_steps}_batches.pt"
 
         state_dict = torch.load(load_path)
-        if self.dev:
-            state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
+        state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
 
         self.load_state_dict(state_dict, strict=False)
 
@@ -321,6 +359,7 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.train_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -331,6 +370,7 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=False,
         )
 
     def test_dataloader(self):
@@ -341,11 +381,12 @@ class LinSITExp(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=8,
             pin_memory=True,
+            drop_last=False,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSITExp(dataset, reward, config,)
+        return LinSITExpPriors(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):

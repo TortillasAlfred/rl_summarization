@@ -8,6 +8,7 @@ from src.domain.models.rlsum_mcts_exp import *
 from src.domain.models.rlsum_mcts_exp_priors import *
 from src.domain.models.linsit_pretraining import LinSIT as LinSITPretraining
 from src.domain.models.linsit_exp import *
+from src.domain.models.linsit_exp_priors import *
 
 
 class ModelFactory:
@@ -21,6 +22,7 @@ class ModelFactory:
     RLSUM_MCTS_EXP_PRIORS = "rlsum_mcts_exp_priors"
     LINSIT_PRETRAINING = "linsit_pretraining"
     LINSIT_EXP = "linsit_exp"
+    LINSIT_EXP_PRIORS = "linsit_exp_priors"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -28,10 +30,6 @@ class ModelFactory:
 
         if model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
-        # elif model == cls.RLSUM_MCTS:
-        #     return RLSumMCTS.from_config(dataset, reward, config)
-        # elif model == cls.RLSUM_MCTS_PURE:
-        #     return RLSumMCTSPure.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL:
             return RLSumOFUL.from_config(dataset, reward, config)
         elif model == cls.RLSUM_OFUL_EXP:
@@ -46,5 +44,7 @@ class ModelFactory:
             return LinSITPretraining.from_config(dataset, reward, config)
         elif model == cls.LINSIT_EXP:
             return LinSITExp.from_config(dataset, reward, config)
+        elif model == cls.LINSIT_EXP_PRIORS:
+            return LinSITExpPriors.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

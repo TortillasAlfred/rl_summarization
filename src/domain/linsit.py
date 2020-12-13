@@ -58,6 +58,88 @@ def linsit_exp(
     return (key, theta_hat_predictions)
 
 
+class LinSITExpPriorsProcess:
+    def __init__(
+        self, n_samples, c_pucts, taus, n_pretraining_steps, device,
+    ):
+        self.n_samples = n_samples
+        self.c_pucts = c_pucts
+        self.taus = taus
+        self.n_pretraining_steps = n_pretraining_steps
+        self.device = device
+
+    def __call__(self, iterable):
+        (sent_contents, valid_sentences, greedy_priors, scores, id) = iterable
+        results = [
+            linsit_exp_prior(
+                sent_contents.to(self.device),
+                valid_sentences.to(self.device),
+                greedy_prior,
+                scores,
+                id,
+                c_puct,
+                self.taus,
+                self.n_samples,
+                self.n_pretraining_steps,
+                self.device,
+                i,
+            )
+            for c_puct in self.c_pucts
+            for i, greedy_prior in enumerate(greedy_priors.to(self.device))
+        ]
+
+        return [r for res in results for r in res]
+
+
+def linsit_exp_prior(
+    sent_contents,
+    valid_sentences,
+    greedy_prior,
+    scores,
+    id,
+    c_puct,
+    taus,
+    n_samples,
+    n_pretraining_steps,
+    device,
+    prior_index,
+):
+    torch.set_grad_enabled(False)
+    n_valid_actions = valid_sentences.sum(-1)
+    action_vectors = sent_contents[:n_valid_actions]
+    action_vectors = action_vectors / action_vectors.norm(dim=-1, keepdim=True).max()
+
+    greedy_prior = greedy_prior[:n_valid_actions]
+    unif = torch.ones_like(greedy_prior) / n_valid_actions
+
+    all_keys = []
+    all_theta_hat_predictions = []
+
+    for tau in taus:
+        priors = (1 - tau) * unif + tau * greedy_prior
+        priors[priors < 0] = 0
+        priors /= priors.sum()
+
+        max_rouge, theta_hat_predictions = linsit_exp_episode(
+            action_vectors, priors, scores, n_samples, c_puct, device,
+        )
+
+        key = (
+            c_puct,
+            n_pretraining_steps,
+            int(n_valid_actions),
+            max_rouge,
+            id,
+            tau,
+            prior_index,
+        )
+
+        all_keys.append(key)
+        all_theta_hat_predictions.append(theta_hat_predictions)
+
+    return all_keys, all_theta_hat_predictions
+
+
 def linsit_exp_episode(
     action_vectors, priors, scores, n_samples, c_puct, device,
 ):
