@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from itertools import combinations
+from itertools import combinations, product
 import random
 import os
 import torch.multiprocessing as mp
@@ -113,17 +113,19 @@ class LinSITExpPriors(pl.LightningModule):
         results = self.pools[gpu_device_idx].map(
             LinSITExpPriorsProcess(
                 n_samples=self.n_mcts_samples,
-                c_pucts=c_pucts,
-                taus=[0.0, 0.25, 0.5, 0.75],
                 n_pretraining_steps=n_pretraining_steps,
                 device=sent_contents.device,
             ),
-            zip(
-                sent_contents,
-                valid_sentences,
-                greedy_priors,
-                [s.scores for s in scorers],
-                ids,
+            product(
+                zip(
+                    sent_contents,
+                    valid_sentences,
+                    greedy_priors,
+                    [s.scores for s in scorers],
+                    ids,
+                ),
+                c_pucts,
+                [0.0, 0.25, 0.5, 0.75],
             ),
         )
 
@@ -155,10 +157,10 @@ class LinSITExpPriors(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(-2, 2, 1)
+        c_pucts = np.logspace(-2, 2, 5)
 
         (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
-        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 1)
+        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 5)
 
         all_keys = []
         all_theta_hat_predictions = []
