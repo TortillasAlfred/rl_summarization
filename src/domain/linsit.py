@@ -181,4 +181,4 @@ def linsit_exp_episode(
             scores[tuple(sorted(selected_sents.tolist()))], device=device
         ).mean()
 
-    return float(max_score_mean), theta_predictions
+    return float(max_score_mean), theta_predictions.to("cpu")
