@@ -127,10 +127,12 @@ class LinSIT(pl.LightningModule):
 
             summs, targets = self.warmup_oful(valid_sentences, scorers)
 
-            predicted_scores = self.model.pretraining_output(sent_contents, summs)
+            predicted_scores = self.model.pretraining_output(
+                sent_contents, summs
+            ).squeeze()
 
             loss = (targets.to(valid_sentences.device) - predicted_scores) ** 2
-            loss = loss.sum()
+            loss = loss.sum() / batch_size
 
             return generated_rewards, loss, greedy_rewards
         else:
@@ -289,6 +291,8 @@ class LinSIT(pl.LightningModule):
             batch_size=self.train_batch_size,
             num_workers=6,
             pin_memory=True,
+            shuffle=True,
+            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -299,6 +303,7 @@ class LinSIT(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=6,
             pin_memory=True,
+            drop_last=True,
         )
 
     def test_dataloader(self):
@@ -309,6 +314,7 @@ class LinSIT(pl.LightningModule):
             batch_size=self.test_batch_size,
             num_workers=6,
             pin_memory=True,
+            drop_last=True,
         )
 
     @staticmethod
