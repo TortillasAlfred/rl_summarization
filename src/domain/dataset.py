@@ -157,27 +157,14 @@ class CnnDailyMailDataset(SummarizationDataset):
 
 class TextDataset(torch.utils.data.Dataset):
     def __init__(self, dataset):
-        self.__process_dataset(dataset)
-
-    def __process_dataset(self, dataset):
-        dict_examples = defaultdict(list)
-
-        for example in dataset.examples:
-            for name, field in dataset.fields.items():
-                dict_examples[name].append(field.preprocess(getattr(example, name)))
-
-        dict_examples = {
-            name: field.process(dict_examples[name])
-            for name, field in dataset.fields.items()
-        }
-
-        self.examples = [
-            {name: dict_examples[name][i] for name in dataset.fields.keys()}
-            for i in range(len(dataset.examples))
-        ]
+        self.examples = dataset.examples
+        self.fields = dataset.fields
 
     def __getitem__(self, i):
-        return self.examples[i]
+        return self.__process_example(self.examples[i])
+
+    def __process_example(self, x):
+        return {name: f.preprocess(getattr(x, name)) for name, f in self.fields.items()}
 
     def __len__(self):
         try:
@@ -187,7 +174,7 @@ class TextDataset(torch.utils.data.Dataset):
 
     def __iter__(self):
         for x in self.examples:
-            yield x
+            yield self.__process_example(x)
 
 
 def load_fname(fname, reading_path, fields):

@@ -27,6 +27,7 @@ np.seterr(invalid="ignore")
 class RLSumMCTSEXPPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
+        self.fields = dataset.fields
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
@@ -294,7 +295,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -305,7 +308,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=16,
@@ -315,7 +320,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=16,

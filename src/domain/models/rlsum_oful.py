@@ -24,6 +24,7 @@ from collections import defaultdict, namedtuple
 class RLSumOFUL(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
+        self.fields = dataset.fields
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
@@ -548,7 +549,9 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -558,7 +561,9 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(datasetself.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )
@@ -567,7 +572,9 @@ class RLSumOFUL(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
         )

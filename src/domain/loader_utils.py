@@ -3,25 +3,19 @@ import torch
 
 
 class TextDataCollator:
-    def __init__(self, reward_builder, subset):
+    def __init__(self, fields, reward_builder, subset):
+        self.fields = fields
         self.reward_builder = reward_builder
         self.subset = subset
 
     def __call__(self, data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in datum.items():
-                batch[name].append(field)
+        batch = {
+            name: f.process([d[name] for d in data]) for name, f in self.fields
+        }
 
         batch["scorers"] = get_reward_scorers(
             self.reward_builder, batch["id"], self.subset
         )
-
-        tensor_keys = [k for k, d in batch.items() if isinstance(d[0], torch.Tensor)]
-
-        for key in tensor_keys:
-            batch[key] = torch.stack(batch[key])
 
         return batch
 
