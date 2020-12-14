@@ -407,10 +407,13 @@ def collect_sims(scorer, id, c_pucts, n_samples):
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
-    results = [do_one_sample(scorer, c_pucts, n_sents) for _ in range(n_samples)]
+    results = [
+        do_one_sample(scorer, c_pucts, n_sents, prior_choice)
+        for prior_choice in ["best", "med", "worst"]
+    ]
 
     for i, res in enumerate(results):
-        for c_puct, r in res:
+        for c_puct, prior_choice, r in res:
             for q_val_sims, prior_max_score, prior_max_proba, tau in r:
                 if prior_max_score:
                     keys.append(
@@ -420,6 +423,7 @@ def collect_sims(scorer, id, c_pucts, n_samples):
                             max_rouge,
                             prior_max_score,
                             prior_max_proba,
+                            prior_choice,
                             tau,
                             (id, i),
                         )
@@ -429,8 +433,22 @@ def collect_sims(scorer, id, c_pucts, n_samples):
     return keys, q_vals_hats
 
 
-def do_one_sample(scorer, c_pucts, n_sents):
-    selected_sents = np.random.choice(list(range(n_sents)), size=3, replace=False)
+def do_one_sample(scorer, c_pucts, n_sents, prior_choice):
+    s = scorer.scores.mean(-1)
+    if prior_choice == "best":
+        selected_sents = np.array(np.unravel_index(s.argmax(), s.shape))
+    elif prior_choice == "worst":
+        s_pos = np.ma.masked_less_equal(s, 0)
+        selected_sents = np.array(np.unravel_index(s_pos.argmin(), s_pos.shape))
+    else:
+        # Get median
+        selected_sents = np.array(
+            [
+                a[0]
+                for a in np.nonzero(s == np.percentile(s, 50, interpolation="nearest"))
+            ]
+        )
+
     grdy = np.ones((3,)) / 3
     greedy = np.zeros((n_sents,))
     greedy[selected_sents] = grdy
@@ -438,6 +456,7 @@ def do_one_sample(scorer, c_pucts, n_sents):
     return [
         (
             c_puct,
+            prior_choice,
             [
                 collect_sim(scorer, c_puct, n_sents, greedy, tau)
                 for tau in [0.0, 0.25, 0.5, 0.75, 1.0]
