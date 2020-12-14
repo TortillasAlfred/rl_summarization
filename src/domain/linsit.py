@@ -68,7 +68,7 @@ class LinSITExpPriorsProcess:
 
     def __call__(self, iterable):
         (
-            (sent_contents, valid_sentences, greedy_priors, scores, id),
+            (sent_contents, valid_sentences, greedy_priors, prior_choices, scores, id),
             c_puct,
             tau,
         ) = iterable
@@ -77,6 +77,7 @@ class LinSITExpPriorsProcess:
                 sent_contents.to(self.device),
                 valid_sentences.to(self.device),
                 greedy_prior.to(self.device),
+                prior_choices[i],
                 scores,
                 id,
                 c_puct,
@@ -94,6 +95,7 @@ def linsit_exp_prior(
     sent_contents,
     valid_sentences,
     greedy_prior,
+    prior_choice,
     scores,
     id,
     c_puct,
@@ -134,6 +136,7 @@ def linsit_exp_prior(
         prior_index,
         prior_max_score,
         prior_max_proba,
+        prior_choice,
     )
 
     return key, theta_hat_predictions

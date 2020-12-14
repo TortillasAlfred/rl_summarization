@@ -45,11 +45,6 @@ class LinSITExpPriors(pl.LightningModule):
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
 
-        import resource
-
-        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
-
         mp.set_start_method("forkserver", force=True)
         mp.set_sharing_strategy("file_system")
 
@@ -105,6 +100,7 @@ class LinSITExpPriors(pl.LightningModule):
         sent_contents,
         valid_sentences,
         greedy_priors,
+        all_prior_choices,
         scorers,
         ids,
         c_pucts,
@@ -122,11 +118,12 @@ class LinSITExpPriors(pl.LightningModule):
                     sent_contents,
                     valid_sentences,
                     greedy_priors,
+                    all_prior_choices,
                     [s.scores for s in scorers],
                     ids,
                 ),
                 c_pucts,
-                [0.0, 0.25, 0.5, 0.75],
+                [0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
             ),
         )
 
@@ -161,7 +158,10 @@ class LinSITExpPriors(pl.LightningModule):
         c_pucts = np.logspace(-2, 2, 5)
 
         (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
-        greedy_priors = self.sample_greedy_priors(batch_size, valid_sentences, 5)
+        prior_choices = ["best", "med", "worst"]
+        greedy_priors, all_prior_choices = self.sample_greedy_priors(
+            batch_size, valid_sentences, prior_choices, scorers
+        )
 
         all_keys = []
         all_theta_hat_predictions = []
@@ -175,6 +175,7 @@ class LinSITExpPriors(pl.LightningModule):
                 sent_contents,
                 valid_sentences,
                 greedy_priors,
+                all_prior_choices,
                 scorers,
                 ids,
                 c_pucts,
@@ -190,23 +191,39 @@ class LinSITExpPriors(pl.LightningModule):
 
         return all_keys, all_theta_hat_predictions, gpu_idx
 
-    def sample_greedy_priors(self, batch_size, valid_sentences, n_samples):
+    def sample_greedy_priors(self, batch_size, valid_sentences, prior_choices, scorers):
         greedy_priors = torch.zeros(
-            (batch_size, n_samples, valid_sentences.shape[-1]),
+            (batch_size, len(prior_choices), valid_sentences.shape[-1]),
             dtype=torch.float32,
             device=valid_sentences.device,
         )
+        all_prior_choices = [prior_choices] * batch_size
 
-        for batch_idx, val_sents in enumerate(valid_sentences):
+        for batch_idx, (val_sents, scorer) in enumerate(zip(valid_sentences, scorers)):
             n_sents = val_sents.sum()
-            for sample_idx in range(n_samples):
-                selected_sents = np.random.choice(
-                    list(range(n_sents)), size=3, replace=False
-                )
+            for sample_idx, prior_choice in enumerate(prior_choices):
+                s = scorer.scores.mean(-1)[:n_sents, :n_sents, :n_sents]
+                if prior_choice == "best":
+                    selected_sents = np.array(np.unravel_index(s.argmax(), s.shape))
+                elif prior_choice == "worst":
+                    s_pos = np.ma.masked_less_equal(s, 0)
+                    selected_sents = np.array(
+                        np.unravel_index(s_pos.argmin(), s_pos.shape)
+                    )
+                else:
+                    # Get median
+                    selected_sents = np.array(
+                        [
+                            a[0]
+                            for a in np.nonzero(
+                                s == np.percentile(s, 50, interpolation="nearest")
+                            )
+                        ]
+                    )
                 selected_sents = torch.from_numpy(selected_sents)
                 greedy_priors[batch_idx][sample_idx][selected_sents] = 1 / 3
 
-        return greedy_priors
+        return greedy_priors, all_prior_choices
 
     def load_from_n_pretraining_steps(self, n_steps):
         load_path = f"{self.pretraining_path}/{n_steps}_batches.pt"
