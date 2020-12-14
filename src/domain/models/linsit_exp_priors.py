@@ -160,7 +160,7 @@ class LinSITExpPriors(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(-2, 2, 5)
+        c_pucts = np.logspace(-1, 5, 7)
 
         (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
         prior_choices = ["best", "med", "worst"]
