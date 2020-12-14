@@ -175,7 +175,9 @@ class LinSITExp(pl.LightningModule):
             theta_hat_predictions = [r[1] for r in results]
 
             all_keys.extend(keys)
-            all_theta_hat_predictions.extend(theta_hat_predictions)
+            all_theta_hat_predictions.extend(
+                [t.cpu().numpy() for t in theta_hat_predictions]
+            )
 
         return all_keys, all_theta_hat_predictions, gpu_idx
 
