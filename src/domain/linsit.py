@@ -164,7 +164,6 @@ def linsit_exp_episode(
             action_vectors.matmul(theta_hat).squeeze()
             + c_puct
             * priors
-            * torch.sqrt(2 * float(np.log(n_updates)) / n_visits)
             * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         )
         p_t_a[torch.isnan(p_t_a)] = float("inf")
