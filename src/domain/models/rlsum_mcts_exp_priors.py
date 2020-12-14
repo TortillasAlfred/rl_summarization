@@ -61,7 +61,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = "./mcts_exp_priors/"
+        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors/"
         os.makedirs(self.mcts_log_path, exist_ok=True)
 
     def __build_model(self, hidden_dim, dataset):
@@ -101,15 +101,15 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return sent_contents, doc_contents, valid_sentences, contents
 
     def __get_reward_scorers(self, ids, subset):
-        if subset in ["val", "val", "test"]:
+        if subset in ["train", "val", "test"]:
             return [self.reward_builder.init_scorer(id, subset) for id in ids]
         else:
             raise ValueError(
-                f'Bad subset : {subset}. Should be one of ["val", "val", "test].'
+                f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
             )
 
     def mcts_exp(self, scorers, ids, c_pucts):
-        return Parallel(n_jobs=1, verbose=1, backend="loky")(
+        return Parallel(n_jobs=-1, verbose=1, backend="loky")(
             collect_sims(scorer, id, c_pucts, 20) for scorer, id in zip(scorers, ids)
         )
 
@@ -156,7 +156,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         greedy_rewards, loss, mcts_rewards, max_scores = self.forward(
-            batch, subset="val"
+            batch, subset="train"
         )
 
         return self.get_step_output(
@@ -292,24 +292,28 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
-            num_workers=0,
+            num_workers=16,
         )
 
     def val_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="train"
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=0,
+            num_workers=16,
         )
 
     def test_dataloader(self):
@@ -319,7 +323,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=0,
+            num_workers=16,
         )
 
     @staticmethod
