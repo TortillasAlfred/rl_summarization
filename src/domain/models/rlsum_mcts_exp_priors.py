@@ -61,7 +61,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors/"
+        self.mcts_log_path = "./mcts_exp_priors/"
         os.makedirs(self.mcts_log_path, exist_ok=True)
 
     def __build_model(self, hidden_dim, dataset):
@@ -109,7 +109,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             )
 
     def mcts_exp(self, scorers, ids, c_pucts):
-        return Parallel(n_jobs=-1, verbose=1, backend="loky")(
+        return Parallel(n_jobs=1, verbose=1, backend="loky")(
             collect_sims(scorer, id, c_pucts, 20) for scorer, id in zip(scorers, ids)
         )
 
@@ -292,40 +292,34 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
-            num_workers=16,
+            num_workers=0,
         )
 
     def val_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=16,
+            num_workers=0,
         )
 
     def test_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=16,
+            num_workers=0,
         )
 
     @staticmethod
@@ -459,7 +453,7 @@ def do_one_sample(scorer, c_pucts, n_sents, prior_choice):
             prior_choice,
             [
                 collect_sim(scorer, c_puct, n_sents, greedy, tau)
-                for tau in [0.0, 0.25, 0.5, 0.75, 1.0]
+                for tau in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
             ],
         )
         for c_puct in c_pucts
