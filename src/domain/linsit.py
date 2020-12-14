@@ -147,6 +147,7 @@ def linsit_exp_episode(
 ):
     action_dim = action_vectors.shape[-1]
 
+    n_visits = torch.zeros(action_vectors.shape[0], dtype=torch.int32, device=device)
     theta_predictions = torch.zeros((n_samples,))
     max_score_idx = np.unravel_index(scores.mean(-1).argmax(), scores.shape[:-1])
     max_score = torch.from_numpy(scores[max_score_idx])
@@ -163,10 +164,18 @@ def linsit_exp_episode(
             action_vectors.matmul(theta_hat).squeeze()
             + c_puct
             * priors
+            * torch.sqrt(2 * float(np.log(n_updates)) / n_visits)
             * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         )
-        _, idxs = p_t_a.topk(3)
+        p_t_a[torch.isnan(p_t_a)] = float("inf")
+        threshold = p_t_a.topk(3)[0][-1]
+        elligible_idxs = torch.where(p_t_a >= threshold)[0]
+        sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(
+            3
+        )
+        idxs = elligible_idxs[sampled_idxs]
 
+        n_visits[idxs] += 1
         reward = torch.tensor(scores[tuple(sorted(idxs.tolist()))], device=device)
 
         fv = action_vectors[idxs].sum(0, keepdim=True)

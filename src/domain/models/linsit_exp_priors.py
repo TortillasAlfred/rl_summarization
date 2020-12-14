@@ -15,6 +15,11 @@ import os
 import torch.multiprocessing as mp
 import pickle
 
+import resource
+
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+
 
 class LinSITExpPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
@@ -187,7 +192,9 @@ class LinSITExpPriors(pl.LightningModule):
             theta_hat_predictions = [res[1] for res in results]
 
             all_keys.extend(keys)
-            all_theta_hat_predictions.extend(theta_hat_predictions)
+            all_theta_hat_predictions.extend(
+                [t.cpu().numpy() for t in theta_hat_predictions]
+            )
 
         return all_keys, all_theta_hat_predictions, gpu_idx
 

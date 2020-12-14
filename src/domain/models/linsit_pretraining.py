@@ -85,9 +85,8 @@ class LinSIT(pl.LightningModule):
 
         for valid_sents, scorer in zip(valid_sentences, scorers):
             all_sums = list(combinations(list(range(valid_sents.sum())), 3))
-            sampled_summs = np.random.choice(len(all_sums), 8, replace=True)
+            sampled_summs = np.random.choice(len(all_sums), 64, replace=True)
             sampled_summs = [list(all_sums[summ]) for summ in sampled_summs]
-            [random.shuffle(summ) for summ in sampled_summs]
             scores = torch.tensor(
                 [scorer.scores[tuple(summ)].mean() for summ in sampled_summs],
                 device=self.device,
@@ -338,7 +337,7 @@ class RLSummModel(torch.nn.Module):
             batch_first=True,
             dropout=dropout,
         )
-        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1)
+        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1, bias=False)
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.Dropout(dropout),

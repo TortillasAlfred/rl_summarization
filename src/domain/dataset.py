@@ -160,6 +160,9 @@ class TextDataset(torch.utils.data.Dataset):
         self.examples = dataset.examples
         self.fields = dataset.fields
 
+    def subset(self, n):
+        self.examples = self.examples[:n]
+
     def __getitem__(self, i):
         return self.__process_example(self.examples[i])
 

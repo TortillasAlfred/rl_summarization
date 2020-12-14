@@ -1,7 +1,5 @@
-from torch.utils import data
 from src.domain.loader_utils import TextDataCollator
 from src.domain.linsit import LinSITExpProcess
-from src.factories.dataset import DatasetFactory
 
 import pytorch_lightning as pl
 import torch
@@ -146,19 +144,19 @@ class LinSITExp(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(-2, 2, 5)
+        c_pucts = np.logspace(-1, 5, 7)
 
-        (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
+        (_, valid_sentences, sent_contents) = self.__extract_features(contents)
         priors = torch.ones_like(valid_sentences, dtype=torch.float32)
         priors /= valid_sentences.sum(-1, keepdim=True)
 
         all_keys = []
         all_theta_hat_predictions = []
 
-        for n_pretraining_steps in [1, 1000, 10000]:
+        for n_pretraining_steps in [1, 100, 1000]:
             self.load_from_n_pretraining_steps(n_pretraining_steps)
 
-            (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
+            (_, valid_sentences, sent_contents) = self.__extract_features(contents)
 
             results = self.linsit_exp(
                 sent_contents,
@@ -360,6 +358,7 @@ class LinSITExp(pl.LightningModule):
 
     def test_dataloader(self):
         dataset = self.splits["train"]
+        dataset.subset(25000)
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
@@ -387,7 +386,7 @@ class RLSummModel(torch.nn.Module):
             batch_first=True,
             dropout=dropout,
         )
-        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1)
+        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1, bias=False)
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.Dropout(dropout),
