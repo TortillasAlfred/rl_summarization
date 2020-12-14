@@ -77,7 +77,6 @@ class PytorchLightningTrainer(Trainer):
             checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
-            max_steps=1000,
         )
 
     @staticmethod
