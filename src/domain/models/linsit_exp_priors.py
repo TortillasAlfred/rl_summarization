@@ -171,7 +171,7 @@ class LinSITExpPriors(pl.LightningModule):
         all_keys = []
         all_theta_hat_predictions = []
 
-        for n_pretraining_steps in [1000, 10000]:
+        for n_pretraining_steps in [100, 1000]:
             self.load_from_n_pretraining_steps(n_pretraining_steps)
 
             (_, valid_sentences, sent_contents,) = self.__extract_features(contents)
