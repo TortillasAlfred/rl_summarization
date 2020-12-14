@@ -432,7 +432,7 @@ def collect_sims(scorer, id, c_pucts, n_samples):
 
 
 def do_one_sample(scorer, c_pucts, n_sents, prior_choice):
-    s = scorer.scores.mean(-1)
+    s = scorer.scores.mean(-1)[:n_sents, :n_sents, :n_sents]
     if prior_choice == "best":
         selected_sents = np.array(np.unravel_index(s.argmax(), s.shape))
     elif prior_choice == "worst":
