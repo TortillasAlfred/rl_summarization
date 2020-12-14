@@ -120,7 +120,7 @@ class LinSIT(pl.LightningModule):
         if subset == "train":
             self.batch_idx += 1
 
-            if self.batch_idx == 1 or self.batch_idx == 1000 or self.batch_idx == 10000:
+            if self.batch_idx == 1 or self.batch_idx == 100 or self.batch_idx == 1000:
                 self.save_pretraining()
 
             generated_rewards = torch.zeros_like(greedy_rewards)
@@ -267,10 +267,7 @@ class LinSIT(pl.LightningModule):
                     "params": self.model.decoder.parameters(),
                     "lr": self.learning_rate * 0.1,
                 },
-                {
-                    "params": self.model.pretraining_decoder.parameters(),
-                    "lr": self.learning_rate * 0.1,
-                },
+                {"params": self.model.pretraining_decoder.parameters(),},
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
