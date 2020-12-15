@@ -1,19 +1,18 @@
-from src.domain.loader_utils import TextDataCollator
+from src.domain.loader_utils import TextDataCollator, get_ngrams_dense
 
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from itertools import combinations
-import random
-import os
+from itertools import combinations, product
 
 
-class LinSIT(pl.LightningModule):
+class LinearHypothesisTests(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
-        super(LinSIT, self).__init__()
+        super(LinearHypothesisTests, self).__init__()
         self.reward_builder = reward
+        self.pad_idx = dataset.pad_idx
         self.fields = dataset.fields
 
         self.embedding_dim = dataset.embedding_dim
@@ -28,18 +27,23 @@ class LinSIT(pl.LightningModule):
         self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
-        self.epsilon_min = hparams.epsilon_min
-        self.epsilon_decay = hparams.epsilon_decay
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
-        self.pretraining_path = hparams.pretraining_path
         self.batch_idx = 0
-
-        os.makedirs(self.pretraining_path, exist_ok=True)
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+
+        self.results = []
+        self.config_args = {
+            "normalize": [True],
+            "use_torchtext": [True],
+            "n": [2],
+            "add_bias": [False],
+            "pca_dim": [50],
+            "unif_norm": [True],
+        }
 
     def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -54,98 +58,38 @@ class LinSIT(pl.LightningModule):
             dropout=self.dropout,
         )
 
-    def word_level_encoding(self, contents):
-        valid_tokens = ~(contents == self.pad_idx)
-        sentences_len = valid_tokens.sum(dim=-1)
-        valid_sentences = sentences_len > 0
-        contents = self.embeddings(contents)
-        orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
-        contents = contents * valid_tokens.unsqueeze(-1)
-        contents = contents.sum(-2)
-        word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
-        return word_level_encodings, valid_sentences
-
-    def __extract_features(self, contents):
-        contents, valid_sentences = self.word_level_encoding(contents)
-        sent_contents = self.model.sentence_level_encoding(contents)
-        affinities = self.model.produce_affinities(sent_contents)
-        affinities = affinities * valid_sentences
-
-        return affinities, valid_sentences, sent_contents
-
-    def warmup_oful(self, valid_sentences, scorers):
-        all_sampled_summs = []
-        all_scores = []
-
-        for valid_sents, scorer in zip(valid_sentences, scorers):
-            all_sums = list(combinations(list(range(valid_sents.sum())), 3))
-            sampled_summs = np.random.choice(len(all_sums), 64, replace=True)
-            sampled_summs = [list(all_sums[summ]) for summ in sampled_summs]
-            scores = torch.tensor(
-                [scorer.scores[tuple(summ)].mean() for summ in sampled_summs],
-                device=self.device,
-            )
-            all_scores.append(scores)
-            all_sampled_summs.append(sampled_summs)
-
-        all_scores = torch.cat(all_scores)
-
-        return all_sampled_summs, all_scores
-
     def forward(self, batch, subset):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
         batch_size = len(contents)
 
-        self.wl_encoder.flatten_parameters()
-        self.model.sl_encoder.flatten_parameters()
+        for doc_contents, raw_doc_contents, doc_scorer in zip(
+            contents.tolist(), raw_contents, scorers
+        ):
+            for config in list(product(*[v for k, v in self.config_args.items()])):
+                normalize, use_torchtext, n, add_bias, pca_dim, unif_nom = config
 
-        (action_vals, valid_sentences, sent_contents,) = self.__extract_features(
-            contents
-        )
+                try:
+                    # Get n-grams
+                    ngrams = get_ngrams_dense(
+                        doc_contents,
+                        raw_doc_contents,
+                        self.pad_idx,
+                        normalize=normalize,
+                        use_torchtext=use_torchtext,
+                        n=n,
+                        add_bias=add_bias,
+                        pca_dim=pca_dim,
+                        unif_norm=unif_nom,
+                    )
 
-        _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
-        greedy_rewards = []
-        for scorer, sent_idxs in zip(scorers, greedy_idxs):
-            greedy_rewards.append(
-                torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
-            )
-        greedy_rewards = torch.stack(greedy_rewards)
+                    # Get lstsq results with specific config
+                    results = run_lstsq(ngrams, doc_scorer.scores)
 
-        if subset == "train":
-            self.batch_idx += 1
-
-            if self.batch_idx == 1 or self.batch_idx == 100 or self.batch_idx == 1000:
-                self.save_pretraining()
-
-            generated_rewards = torch.zeros_like(greedy_rewards)
-
-            summs, targets = self.warmup_oful(valid_sentences, scorers)
-
-            predicted_scores = self.model.pretraining_output(
-                sent_contents, summs
-            ).squeeze()
-
-            loss = (targets.to(valid_sentences.device) - predicted_scores) ** 2
-            loss = loss.sum() / batch_size
-
-            return generated_rewards, loss, greedy_rewards
-        else:
-            return greedy_rewards
-
-    def save_pretraining(self):
-        save_path = f"{self.pretraining_path}/{self.batch_idx}_batches.pt"
-
-        filtered_model_dict = {
-            k: v for k, v in self.state_dict().items() if not "decoder" in k
-        }
-
-        torch.save(filtered_model_dict, save_path)
+                    # save results
+                    self.results.append(results)
+                except Exception as e:
+                    print(config)
+                    raise e
 
     def get_step_output(self, loss, greedy_rewards, generated_rewards):
         output_dict = {}
@@ -213,22 +157,7 @@ class LinSIT(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="test")
-
-        reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[:, 0],
-            "test_greedy_rouge_2": greedy_rewards[:, 1],
-            "test_greedy_rouge_L": greedy_rewards[:, 2],
-            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
-        }
-
-        return reward_dict
-
-    def test_step_end(self, outputs):
-        for vals in outputs.values():
-            vals = vals.mean()
-
-        return outputs
+        self.forward(batch, subset="test")
 
     def generic_epoch_end(self, outputs, is_test=False):
         combined_outputs = {}
@@ -252,7 +181,14 @@ class LinSIT(pl.LightningModule):
         return combined_outputs
 
     def test_epoch_end(self, outputs):
-        return self.generic_epoch_end(outputs, is_test=True)
+        theta_norms = np.array([r[0] for r in self.results])
+        mean_res = np.array([float(r[1]) for r in self.results if len(r[1]) > 0])
+
+        print("TEST RESULTS")
+        print(
+            f"Percen times theta norm < 1 : {(theta_norms <= 1).sum() / len(self.results) * 100} %s"
+        )
+        print(f"Mean residual : {np.mean(mean_res)} ± {np.std(mean_res)}")
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -288,7 +224,7 @@ class LinSIT(pl.LightningModule):
                 self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
-            num_workers=6,
+            num_workers=4,
             pin_memory=True,
             shuffle=True,
             drop_last=True,
@@ -300,7 +236,7 @@ class LinSIT(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
-            num_workers=6,
+            num_workers=4,
             pin_memory=True,
             drop_last=True,
         )
@@ -313,14 +249,14 @@ class LinSIT(pl.LightningModule):
                 self.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
-            num_workers=6,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSIT(dataset, reward, config,)
+        return LinearHypothesisTests(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):
@@ -372,3 +308,17 @@ class RLSummModel(torch.nn.Module):
 
     def forward(self, x):
         pass
+
+
+def run_lstsq(ngrams, scores):
+    n_sents = len(ngrams)
+    all_summs = [list(c) for c in combinations(range(n_sents), 3)]
+    all_summs_reps = np.stack([ngrams[summ].sum(0) for summ in all_summs])
+
+    scores = scores.mean(-1)
+    all_summs_scores = np.stack([scores[tuple(summ)] for summ in all_summs])
+
+    theta, res, rank, s = np.linalg.lstsq(all_summs_reps, all_summs_scores, rcond=-1)
+
+    return np.linalg.norm(theta), res / len(all_summs)
+
