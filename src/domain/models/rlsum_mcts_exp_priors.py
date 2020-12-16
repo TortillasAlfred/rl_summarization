@@ -302,7 +302,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
-            num_workers=16,
+            num_workers=4,
         )
 
     def val_dataloader(self):
@@ -314,19 +314,19 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=16,
+            num_workers=4,
         )
 
     def test_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="val", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
-            num_workers=16,
+            num_workers=4,
         )
 
     @staticmethod
