@@ -3,7 +3,7 @@
 #SBATCH --account=def-corbeilj                                                 # Account with resources
 #SBATCH --gres=gpu:t4:1                                                        # Number of GPUs
 #SBATCH --cpus-per-task=8                                                      # Number of CPUs
-#SBATCH --mem=30G                                                              # memory (per node)
+#SBATCH --mem=50G                                                              # memory (per node)
 #SBATCH --time=0-06:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails

@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator
+from src.domain.loader_utils import TextDataCollator, NGRAMS
 from src.domain.linsit import LinSITExpProcess
 
 import pytorch_lightning as pl
@@ -99,19 +99,16 @@ class LinSITExp(pl.LightningModule):
 
         return [r for res in results for r in res]
 
+    def get_ngrams_dense(self, contents):
+        return [_.clone() for _ in self.pool.map(NGRAMS(self.pad_idx), contents)]
+
     def forward(self, batch, subset):
-        (
-            raw_contents,
-            contents,
-            raw_abstracts,
-            abstracts,
-            ids,
-            scorers,
-            n_grams_dense,
-        ) = batch
+        (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
         batch_size = len(contents)
 
+
         torch.set_grad_enabled(False)
+        n_grams_dense = self.get_ngrams_dense(contents)
 
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
@@ -278,15 +275,10 @@ class LinSITExp(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.train_batch_size,
-            num_workers=4,
-            pin_memory=True,
+            num_workers=0,
             drop_last=True,
         )
 
@@ -295,32 +287,22 @@ class LinSITExp(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.test_batch_size,
-            num_workers=4,
-            pin_memory=True,
+            num_workers=0,
             drop_last=True,
         )
 
     def test_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["test"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="test",
             ),
             batch_size=self.test_batch_size,
-            num_workers=4,
-            pin_memory=True,
+            num_workers=0,
             drop_last=True,
         )
 

@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator
+from src.domain.loader_utils import TextDataCollator, NGRAMS
 from src.domain.linsit import LinSITExpPriorsProcess
 
 import pytorch_lightning as pl
@@ -10,11 +10,6 @@ from itertools import product
 import os
 import torch.multiprocessing as mp
 import pickle
-
-import resource
-
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
 
 
 class LinSITExpPriors(pl.LightningModule):
@@ -108,30 +103,26 @@ class LinSITExpPriors(pl.LightningModule):
                     ids,
                 ),
                 c_pucts,
-                [0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
+                [0.0, 0.2, 0.4],
             ),
         )
 
         return [r for res in results for r in res]
 
+    def get_ngrams_dense(self, contents):
+        return [_.clone() for _ in self.pool.map(NGRAMS(self.pad_idx), contents)]
+
     def forward(self, batch, subset):
-        (
-            raw_contents,
-            contents,
-            raw_abstracts,
-            abstracts,
-            ids,
-            scorers,
-            n_grams_dense,
-        ) = batch
+        (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
         batch_size = len(contents)
 
         torch.set_grad_enabled(False)
+        n_grams_dense = self.get_ngrams_dense(contents)
 
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(7, 11, 5)
+        c_pucts = np.logspace(7, 11, 3)
 
         valid_tokens = ~(contents == self.pad_idx)
         sentences_len = valid_tokens.sum(dim=-1)
@@ -331,14 +322,10 @@ class LinSITExpPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.train_batch_size,
-            num_workers=4,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )
@@ -348,14 +335,10 @@ class LinSITExpPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.test_batch_size,
-            num_workers=4,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )
@@ -366,14 +349,10 @@ class LinSITExpPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields,
-                self.reward_builder,
-                subset="train",
-                pad_idx=self.pad_idx,
-                return_ngrams=True,
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.test_batch_size,
-            num_workers=4,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )

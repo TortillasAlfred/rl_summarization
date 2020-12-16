@@ -23,8 +23,7 @@ def linsit_exp(
     sent_contents, priors, scores, id, c_puct, n_samples,
 ):
     torch.set_grad_enabled(False)
-    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True).max()
-
+    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True)
     priors = priors[: sent_contents.shape[0]]
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
@@ -76,7 +75,7 @@ def linsit_exp_prior(
     prior_index,
 ):
     torch.set_grad_enabled(False)
-    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True).max()
+    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True)
 
     greedy_prior = greedy_prior[: sent_contents.shape[0]]
     unif = torch.ones_like(greedy_prior) / sent_contents.shape[0]

@@ -19,7 +19,7 @@ epsilon: 1.0
 epsilon_min: 0.05
 epsilon_decay: 0.99
 n_sents_per_summary: 3
-n_jobs_for_mcts: 4
+n_jobs_for_mcts: 8
 lambda_loss: 0.5
 warmup_batches: 10000
 pretraining_path: "/project/def-lulam50/magod/rl_summ/exp_logging/pretraining/"

@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator, get_ngrams_dense
+from src.domain.loader_utils import TextDataCollator
 
 import pytorch_lightning as pl
 import torch
@@ -218,7 +218,7 @@ class LinearHypothesisTests(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
             num_workers=4,
@@ -231,9 +231,7 @@ class LinearHypothesisTests(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="val", pad_idx=self.pad_idx
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             num_workers=4,
             pin_memory=True,
@@ -245,7 +243,7 @@ class LinearHypothesisTests(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
             num_workers=0,

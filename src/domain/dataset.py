@@ -1,10 +1,9 @@
 from src.domain.utils import datetime_tqdm
 
 import tarfile
-import io
+import math
 import os
 import logging
-import json
 import torch
 from collections import defaultdict
 
@@ -157,23 +156,21 @@ class CnnDailyMailDataset(SummarizationDataset):
 
 class TextDataset(torch.utils.data.Dataset):
     def __init__(self, dataset):
-        self.examples = dataset.examples
-        self.fields = dataset.fields
+        self.examples = [
+            self.__process_example(x, dataset.fields) for x in dataset.examples
+        ]
+
+    def __process_example(self, x, fields):
+        return {name: f.preprocess(getattr(x, name)) for name, f in fields.items()}
 
     def subset(self, n):
         self.examples = self.examples[:n]
 
     def __getitem__(self, i):
-        return self.__process_example(self.examples[i])
-
-    def __process_example(self, x):
-        return {name: f.preprocess(getattr(x, name)) for name, f in self.fields.items()}
+        return self.examples[i]
 
     def __len__(self):
-        try:
             return len(self.examples)
-        except TypeError:
-            return 2 ** 32
 
     def __iter__(self):
         for x in self.examples:

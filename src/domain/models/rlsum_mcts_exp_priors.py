@@ -297,7 +297,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
@@ -310,7 +310,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
@@ -322,7 +322,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
+                self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
