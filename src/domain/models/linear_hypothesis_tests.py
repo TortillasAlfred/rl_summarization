@@ -16,7 +16,6 @@ class LinearHypothesisTests(pl.LightningModule):
         self.fields = dataset.fields
 
         self.embedding_dim = dataset.embedding_dim
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
@@ -59,7 +58,7 @@ class LinearHypothesisTests(pl.LightningModule):
         )
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
         for doc_contents, raw_doc_contents, doc_scorer in zip(
@@ -72,10 +71,8 @@ class LinearHypothesisTests(pl.LightningModule):
                     # Get n-grams
                     ngrams = get_ngrams_dense(
                         doc_contents,
-                        raw_doc_contents,
                         self.pad_idx,
                         normalize=normalize,
-                        use_torchtext=use_torchtext,
                         n=n,
                         add_bias=add_bias,
                         pca_dim=pca_dim,
@@ -221,7 +218,7 @@ class LinearHypothesisTests(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             num_workers=4,
@@ -234,7 +231,9 @@ class LinearHypothesisTests(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="val", pad_idx=self.pad_idx
+            ),
             batch_size=self.test_batch_size,
             num_workers=4,
             pin_memory=True,
@@ -246,7 +245,7 @@ class LinearHypothesisTests(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
+                self.fields, self.reward_builder, subset="test", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             num_workers=0,

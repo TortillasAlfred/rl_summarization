@@ -4,27 +4,15 @@ import numpy as np
 
 class LinSITExpProcess:
     def __init__(
-        self, n_samples, c_pucts, n_pretraining_steps, device,
+        self, n_samples, c_pucts,
     ):
         self.n_samples = n_samples
         self.c_pucts = c_pucts
-        self.n_pretraining_steps = n_pretraining_steps
-        self.device = device
 
     def __call__(self, iterable):
-        (sent_contents, valid_sentences, priors, scores, id) = iterable
+        (sent_contents, priors, scores, id) = iterable
         results = [
-            linsit_exp(
-                sent_contents.to(self.device),
-                valid_sentences.to(self.device),
-                priors.to(self.device),
-                scores,
-                id,
-                c_puct,
-                self.n_samples,
-                self.n_pretraining_steps,
-                self.device,
-            )
+            linsit_exp(sent_contents, priors, scores, id, c_puct, self.n_samples,)
             for c_puct in self.c_pucts
         ]
 
@@ -32,68 +20,52 @@ class LinSITExpProcess:
 
 
 def linsit_exp(
-    sent_contents,
-    valid_sentences,
-    priors,
-    scores,
-    id,
-    c_puct,
-    n_samples,
-    n_pretraining_steps,
-    device,
+    sent_contents, priors, scores, id, c_puct, n_samples,
 ):
     torch.set_grad_enabled(False)
-    n_valid_actions = valid_sentences.sum(-1)
-    action_vectors = sent_contents[:n_valid_actions]
-    action_vectors = action_vectors / action_vectors.norm(dim=-1, keepdim=True).max()
+    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True).max()
 
-    priors = priors[:n_valid_actions]
+    priors = priors[: sent_contents.shape[0]]
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        action_vectors, priors, scores, n_samples, c_puct, device,
+        action_vectors, priors, scores, n_samples, c_puct,
     )
 
-    key = (c_puct, n_pretraining_steps, int(n_valid_actions), max_rouge, id)
+    key = (c_puct, int(action_vectors.shape[0]), max_rouge, id)
 
     return (key, theta_hat_predictions)
 
 
 class LinSITExpPriorsProcess:
     def __init__(
-        self, n_samples, n_pretraining_steps, device,
+        self, n_samples,
     ):
         self.n_samples = n_samples
-        self.n_pretraining_steps = n_pretraining_steps
-        self.device = device
 
     def __call__(self, iterable):
         (
-            (sent_contents, valid_sentences, greedy_priors, prior_choices, scores, id),
+            (sent_contents, greedy_priors, prior_choices, scores, id),
             c_puct,
             tau,
         ) = iterable
         return [
             linsit_exp_prior(
-                sent_contents.to(self.device),
-                valid_sentences.to(self.device),
-                greedy_prior.to(self.device),
+                sent_contents,
+                greedy_prior,
                 prior_choices[i],
                 scores,
                 id,
                 c_puct,
                 tau,
                 self.n_samples,
-                self.n_pretraining_steps,
-                self.device,
                 i,
             )
-            for i, greedy_prior in enumerate(greedy_priors.to(self.device))
+            for i, greedy_prior in enumerate(greedy_priors)
         ]
 
 
 def linsit_exp_prior(
     sent_contents,
-    valid_sentences,
     greedy_prior,
     prior_choice,
     scores,
@@ -101,24 +73,20 @@ def linsit_exp_prior(
     c_puct,
     tau,
     n_samples,
-    n_pretraining_steps,
-    device,
     prior_index,
 ):
     torch.set_grad_enabled(False)
-    n_valid_actions = valid_sentences.sum(-1)
-    action_vectors = sent_contents[:n_valid_actions]
-    action_vectors = action_vectors / action_vectors.norm(dim=-1, keepdim=True).max()
+    action_vectors = sent_contents / sent_contents.norm(dim=-1, keepdim=True).max()
 
-    greedy_prior = greedy_prior[:n_valid_actions]
-    unif = torch.ones_like(greedy_prior) / n_valid_actions
+    greedy_prior = greedy_prior[: sent_contents.shape[0]]
+    unif = torch.ones_like(greedy_prior) / sent_contents.shape[0]
 
     priors = (1 - tau) * unif + tau * greedy_prior
     priors[priors < 0] = 0
     priors /= priors.sum()
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        action_vectors, priors, scores, n_samples, c_puct, device,
+        action_vectors, priors, scores, n_samples, c_puct,
     )
 
     priors = priors.detach().cpu().numpy()
@@ -128,8 +96,7 @@ def linsit_exp_prior(
 
     key = (
         c_puct,
-        n_pretraining_steps,
-        int(n_valid_actions),
+        int(sent_contents.shape[0]),
         max_rouge,
         id,
         tau,
@@ -143,11 +110,11 @@ def linsit_exp_prior(
 
 
 def linsit_exp_episode(
-    action_vectors, priors, scores, n_samples, c_puct, device,
+    action_vectors, priors, scores, n_samples, c_puct,
 ):
     action_dim = action_vectors.shape[-1]
+    device = action_vectors.device
 
-    n_visits = torch.zeros(action_vectors.shape[0], dtype=torch.int32, device=device)
     theta_predictions = torch.zeros((n_samples,))
     max_score_idx = np.unravel_index(scores.mean(-1).argmax(), scores.shape[:-1])
     max_score = torch.from_numpy(scores[max_score_idx])
@@ -173,8 +140,6 @@ def linsit_exp_episode(
             3
         )
         idxs = elligible_idxs[sampled_idxs]
-
-        n_visits[idxs] += 1
         reward = torch.tensor(scores[tuple(sorted(idxs.tolist()))], device=device)
 
         fv = action_vectors[idxs].sum(0, keepdim=True)

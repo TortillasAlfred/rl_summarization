@@ -9,6 +9,7 @@ from src.domain.models.rlsum_mcts_exp_priors import *
 from src.domain.models.linsit_pretraining import LinSIT as LinSITPretraining
 from src.domain.models.linsit_exp import *
 from src.domain.models.linsit_exp_priors import *
+from src.domain.models.linear_hypothesis_tests import *
 
 
 class ModelFactory:
@@ -23,6 +24,7 @@ class ModelFactory:
     LINSIT_PRETRAINING = "linsit_pretraining"
     LINSIT_EXP = "linsit_exp"
     LINSIT_EXP_PRIORS = "linsit_exp_priors"
+    LINEAR_HYPOTHESIS = "lin_hyp"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -46,5 +48,7 @@ class ModelFactory:
             return LinSITExp.from_config(dataset, reward, config)
         elif model == cls.LINSIT_EXP_PRIORS:
             return LinSITExpPriors.from_config(dataset, reward, config)
+        elif model == cls.LINEAR_HYPOTHESIS:
+            return LinearHypothesisTests.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

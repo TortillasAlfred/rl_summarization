@@ -27,9 +27,9 @@ class RLSumOFULEXP(pl.LightningModule):
         super().__init__()
         self.fields = dataset.fields
         self.reward_builder = reward
+        self.pad_idx = dataset.pad_idx
 
         self.embedding_dim = dataset.embedding_dim
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
@@ -548,7 +548,7 @@ class RLSumOFULEXP(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
@@ -560,7 +560,7 @@ class RLSumOFULEXP(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
@@ -571,7 +571,7 @@ class RLSumOFULEXP(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,

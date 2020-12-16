@@ -17,10 +17,10 @@ class LinSITExp(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(LinSITExp, self).__init__()
         self.fields = dataset.fields
+        self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
@@ -49,10 +49,7 @@ class LinSITExp(pl.LightningModule):
             self.n_processes = os.cpu_count()
         else:
             self.n_processes = hparams.n_jobs_for_mcts
-        self.pools = [
-            mp.Pool(processes=self.n_processes)
-            for _ in range(torch.cuda.device_count())
-        ]
+        self.pool = mp.Pool(processes=self.n_processes)
 
     def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -93,99 +90,47 @@ class LinSITExp(pl.LightningModule):
         return affinities, valid_sentences, sent_contents
 
     def linsit_exp(
-        self,
-        sent_contents,
-        valid_sentences,
-        priors,
-        scorers,
-        ids,
-        c_pucts,
-        n_pretraining_steps,
-        gpu_device_idx,
+        self, sent_contents, priors, scorers, ids, c_pucts,
     ):
-        results = self.pools[gpu_device_idx].map(
-            LinSITExpProcess(
-                n_samples=self.n_mcts_samples,
-                c_pucts=c_pucts,
-                n_pretraining_steps=n_pretraining_steps,
-                device=sent_contents.device,
-            ),
-            zip(
-                sent_contents, valid_sentences, priors, [s.scores for s in scorers], ids
-            ),
+        results = self.pool.map(
+            LinSITExpProcess(n_samples=self.n_mcts_samples, c_pucts=c_pucts,),
+            zip(sent_contents, priors, [s.scores for s in scorers], ids),
         )
 
         return [r for res in results for r in res]
 
-    def get_device_nontensors(
-        self, raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
-    ):
-        begin_idx = gpu_idx * batch_size
-        end_idx = (gpu_idx + 1) * batch_size
-
-        return (
-            raw_contents[begin_idx:end_idx],
-            raw_abstracts[begin_idx:end_idx],
-            ids[begin_idx:end_idx],
-            scorers[begin_idx:end_idx],
-        )
-
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
+        (
+            raw_contents,
+            contents,
+            raw_abstracts,
+            abstracts,
+            ids,
+            scorers,
+            n_grams_dense,
+        ) = batch
         batch_size = len(contents)
-
-        gpu_idx = contents.device.index
-        raw_contents, raw_abstracts, ids, scorers = self.get_device_nontensors(
-            raw_contents, raw_abstracts, ids, scorers, gpu_idx, batch_size
-        )
 
         torch.set_grad_enabled(False)
 
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(-1, 5, 7)
+        c_pucts = np.logspace(4, 8, 5)
 
-        (_, valid_sentences, sent_contents) = self.__extract_features(contents)
+        valid_tokens = ~(contents == self.pad_idx)
+        sentences_len = valid_tokens.sum(dim=-1)
+        valid_sentences = sentences_len > 0
+
         priors = torch.ones_like(valid_sentences, dtype=torch.float32)
         priors /= valid_sentences.sum(-1, keepdim=True)
 
-        all_keys = []
-        all_theta_hat_predictions = []
+        results = self.linsit_exp(n_grams_dense, priors, scorers, ids, c_pucts,)
 
-        for n_pretraining_steps in [1, 100, 1000]:
-            self.load_from_n_pretraining_steps(n_pretraining_steps)
+        keys = [r[0] for r in results]
+        theta_hat_predictions = [r[1].cpu().numpy() for r in results]
 
-            (_, valid_sentences, sent_contents) = self.__extract_features(contents)
-
-            results = self.linsit_exp(
-                sent_contents,
-                valid_sentences,
-                priors,
-                scorers,
-                ids,
-                c_pucts,
-                n_pretraining_steps,
-                gpu_idx,
-            )
-
-            keys = [r[0] for r in results]
-            theta_hat_predictions = [r[1] for r in results]
-
-            all_keys.extend(keys)
-            all_theta_hat_predictions.extend(
-                [t.cpu().numpy() for t in theta_hat_predictions]
-            )
-
-        return all_keys, all_theta_hat_predictions, gpu_idx
-
-    def load_from_n_pretraining_steps(self, n_steps):
-        load_path = f"{self.pretraining_path}/{n_steps}_batches.pt"
-
-        state_dict = torch.load(load_path)
-        state_dict = {k: v for k, v in state_dict.items() if "embeddings" not in k}
-
-        self.load_state_dict(state_dict, strict=False)
+        return keys, theta_hat_predictions
 
     def get_step_output(self, loss, greedy_rewards, generated_rewards):
         output_dict = {}
@@ -251,16 +196,14 @@ class LinSITExp(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        keys, theta_hat_predictions, gpu_idx = self.forward(batch, subset="test")
+        keys, theta_hat_predictions = self.forward(batch, subset="test")
 
         d = {}
 
         for key, preds in zip(keys, theta_hat_predictions):
             d[key] = preds
 
-        with open(
-            os.path.join(self.log_path, f"results_{batch_idx}_{gpu_idx}.pck"), "wb"
-        ) as f:
+        with open(os.path.join(self.log_path, f"results_{batch_idx}.pck"), "wb") as f:
             pickle.dump(d, f)
 
     def test_step_end(self, outputs):
@@ -335,10 +278,14 @@ class LinSITExp(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields,
+                self.reward_builder,
+                subset="train",
+                pad_idx=self.pad_idx,
+                return_ngrams=True,
             ),
             batch_size=self.train_batch_size,
-            num_workers=8,
+            num_workers=4,
             pin_memory=True,
             drop_last=True,
         )
@@ -348,10 +295,14 @@ class LinSITExp(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields,
+                self.reward_builder,
+                subset="train",
+                pad_idx=self.pad_idx,
+                return_ngrams=True,
             ),
             batch_size=self.test_batch_size,
-            num_workers=8,
+            num_workers=4,
             pin_memory=True,
             drop_last=True,
         )
@@ -361,10 +312,14 @@ class LinSITExp(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields,
+                self.reward_builder,
+                subset="train",
+                pad_idx=self.pad_idx,
+                return_ngrams=True,
             ),
             batch_size=self.test_batch_size,
-            num_workers=8,
+            num_workers=4,
             pin_memory=True,
             drop_last=True,
         )
@@ -385,7 +340,7 @@ class RLSummModel(torch.nn.Module):
             batch_first=True,
             dropout=dropout,
         )
-        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1, bias=False)
+        self.pretraining_decoder = torch.nn.Linear(hidden_dim * 2, 1)
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.Dropout(dropout),

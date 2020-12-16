@@ -28,6 +28,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
+        self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
@@ -114,7 +115,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         )
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         torch.set_grad_enabled(False)
 
         c_pucts = np.logspace(-2, 2, 5)
@@ -296,7 +297,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
@@ -309,7 +310,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
@@ -320,7 +321,9 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="val", pad_idx=self.pad_idx
+            ),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=16,

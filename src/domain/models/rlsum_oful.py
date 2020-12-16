@@ -25,10 +25,10 @@ class RLSumOFUL(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
+        self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
@@ -550,7 +550,7 @@ class RLSumOFUL(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
@@ -562,7 +562,7 @@ class RLSumOFUL(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
@@ -573,7 +573,7 @@ class RLSumOFUL(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=True,
@@ -582,25 +582,6 @@ class RLSumOFUL(pl.LightningModule):
     @staticmethod
     def from_config(dataset, reward, config):
         return RLSumOFUL(dataset, reward, config,)
-
-
-def TextDataCollator(dataset):
-    def collate(data):
-        batch = defaultdict(list)
-
-        for datum in data:
-            for name, field in dataset.fields.items():
-                batch[name].append(field.preprocess(getattr(datum, name)))
-
-        batch = {
-            name: field.process(batch[name]) for name, field in dataset.fields.items()
-        }
-
-        batch = namedtuple("batch", batch.keys())(**batch)
-
-        return batch
-
-    return collate
 
 
 class RLSummModel(torch.nn.Module):

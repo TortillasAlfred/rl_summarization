@@ -17,6 +17,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
+        self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
@@ -243,7 +244,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             shuffle=True,
@@ -255,7 +256,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=False,
@@ -266,7 +267,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             drop_last=False,

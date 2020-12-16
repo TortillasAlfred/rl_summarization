@@ -65,7 +65,7 @@ if __name__ == "__main__":
     )
     dataset = dataset.get_splits()["val"]
     collator = TextDataCollator(
-        RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val"
+        RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val", dataset.pad_idx
     )
 
     samples = [[list(range(3)), list(range(3, 6))] for _ in dataset]
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     for data in tqdm(dataset):
         batch = collator([data])
 
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
 
         l3 = raw_contents[0][:3]
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --account=def-lulam50                                                  # Account with resources
-#SBATCH --gres=gpu:t4:4                                                        # Number of GPUs
-#SBATCH --cpus-per-task=16                                                     # Number of CPUs
+#SBATCH --gres=gpu:t4:1                                                        # Number of GPUs
+#SBATCH --cpus-per-task=8                                                      # Number of CPUs
 #SBATCH --mem=80G                                                              # memory (per node)
 #SBATCH --time=0-24:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email

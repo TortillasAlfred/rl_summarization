@@ -14,6 +14,7 @@ class LinSIT(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(LinSIT, self).__init__()
         self.reward_builder = reward
+        self.pad_idx = dataset.pad_idx
         self.fields = dataset.fields
 
         self.embedding_dim = dataset.embedding_dim
@@ -99,7 +100,7 @@ class LinSIT(pl.LightningModule):
         return all_sampled_summs, all_scores
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch.values()
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
         self.wl_encoder.flatten_parameters()
@@ -285,7 +286,7 @@ class LinSIT(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="train", pad_idx=self.pad_idx
             ),
             batch_size=self.train_batch_size,
             num_workers=6,
@@ -298,7 +299,9 @@ class LinSIT(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(
+                self.fields, self.reward_builder, subset="val", pad_idx=self.pad_idx
+            ),
             batch_size=self.test_batch_size,
             num_workers=6,
             pin_memory=True,
@@ -310,7 +313,7 @@ class LinSIT(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
+                self.fields, self.reward_builder, subset="test", pad_idx=self.pad_idx
             ),
             batch_size=self.test_batch_size,
             num_workers=6,
