@@ -362,7 +362,6 @@ class LinSITExpPriors(pl.LightningModule):
 
     def test_dataloader(self):
         dataset = self.splits["train"]
-        dataset.subset(5000)
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
