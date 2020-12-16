@@ -116,7 +116,7 @@ class LinSITExp(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(4, 8, 5)
+        c_pucts = np.logspace(7, 11, 5)
 
         valid_tokens = ~(contents == self.pad_idx)
         sentences_len = valid_tokens.sum(dim=-1)
