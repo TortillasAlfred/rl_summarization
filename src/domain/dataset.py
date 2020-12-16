@@ -109,7 +109,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         all_files = os.listdir(reading_path)
 
         if dev:
-            all_files = all_files[:25000]
+            all_files = all_files[:100]
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
@@ -170,7 +170,7 @@ class TextDataset(torch.utils.data.Dataset):
         return self.examples[i]
 
     def __len__(self):
-            return len(self.examples)
+        return len(self.examples)
 
     def __iter__(self):
         for x in self.examples:
