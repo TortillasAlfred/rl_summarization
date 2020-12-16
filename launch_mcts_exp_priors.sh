@@ -2,7 +2,7 @@
 
 #SBATCH --account=rrg-corbeilj-ac                                              # Account with resources
 #SBATCH --cpus-per-task=32                                                     # Number of CPUs
-#SBATCH --mem=125G                                                             # memory (per node)
+#SBATCH --mem=80G                                                              # memory (per node)
 #SBATCH --time=0-12:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails
