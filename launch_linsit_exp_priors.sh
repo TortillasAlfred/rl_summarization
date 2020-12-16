@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#SBATCH --account=def-lulam50                                                  # Account with resources
+#SBATCH --account=def-corbeilj                                                 # Account with resources
 #SBATCH --gres=gpu:t4:1                                                        # Number of GPUs
 #SBATCH --cpus-per-task=8                                                      # Number of CPUs
-#SBATCH --mem=80G                                                              # memory (per node)
-#SBATCH --time=0-24:00                                                         # time (DD-HH:MM)
+#SBATCH --mem=30G                                                              # memory (per node)
+#SBATCH --time=0-12:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails
 #SBATCH --output=/project/def-lulam50/magod/rl_summ/slurm_outputs/%A_%a.out    # Default write output on scratch, to jobID_arrayID.out file
