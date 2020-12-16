@@ -106,7 +106,6 @@ class LinSITExp(pl.LightningModule):
         (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
         batch_size = len(contents)
 
-
         torch.set_grad_enabled(False)
         n_grams_dense = self.get_ngrams_dense(contents)
 
@@ -295,11 +294,11 @@ class LinSITExp(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["test"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test",
+                self.fields, self.reward_builder, subset="train",
             ),
             batch_size=self.test_batch_size,
             num_workers=0,
