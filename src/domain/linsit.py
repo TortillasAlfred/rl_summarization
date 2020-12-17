@@ -114,6 +114,9 @@ def linsit_exp_episode(
     action_dim = action_vectors.shape[-1]
     device = action_vectors.device
 
+    n_visits = torch.zeros(
+        (action_vectors.shape[0]), dtype=int, device=action_vectors.device
+    )
     theta_predictions = torch.zeros((n_samples,))
     max_score_idx = np.unravel_index(scores.mean(-1).argmax(), scores.shape[:-1])
     max_score = torch.from_numpy(scores[max_score_idx])
@@ -123,8 +126,8 @@ def linsit_exp_episode(
     A = torch.eye(action_dim, dtype=torch.float32, device=device)
     A_inv = torch.eye(action_dim, dtype=torch.float32, device=device)
     b = torch.zeros((action_dim, 1), dtype=torch.float32, device=device)
-    theta_hat = A_inv.mm(b)
 
+    theta_hat = A_inv.mm(b)
     sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
     for n_updates in range(n_samples):
         p_t_a = (
@@ -133,7 +136,7 @@ def linsit_exp_episode(
             * priors
             * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         )
-        p_t_a[torch.isnan(p_t_a)] = float("inf")
+        p_t_a[n_visits == 0] = float("inf")
         threshold = p_t_a.topk(3)[0][-1]
         elligible_idxs = torch.where(p_t_a >= threshold)[0]
         sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(
@@ -142,6 +145,7 @@ def linsit_exp_episode(
         idxs = elligible_idxs[sampled_idxs]
         reward = torch.tensor(scores[tuple(sorted(idxs.tolist()))], device=device)
 
+        n_visits[idxs] += 1
         fv = action_vectors[idxs].sum(0, keepdim=True)
         A += fv.T.mm(fv)
         fv_Vinv = A_inv.mm(fv.T)
