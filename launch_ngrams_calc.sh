@@ -3,7 +3,7 @@
 #SBATCH --account=rrg-corbeilj-ac                                              # Account with resources
 #SBATCH --cpus-per-task=8                                                      # Number of CPUs
 #SBATCH --mem=30G                                                              # memory (per node)
-#SBATCH --time=0-06:00                                                         # time (DD-HH:MM)
+#SBATCH --time=0-01:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca                                # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails
 #SBATCH --output=/project/def-lulam50/magod/rl_summ/slurm_outputs/%A.out       # Default write output on scratch, to jobID_arrayID.out file
