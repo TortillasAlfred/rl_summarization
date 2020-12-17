@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --account=def-adurand                                                  # Account with resources
+#SBATCH --account=def-lulam50                                                  # Account with resources
 #SBATCH --gres=gpu:k80:1                                                       # Number of GPUs
 #SBATCH --cpus-per-task=24                                                     # Number of CPUs
 #SBATCH --mem=50G                                                              # memory (per node)
