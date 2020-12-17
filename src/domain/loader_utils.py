@@ -97,7 +97,10 @@ def get_ngrams(token_list, n=2):
 
 
 def reduce_dim(ngrams, pca_dim=50, n_iter=25):
-    ngrams = TruncatedSVD(n_components=pca_dim, n_iter=n_iter).fit_transform(ngrams)
+    if pca_dim < ngrams.shape[1]:
+        ngrams = TruncatedSVD(n_components=pca_dim, n_iter=n_iter).fit_transform(ngrams)
+    else:
+        ngrams = ngrams.todense()
     ngrams /= np.linalg.norm(ngrams, axis=-1, keepdims=True)
     ngrams = ngrams.astype(np.float32)
 
