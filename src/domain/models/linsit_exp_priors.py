@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator, NGRAMS
+from src.domain.loader_utils import TextDataCollator
 from src.domain.linsit import LinSITExpPriorsProcess
 
 import pytorch_lightning as pl
@@ -108,9 +108,6 @@ class LinSITExpPriors(pl.LightningModule):
         )
 
         return [r for res in results for r in res]
-
-    def get_ngrams_dense(self, contents):
-        return [_.clone() for _ in self.pool.map(NGRAMS(self.pad_idx), contents)]
 
     def forward(self, batch, subset):
         (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch

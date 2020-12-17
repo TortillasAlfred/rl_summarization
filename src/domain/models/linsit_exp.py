@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator, NGRAMS
+from src.domain.loader_utils import TextDataCollator
 from src.domain.linsit import LinSITExpProcess
 
 import pytorch_lightning as pl

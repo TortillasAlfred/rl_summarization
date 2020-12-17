@@ -26,25 +26,3 @@ def get_reward_scorers(reward_builder, ids, subset):
         raise ValueError(
             f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
         )
-
-
-class NGRAMS:
-    def __init__(self, pad_idx):
-        self.pad_idx = pad_idx
-
-    def __call__(self, doc_contents):
-        indices = torch.LongTensor(
-            [
-                [i, w]
-                for i, sent in enumerate(doc_contents)
-                for w in sent
-                if w != self.pad_idx
-            ]
-        )
-        values = torch.ones(indices.shape[0])
-        ngrams = torch.sparse.FloatTensor(
-            indices.t(), values, (indices[-1][0] + 1, doc_contents.max().cpu() + 1)
-        ).to(doc_contents.device)
-        u, v, _ = torch.svd_lowrank(ngrams, q=len(doc_contents))
-
-        return u * v
