@@ -62,7 +62,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors/"
+        self.mcts_log_path = "./mcts_exp_priors/"
         os.makedirs(self.mcts_log_path, exist_ok=True)
 
     def __build_model(self, hidden_dim, dataset):
@@ -318,11 +318,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["test"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
             drop_last=True,

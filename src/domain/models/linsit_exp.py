@@ -1,4 +1,4 @@
-from src.domain.loader_utils import TextDataCollator
+from src.domain.loader_utils import TextDataCollator, get_ngrams_dense
 from src.domain.linsit import LinSITExpProcess
 
 import pytorch_lightning as pl
@@ -44,6 +44,7 @@ class LinSITExp(pl.LightningModule):
 
         mp.set_start_method("forkserver", force=True)
         mp.set_sharing_strategy("file_system")
+        self.linucb = []
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -100,7 +101,9 @@ class LinSITExp(pl.LightningModule):
         return [r for res in results for r in res]
 
     def get_ngrams_dense(self, contents):
-        return [_.clone() for _ in self.pool.map(NGRAMS(self.pad_idx), contents)]
+        return [
+            torch.from_numpy(get_ngrams_dense(doc_contents, self.pad_idx)).cuda() for doc_contents in contents
+        ]
 
     def forward(self, batch, subset):
         (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
@@ -112,7 +115,7 @@ class LinSITExp(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        c_pucts = np.logspace(7, 11, 5)
+        c_pucts = np.logspace(6, 10, 5)
 
         valid_tokens = ~(contents == self.pad_idx)
         sentences_len = valid_tokens.sum(dim=-1)
@@ -125,6 +128,8 @@ class LinSITExp(pl.LightningModule):
 
         keys = [r[0] for r in results]
         theta_hat_predictions = [r[1].cpu().numpy() for r in results]
+
+        self.linucb.append([k[2] - _[-1] for k, _ in zip(keys, theta_hat_predictions)])
 
         return keys, theta_hat_predictions
 
@@ -294,11 +299,11 @@ class LinSITExp(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["train"]
+        dataset = self.splits["test"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train",
+                self.fields, self.reward_builder, subset="test",
             ),
             batch_size=self.test_batch_size,
             num_workers=0,
