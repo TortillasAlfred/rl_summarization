@@ -136,3 +136,4 @@ weights
 *.pck
 *.csv 
 *.pt
+*.tar
