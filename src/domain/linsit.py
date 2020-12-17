@@ -125,9 +125,10 @@ def linsit_exp_episode(
     b = torch.zeros((action_dim, 1), dtype=torch.float32, device=device)
     theta_hat = A_inv.mm(b)
 
+    sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
     for n_updates in range(n_samples):
         p_t_a = (
-            action_vectors.matmul(theta_hat).squeeze()
+            sent_predicted_vals
             + c_puct
             * priors
             * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
