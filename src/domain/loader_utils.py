@@ -56,8 +56,11 @@ class NGRAMSSaver:
         self.pad_idx = pad_idx
 
     def __call__(self, doc_contents, id):
-        n_grams_dense = get_ngrams_dense(doc_contents, self.pad_idx)
-        np.save(os.path.join(self.base_path, self.subset, f"{id}.npy"), n_grams_dense)
+        if not os.path.isfile(os.path.join(self.base_path, self.subset, f"{id}.npy")):
+            n_grams_dense = get_ngrams_dense(doc_contents, self.pad_idx)
+            np.save(
+                os.path.join(self.base_path, self.subset, f"{id}.npy"), n_grams_dense
+            )
 
 
 def get_ngrams_dense(doc_contents, pad_idx, n=2):
