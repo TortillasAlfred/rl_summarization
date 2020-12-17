@@ -12,7 +12,7 @@
 mkdir /project/def-lulam50/magod/rl_summ/slurm_outputs/
 
 mkdir $SLURM_TMPDIR/finished_files
-cp /scratch/magod/summarization_datasets/cnn_dailymail/data/finished_files/*.tar $SLURM_TMPDIR/finished_files/
+cp /scratch/magod/summarization_datasets/cnn_dailymail/tarred/finished_files/*.tar $SLURM_TMPDIR/finished_files/
 
 source ~/venvs/default/bin/activate
 
