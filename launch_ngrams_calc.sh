@@ -16,4 +16,4 @@ cp /scratch/magod/summarization_datasets/cnn_dailymail/data/finished_files/*.tar
 
 source ~/venvs/default/bin/activate
 
-python -um src.scripts.ngrams_calc
+python -um src.scripts.ngrams_calc --data_path $SLURM_TMPDIR/
