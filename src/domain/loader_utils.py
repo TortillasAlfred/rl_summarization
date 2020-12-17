@@ -60,7 +60,7 @@ class NGRAMSSaver:
         np.save(os.path.join(self.base_path, self.subset, f"{id}.npy"), n_grams_dense)
 
 
-def get_ngrams_dense(doc_contents, pad_idx, n=1):
+def get_ngrams_dense(doc_contents, pad_idx, n=2):
     sents = doc_contents
     n_grams_per_sent = [
         list(get_ngrams([w for w in sent if w != pad_idx], n=n)) for sent in sents
