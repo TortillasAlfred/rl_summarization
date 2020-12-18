@@ -17,13 +17,10 @@ class LinSITExpPriors:
         self.log_path = hparams.log_path
         self.n_mcts_samples = hparams.n_mcts_samples
         self.pad_idx = dataset.pad_idx
-        self.taus = [0.0, 0.1, 0.2]
-        self.c_pucts = np.logspace(7, 11, 3)
+        self.taus = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+        self.c_pucts = np.logspace(7, 11, 5)
 
         os.makedirs(self.log_path, exist_ok=True)
-
-        mp.set_start_method("forkserver", force=True)
-        mp.set_sharing_strategy("file_system")
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -40,7 +37,7 @@ class LinSITExpPriors:
                 n_grams_loader=NGRAMSLoader(hparams.data_path),
             ),
             batch_size=hparams.test_batch_size,
-            num_workers=2,
+            num_workers=4,
             drop_last=False,
         )
 
