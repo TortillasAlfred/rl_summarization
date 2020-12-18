@@ -19,9 +19,6 @@ class LinSITExp:
 
         os.makedirs(self.log_path, exist_ok=True)
 
-        mp.set_start_method("forkserver", force=True)
-        mp.set_sharing_strategy("file_system")
-
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
         else:
