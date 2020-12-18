@@ -113,9 +113,7 @@ class LinSIT(pl.LightningModule):
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
         greedy_rewards = []
         for scorer, sent_idxs in zip(scorers, greedy_idxs):
-            greedy_rewards.append(
-                torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
-            )
+            greedy_rewards.append(torch.from_numpy(scorer(sent_idxs.tolist())))
         greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":

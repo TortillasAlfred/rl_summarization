@@ -48,7 +48,6 @@ sets: "train-val-test" # If present, 'train' must be first
 ### REWARD ARGS ###
 ###################
 reward: "rouge" # One of ['rouge']
-rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/"
 
 ##################
 ### MCTS ARGS  ###

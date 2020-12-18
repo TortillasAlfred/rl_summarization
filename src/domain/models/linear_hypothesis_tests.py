@@ -92,14 +92,8 @@ class LinearHypothesisTests(pl.LightningModule):
         output_dict = {}
 
         log_dict = {
-            "greedy_rouge_1": greedy_rewards[:, 0].mean(),
-            "greedy_rouge_2": greedy_rewards[:, 1].mean(),
-            "greedy_rouge_L": greedy_rewards[:, 2].mean(),
-            "greedy_rouge_mean": greedy_rewards.mean(-1).mean(),
-            "generated_rouge_1": generated_rewards[:, 0].mean(),
-            "generated_rouge_2": generated_rewards[:, 1].mean(),
-            "generated_rouge_L": generated_rewards[:, 2].mean(),
-            "generated_rouge_mean": generated_rewards.mean(-1).mean(),
+            "greedy_rouge_mean": greedy_rewards.mean(),
+            "generated_rouge_mean": generated_rewards.mean(),
         }
         log_dict["loss"] = loss
 
@@ -312,7 +306,6 @@ def run_lstsq(ngrams, scores):
     all_summs = [list(c) for c in combinations(range(n_sents), 3)]
     all_summs_reps = np.stack([ngrams[summ].sum(0) for summ in all_summs])
 
-    scores = scores.mean(-1)
     all_summs_scores = np.stack([scores[tuple(summ)] for summ in all_summs])
 
     theta, res, rank, s = np.linalg.lstsq(all_summs_reps, all_summs_scores, rcond=-1)

@@ -122,18 +122,9 @@ class BanditSumMCSExperiment(pl.LightningModule):
         output_dict = {}
 
         log_dict = {
-            "greedy_rouge_1": greedy_rewards[:, 0],
-            "greedy_rouge_2": greedy_rewards[:, 1],
-            "greedy_rouge_L": greedy_rewards[:, 2],
-            "greedy_rouge_mean": greedy_rewards.mean(-1),
-            "mcts_rouge_1": mcts_rewards[:, 0],
-            "mcts_rouge_2": mcts_rewards[:, 1],
-            "mcts_rouge_L": mcts_rewards[:, 2],
-            "mcts_rouge_mean": mcts_rewards.mean(-1),
-            "max_rouge_1": max_scores[:, 0],
-            "max_rouge_2": max_scores[:, 1],
-            "max_rouge_L": max_scores[:, 2],
-            "max_rouge_mean": max_scores.mean(-1),
+            "greedy_rouge_mean": greedy_rewards.mean(),
+            "mcts_rouge_mean": mcts_rewards.mean(),
+            "max_rouge_mean": max_scores.mean(),
         }
         log_dict["loss"] = loss
 
@@ -385,10 +376,7 @@ def collect_sim(scorer, tau, combs, n_sents, n_samples=1000):
         return None, None, None, None
 
     f = np.sum(
-        [
-            proba * scorer.scores[i, j, k].mean()
-            for (i, j, k), proba in zip(combs, comb_probas)
-        ]
+        [proba * scorer(i, j, k) for (i, j, k), proba in zip(combs, comb_probas)]
     )
     ent = entr(comb_probas).sum()
     top3 = np.partition(distro, -3)[-3:].sum()
@@ -396,7 +384,7 @@ def collect_sim(scorer, tau, combs, n_sents, n_samples=1000):
     sampled_combs = np.random.choice(
         len(combs), size=n_samples, replace=True, p=comb_probas
     )
-    f_sims = [scorer.scores[combs[comb]].mean() for comb in sampled_combs]
+    f_sims = [scorer(combs[comb]) for comb in sampled_combs]
     f_sims = np.cumsum(f_sims) / np.arange(start=1, stop=n_samples + 1)
 
     return f, ent, top3, f_sims

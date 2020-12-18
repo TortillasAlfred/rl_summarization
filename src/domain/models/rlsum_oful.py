@@ -224,7 +224,7 @@ class RLSumOFUL(pl.LightningModule):
                         self.n_sents_per_summary
                     )
                     mcts_rewards.append(
-                        torch.from_numpy(scorer.get_score(selected_sents.tolist()))
+                        torch.from_numpy(scorer(selected_sents.tolist()))
                     )
 
                 mcts_rewards = torch.stack(mcts_rewards)
@@ -250,7 +250,7 @@ class RLSumOFUL(pl.LightningModule):
                         self.n_sents_per_summary
                     )
                     greedy_rewards.append(
-                        torch.from_numpy(scorer.get_score(selected_sents.tolist()))
+                        torch.from_numpy(scorer(selected_sents.tolist()))
                     )
 
                 greedy_rewards = torch.stack(greedy_rewards)
@@ -277,7 +277,7 @@ class RLSumOFUL(pl.LightningModule):
                         self.n_sents_per_summary
                     )
                     greedy_rewards.append(
-                        torch.from_numpy(scorer.get_score(selected_sents.tolist()))
+                        torch.from_numpy(scorer(selected_sents.tolist()))
                     )
 
                 greedy_rewards = torch.stack(greedy_rewards)
@@ -327,9 +327,7 @@ class RLSumOFUL(pl.LightningModule):
                 sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
                 sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
                 _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
-                greedy_rewards.append(
-                    torch.from_numpy(scorer.get_score(selected_sents.tolist()))
-                )
+                greedy_rewards.append(torch.from_numpy(scorer(selected_sents.tolist())))
 
             greedy_rewards = torch.stack(greedy_rewards)
 
@@ -352,9 +350,7 @@ class RLSumOFUL(pl.LightningModule):
                 sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
                 sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
                 _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
-                greedy_rewards.append(
-                    torch.from_numpy(scorer.get_score(selected_sents.tolist()))
-                )
+                greedy_rewards.append(torch.from_numpy(scorer(selected_sents.tolist())))
 
             greedy_rewards = torch.stack(greedy_rewards)
 

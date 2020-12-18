@@ -204,9 +204,9 @@ def rlsum_value_oful_episode(
 
     regrets = torch.zeros((n_samples,))
     theta_predictions = torch.zeros((n_samples,))
-    max_score_idx = np.unravel_index(scores.mean(-1).argmax(), scores.shape[:-1])
+    max_score_idx = np.unravel_index(scores.argmax(), scores.shape[:-1])
     max_score = torch.from_numpy(scores[max_score_idx])
-    max_score_mean = max_score.mean()
+    max_score_mean = max_score
 
     for n_updates in range(n_samples):
         current_node = root_node
@@ -243,16 +243,16 @@ def rlsum_value_oful_episode(
         fv_Vinv = A_inv.mm(fv.T)
         fv_Vinv_fv = fv_Vinv.T.mm(fv.T)
         A_inv -= fv_Vinv.mm(fv_Vinv.T) / (1 + fv_Vinv_fv)
-        b += fv.T * reward.mean()
+        b += fv.T * reward
         theta_hat = A_inv.mm(b)
 
-        regrets[n_updates] = max_score_mean - reward.mean()
+        regrets[n_updates] = max_score_mean - reward
 
         sent_predicted_vals = theta_hat.T.mm(action_vectors.T)
         _, selected_sents = sent_predicted_vals.topk(n_sents_per_summary)
         theta_predictions[n_updates] = torch.tensor(
             scores[tuple(sorted(selected_sents.tolist()))], device=device
-        ).mean()
+        )
 
     return theta_hat, max_score, theta_predictions, regrets
 

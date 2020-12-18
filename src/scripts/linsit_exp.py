@@ -2,13 +2,10 @@ from src.domain.utils import configure_logging, set_random_seed
 from src.factories.dataset import DatasetFactory
 from src.factories.model import ModelFactory
 from src.factories.reward import RewardFactory
-from src.factories.trainer import TrainerFactory
 
 import yaml
 import logging
-import argparse
 from test_tube import HyperOptArgumentParser
-import torch
 
 
 def main(_config, cluster=None):
@@ -19,11 +16,10 @@ def main(_config, cluster=None):
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)
-    trainer = TrainerFactory.get_trainer(_config)
     reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 
-    trainer.test(model, ckpt_path=None)
+    model.process_all()
 
     logging.info("Done")
 

@@ -10,7 +10,7 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ##################
 model: "linsit_exp_priors" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
 train_batch_size: 32
-test_batch_size: 64
+test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
@@ -19,7 +19,7 @@ epsilon: 1.0
 epsilon_min: 0.05
 epsilon_decay: 0.99
 n_sents_per_summary: 3
-n_jobs_for_mcts: 8
+n_jobs_for_mcts: 24
 lambda_loss: 0.5
 warmup_batches: 10000
 pretraining_path: "/project/def-lulam50/magod/rl_summ/exp_logging/pretraining/"
@@ -48,7 +48,6 @@ sets: "train-val-test" # If present, 'train' must be first
 ### REWARD ARGS ###
 ###################
 reward: "rouge" # One of ['rouge']
-rouge_base_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/rouge_npy/"
 
 ##################
 ### MCTS ARGS  ###

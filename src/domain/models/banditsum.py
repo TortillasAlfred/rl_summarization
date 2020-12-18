@@ -123,9 +123,7 @@ class BanditSum(pl.LightningModule):
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
         greedy_rewards = []
         for scorer, sent_idxs in zip(scorers, greedy_idxs):
-            greedy_rewards.append(
-                torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
-            )
+            greedy_rewards.append(torch.from_numpy(scorer(sent_idxs.tolist())))
         greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":
@@ -138,7 +136,7 @@ class BanditSum(pl.LightningModule):
                 generated_rewards.append(
                     torch.stack(
                         [
-                            torch.from_numpy(scorer.get_score(sent_idxs.tolist()))
+                            torch.from_numpy(scorer(sent_idxs.tolist()))
                             for sent_idxs in batch_idxs
                         ]
                     )
@@ -150,10 +148,7 @@ class BanditSum(pl.LightningModule):
             )
 
             rewards = (
-                (
-                    (greedy_rewards.mean(-1) - generated_rewards.mean(-1))
-                    / (greedy_rewards.mean(-1) + 1e-6)
-                )
+                ((greedy_rewards - generated_rewards) / (greedy_rewards + 1e-6))
                 .clone()
                 .detach()
                 .to(device=selected_logits.device)
@@ -169,14 +164,8 @@ class BanditSum(pl.LightningModule):
         output_dict = {}
 
         log_dict = {
-            "greedy_rouge_1": greedy_rewards[:, :, 0].mean(),
-            "greedy_rouge_2": greedy_rewards[:, :, 1].mean(),
-            "greedy_rouge_L": greedy_rewards[:, :, 2].mean(),
-            "greedy_rouge_mean": greedy_rewards.mean(-1).mean(),
-            "generated_rouge_1": generated_rewards[:, :, 0].mean(),
-            "generated_rouge_2": generated_rewards[:, :, 1].mean(),
-            "generated_rouge_L": generated_rewards[:, :, 2].mean(),
-            "generated_rouge_mean": generated_rewards.mean(-1).mean(),
+            "greedy_rouge_mean": greedy_rewards.mean(),
+            "generated_rouge_mean": generated_rewards.mean(),
         }
         log_dict["loss"] = loss
 

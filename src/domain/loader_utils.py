@@ -3,14 +3,16 @@ from scipy.sparse import dok_matrix
 from sklearn.decomposition import TruncatedSVD
 import numpy as np
 import os
+import tarfile
+import logging
 
 
 class TextDataCollator:
-    def __init__(self, fields, reward_builder, subset, n_grams_builder=None):
+    def __init__(self, fields, reward_builder, subset, n_grams_loader=None):
         self.fields = fields
         self.reward_builder = reward_builder
         self.subset = subset
-        self.n_grams_builder = n_grams_builder
+        self.n_grams_loader = n_grams_loader
 
     def __call__(self, data):
         batch = {name: f.process([d[name] for d in data]) for name, f in self.fields}
@@ -20,10 +22,9 @@ class TextDataCollator:
                 self.reward_builder, batch["id"], self.subset
             )
 
-        if self.n_grams_builder:
+        if self.n_grams_loader:
             batch["ngrams_dense"] = [
-                self.n_grams_builder.get_ngrams_dense(id, self.subset)
-                for id in batch["id"]
+                self.n_grams_loader(id, self.subset) for id in batch["id"]
             ]
 
         return list(batch.values())
@@ -41,12 +42,23 @@ def get_reward_scorers(reward_builder, ids, subset):
 
 
 class NGRAMSLoader:
-    def __init__(self, base_path, subset):
-        self.base_path = base_path
-        self.subset = subset
+    def __init__(self, base_path):
+        self.base_path = os.path.join(base_path, "pca")
 
-    def __call__(self, id):
-        return np.load(os.path.join(self.base_path, self.subset, f"{id}.npy"))
+        if not os.path.isdir(self.base_path):
+            os.makedirs(self.base_path, exist_ok=True)
+            if self.base_path[-1] == "/":
+                reading_path = self.base_path[:-1] + ".tar"
+            else:
+                reading_path = self.base_path + ".tar"
+            with tarfile.open(reading_path) as tar:
+                logging.info(
+                    f"PCA vectors not yet extracted to {self.base_path} folder. Doing it now."
+                )
+                tar.extractall(base_path)
+
+    def __call__(self, id, subset):
+        return np.load(os.path.join(self.base_path, subset, f"{id}.npy"))
 
 
 class NGRAMSSaver:

@@ -83,7 +83,7 @@ if __name__ == "__main__":
         # scores_pearl = rouge_pearl(
         #     [[" ".join(l3)]], [[[" ".join(r)] for r in raw_abstracts]]
         # )
-        scores_numpy = scorers[0].get_score([0, 1, 2])
+        scores_numpy = scorers[0]([0, 1, 2])
 
         diff = np.abs(scores_numpy - scores_python).mean()
         if diff > 0.04:
