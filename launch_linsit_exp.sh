@@ -11,9 +11,8 @@
 
 mkdir /project/def-lulam50/magod/rl_summ/slurm_outputs/
 
-cd $SLURM_TMPDIR
 cp /scratch/magod/summarization_datasets/cnn_dailymail/tarred/linsit_dataset.tar $SLURM_TMPDIR/
-tar -xf linsit_dataset.tar
+tar -xf $SLURM_TMPDIR/linsit_dataset.tar -C $SLURM_TMPDIR/
 
 source ~/venvs/default/bin/activate
 
