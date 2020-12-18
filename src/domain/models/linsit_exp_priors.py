@@ -37,7 +37,7 @@ class LinSITExpPriors:
                 n_grams_loader=NGRAMSLoader(hparams.data_path),
             ),
             batch_size=hparams.test_batch_size,
-            num_workers=4,
+            num_workers=2,
             drop_last=False,
         )
 

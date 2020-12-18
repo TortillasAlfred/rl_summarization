@@ -58,7 +58,9 @@ class NGRAMSLoader:
                 tar.extractall(base_path)
 
     def __call__(self, id, subset):
-        return np.load(os.path.join(self.base_path, subset, f"{id}.npy"))
+        return np.load(
+            os.path.join(self.base_path, subset, f"{id}.npy"), allow_pickle=True
+        )
 
 
 class NGRAMSSaver:
