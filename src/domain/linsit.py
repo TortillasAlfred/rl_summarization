@@ -133,7 +133,7 @@ def linsit_exp_episode(
         reward = torch.tensor(scorer(tuple(sorted(idxs.tolist()))))
 
         n_visits[idxs] += 1
-        fv = action_vectors[idxs].sum(0, keepdim=True)
+        fv = action_vectors[idxs].mean(0, keepdim=True)
         A += fv.T.mm(fv)
         fv_Vinv = A_inv.mm(fv.T)
         fv_Vinv_fv = fv_Vinv.T.mm(fv.T)
