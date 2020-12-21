@@ -98,9 +98,7 @@ def linsit_exp_prior(
     return key, theta_hat_predictions
 
 
-def linsit_exp_episode(
-    action_vectors, priors, scorer, n_samples, c_puct,
-):
+def linsit_exp_episode(action_vectors, priors, scorer, n_samples, c_puct):
     action_dim = action_vectors.shape[-1]
 
     n_visits = torch.zeros(
@@ -123,7 +121,6 @@ def linsit_exp_episode(
             * priors
             * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         )
-        p_t_a[n_visits == 0] = float("inf")
         threshold = p_t_a.topk(3)[0][-1]
         elligible_idxs = torch.where(p_t_a >= threshold)[0]
         sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(
