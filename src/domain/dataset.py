@@ -174,7 +174,7 @@ class TextDataset(torch.utils.data.Dataset):
 
     def __iter__(self):
         for x in self.examples:
-            yield self.__process_example(x)
+            yield x
 
 
 def load_fname(fname, reading_path, fields):
