@@ -5,11 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.distributions.uniform import Uniform
 from torch.distributions.categorical import Categorical
-import numpy as np
-from torchtext.data import BucketIterator
-import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from collections import defaultdict, namedtuple
 
 
 class BanditSum(pl.LightningModule):
@@ -32,12 +28,11 @@ class BanditSum(pl.LightningModule):
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary
-        self.dropout = hparams.dropout
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim)
 
     def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -49,7 +44,6 @@ class BanditSum(pl.LightningModule):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=self.dropout,
         )
 
     def word_level_encoding(self, contents):
@@ -71,7 +65,7 @@ class BanditSum(pl.LightningModule):
 
     def __extract_features(self, contents):
         contents, valid_sentences = self.word_level_encoding(contents)
-        sent_contents, doc_contents = self.model.sentence_level_encoding(contents)
+        sent_contents = self.model.sentence_level_encoding(contents)
         affinities = self.model.produce_affinities(sent_contents)
         affinities = affinities * valid_sentences
 
@@ -119,14 +113,14 @@ class BanditSum(pl.LightningModule):
         self.model.sl_encoder.flatten_parameters()
 
         action_vals, valid_sentences = self.__extract_features(contents)
-
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
-        greedy_rewards = []
-        for scorer, sent_idxs in zip(scorers, greedy_idxs):
-            greedy_rewards.append(torch.from_numpy(scorer(sent_idxs.tolist())))
-        greedy_rewards = torch.stack(greedy_rewards)
 
         if subset == "train":
+            greedy_rewards = []
+            for scorer, sent_idxs in zip(scorers, greedy_idxs):
+                greedy_rewards.append(scorer(sent_idxs.tolist()))
+            greedy_rewards = torch.tensor(greedy_rewards)
+
             selected_idxs, selected_logits = self.select_idxs(
                 action_vals, valid_sentences
             )
@@ -134,21 +128,16 @@ class BanditSum(pl.LightningModule):
             generated_rewards = []
             for scorer, batch_idxs in zip(scorers, selected_idxs):
                 generated_rewards.append(
-                    torch.stack(
-                        [
-                            torch.from_numpy(scorer(sent_idxs.tolist()))
-                            for sent_idxs in batch_idxs
-                        ]
+                    torch.tensor(
+                        [scorer(sent_idxs.tolist()) for sent_idxs in batch_idxs]
                     )
                 )
             generated_rewards = torch.stack(generated_rewards)
 
-            greedy_rewards = greedy_rewards.unsqueeze(1).repeat(
-                1, self.n_repeats_per_sample, 1
-            )
+            greedy_rewards = greedy_rewards.repeat(1, self.n_repeats_per_sample, 1)
 
             rewards = (
-                ((greedy_rewards - generated_rewards) / (greedy_rewards + 1e-6))
+                ((greedy_rewards - generated_rewards))
                 .clone()
                 .detach()
                 .to(device=selected_logits.device)
@@ -158,35 +147,25 @@ class BanditSum(pl.LightningModule):
 
             return generated_rewards, loss, greedy_rewards
         else:
-            return greedy_rewards
+            greedy_rewards = scorers.get_scores(
+                greedy_idxs, raw_contents, raw_abstracts
+            )
 
-    def get_step_output(self, loss, greedy_rewards, generated_rewards):
-        output_dict = {}
-
-        log_dict = {
-            "greedy_rouge_mean": greedy_rewards.mean(),
-            "generated_rouge_mean": generated_rewards.mean(),
-        }
-        log_dict["loss"] = loss
-
-        output_dict["log"] = log_dict
-
-        if "loss" in log_dict:
-            output_dict["loss"] = log_dict["loss"]
-
-        tqdm_keys = ["greedy_rouge", "generated_rouge"]
-        output_dict["progress_bar"] = {k: log_dict[f"{k}_mean"] for k in tqdm_keys}
-
-        return output_dict
+            return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
 
-        return self.get_step_output(
-            loss=loss.to(self.device),
-            greedy_rewards=greedy_rewards.to(self.device),
-            generated_rewards=generated_rewards.to(self.device),
-        )
+        log_dict = {
+            "greedy_rouge_mean": greedy_rewards.mean(),
+            "generated_rouge_mean": generated_rewards.mean(),
+            "loss": loss.detach(),
+        }
+
+        for key, val in log_dict.items():
+            self.log(key, val)
+
+        return loss
 
     def validation_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="val")
@@ -198,24 +177,8 @@ class BanditSum(pl.LightningModule):
             "val_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
-        return reward_dict
-
-    def validation_step_end(self, outputs):
-        for vals in outputs.values():
-            vals = vals.mean()
-
-        return outputs
-
-    def validation_epoch_end(self, outputs):
-        output_dict = self.generic_epoch_end(outputs)
-
-        self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
-
-        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
-            1
-        ]["lr"]
-
-        return output_dict
+        for name, val in reward_dict.items():
+            self.log(name, val)
 
     def test_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="test")
@@ -227,37 +190,8 @@ class BanditSum(pl.LightningModule):
             "test_greedy_rouge_mean": greedy_rewards.mean(-1),
         }
 
-        return reward_dict
-
-    def test_step_end(self, outputs):
-        for vals in outputs.values():
-            vals = vals.mean()
-
-        return outputs
-
-    def generic_epoch_end(self, outputs, is_test=False):
-        combined_outputs = {}
-        log_dict = {}
-
-        for key in outputs[0]:
-            log_dict[key] = torch.hstack([output[key] for output in outputs]).mean()
-
-        combined_outputs["log"] = log_dict
-
-        if is_test:
-            combined_outputs["progress_bar"] = log_dict
-        else:
-            tqdm_keys = ["rouge_mean"]
-            combined_outputs["progress_bar"] = {
-                k: v
-                for k, v in log_dict.items()
-                if any([t_k in k for t_k in tqdm_keys])
-            }
-
-        return combined_outputs
-
-    def test_epoch_end(self, outputs):
-        return self.generic_epoch_end(outputs, is_test=True)
+        for name, val in reward_dict.items():
+            self.log(name, val)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -289,8 +223,10 @@ class BanditSum(pl.LightningModule):
                 self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
-            num_workers=16,
+            num_workers=4,
             pin_memory=True,
+            shuffle=True,
+            drop_last=False,
         )
 
     def val_dataloader(self):
@@ -299,8 +235,9 @@ class BanditSum(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
-            num_workers=16,
+            num_workers=4,
             pin_memory=True,
+            drop_last=False,
         )
 
     def test_dataloader(self):
@@ -311,8 +248,9 @@ class BanditSum(pl.LightningModule):
                 self.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
-            num_workers=16,
+            num_workers=4,
             pin_memory=True,
+            drop_last=False,
         )
 
     @staticmethod
@@ -321,7 +259,7 @@ class BanditSum(pl.LightningModule):
 
 
 class RLSummModel(torch.nn.Module):
-    def __init__(self, hidden_dim, decoder_dim, dropout):
+    def __init__(self, hidden_dim, decoder_dim):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(
             input_size=2 * hidden_dim,
@@ -329,26 +267,18 @@ class RLSummModel(torch.nn.Module):
             num_layers=2,
             bidirectional=True,
             batch_first=True,
-            dropout=dropout,
         )
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
-            torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
             torch.nn.Sigmoid(),
         )
 
     def sentence_level_encoding(self, contents):
-        sent_contents, (doc_contents, _) = self.sl_encoder(contents)
-        doc_contents = doc_contents.view(2, 2, *doc_contents.shape[-2:])
-        doc_contents = (
-            torch.cat([d_i for d_i in doc_contents], dim=-1)
-            .mean(0, keepdim=True)
-            .permute(1, 0, 2)
-        )
+        sent_contents, _ = self.sl_encoder(contents)
 
-        return sent_contents, doc_contents
+        return sent_contents
 
     def produce_affinities(self, sent_contents):
         affinities = self.decoder(sent_contents).squeeze(-1)

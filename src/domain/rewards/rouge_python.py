@@ -742,7 +742,7 @@ class Rouge:
 
 
 class RougePythonReward:
-    def __init__(self, n_jobs=1):
+    def __init__(self, n_jobs=-1):
         self.evaluator = Rouge(
             metrics=["rouge-n", "rouge-l"],
             max_n=2,
@@ -758,7 +758,15 @@ class RougePythonReward:
         refs = [[" ".join(r)] for r in refs]
         pairs = [(hyp, ref) for hyp, ref in zip(hyps, refs)]
         results = self.evaluator.get_all_scores(pairs)
-        return np.asarray(results[0][0], dtype=np.float32)
+        return np.asarray(results, dtype=np.float32).squeeze()
+
+    def get_scores(self, summary_idxs, raw_contents, raw_abstracts):
+        all_hyps = []
+
+        for idxs, content in zip(summary_idxs, raw_contents):
+            all_hyps.append([content[i] for i in sorted(idxs)])
+
+        return self.__call__(all_hyps, raw_abstracts)
 
     def get_score(self, summary_idxs, raw_content, raw_abstract):
         if len(summary_idxs) == 3:

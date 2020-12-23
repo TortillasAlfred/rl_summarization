@@ -14,7 +14,7 @@ def main(_config, cluster=None):
     configure_logging()
     set_random_seed(_config.seed)
 
-    logging.info("Beginning mcts experiment script with following config :")
+    logging.info("Beginning Training script with following config :")
     logging.info(_config)
 
     dataset = DatasetFactory.get_dataset(_config)

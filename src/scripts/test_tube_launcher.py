@@ -5,6 +5,7 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 
 def optimize_on_cluster(hparams):
+    hparams["data_path"] = "$SLURM_TMPDIR/sit_dataset/"
     cluster = SlurmCluster(
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
@@ -17,22 +18,26 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 16
+    cluster.per_experiment_nb_cpus = 4
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "1-00:00:00"
-    cluster.gpu_type = "p100"
+    cluster.job_time = "3-00:00:00"
+    cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(1e5)
     cluster.minutes_to_checkpoint_before_walltime = 2
 
     # any modules for code to run in env
+    cluster.add_command(
+        "cp /scratch/magod/summarization_datasets/cnn_dailymail/tarred/sit_dataset.tar $SLURM_TMPDIR/"
+    )
+    cluster.add_command("tar -xf $SLURM_TMPDIR/sit_dataset.tar -C $SLURM_TMPDIR/")
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-lulam50", comment="CCDB account for running"
+        cmd="account", value="def-adurand", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=3, job_name="rl_summarization"
+        main, nb_trials=15, job_name="rl_summarization"
     )
 
 
@@ -43,6 +48,9 @@ if __name__ == "__main__":
     fine_tuned_items = {}
     fine_tuned_items["n_repeats_per_sample"] = dict(
         default=16, type=int, tunable=True, options=[8, 16, 32],
+    )
+    fine_tuned_items["seed"] = dict(
+        default=1, type=int, tunable=True, options=list(range(5))
     )
 
     for config, value in base_configs.items():

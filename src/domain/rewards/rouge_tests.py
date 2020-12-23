@@ -11,6 +11,7 @@ import json
 import os
 import pickle
 from tqdm import tqdm
+from torch.utils.data.dataloader import DataLoader
 
 from rouge import Rouge
 
@@ -54,7 +55,7 @@ if __name__ == "__main__":
     configure_logging()
     logging.info("Begin")
     set_random_seed(42)
-    subsets = ["val"]
+    subsets = ["test"]
 
     dataset = CnnDailyMailDataset(
         "./data/cnn_dailymail",
@@ -63,29 +64,36 @@ if __name__ == "__main__":
         vectors_cache="./data/embeddings/",
         sets=subsets,
     )
-    dataset = dataset.get_splits()["val"]
-    collator = TextDataCollator(
-        RougeRewardBuilder("./data/cnn_dailymail/rouge_npy/"), "val", dataset.pad_idx
+    subset = dataset.get_splits()["test"]
+    collator = TextDataCollator(dataset.fields, None, "test",)
+    rouge_python = RougePythonReward()
+    scores_python = []
+
+    loader = DataLoader(
+        subset,
+        collate_fn=collator,
+        batch_size=64,
+        num_workers=0,
+        pin_memory=True,
+        drop_last=False,
     )
 
-    samples = [[list(range(3)), list(range(3, 6))] for _ in dataset]
-    rouge_python = RougePythonReward()
-    rouge_pearl = RougePearlReward()
+    for batch in tqdm(loader):
+        raw_contents, contents, raw_abstracts, abstracts, ids = batch
 
-    for data in tqdm(dataset):
-        batch = collator([data])
-
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
-
-        l3 = raw_contents[0][:3]
-
-        scores_python = rouge_python([l3], raw_abstracts)
+        scores_python.append(
+            rouge_python.get_scores(
+                [list(range(3)) for _ in range(len(ids))], raw_contents, raw_abstracts
+            )
+        )
         # scores_pearl = rouge_pearl(
         #     [[" ".join(l3)]], [[[" ".join(r)] for r in raw_abstracts]]
         # )
-        scores_numpy = scorers[0]([0, 1, 2])
+        # scores_numpy = scorers[0]([0, 1, 2])
 
-        diff = np.abs(scores_numpy - scores_python).mean()
-        if diff > 0.04:
-            print(diff, scores_python, scores_numpy, ids)
+        # diff = np.abs(scores_numpy - scores_python).mean()
+        # if diff > 0.04:
+        #     print(diff, scores_python, scores_numpy, ids)
+
+    print("Done !")
 

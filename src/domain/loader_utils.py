@@ -1,3 +1,5 @@
+from src.domain.rewards.rouge_python import RougePythonReward
+
 from collections import OrderedDict, Counter
 from scipy.sparse import dok_matrix
 from sklearn.decomposition import TruncatedSVD
@@ -31,10 +33,10 @@ class TextDataCollator:
 
 
 def get_reward_scorers(reward_builder, ids, subset):
-    if subset in ["train", "val", "test"]:
+    if subset in ["train"]:
         return [reward_builder.init_scorer(id, subset) for id in ids]
-    # elif subset in ["val", "test"]:
-    #     return [RougePythonReward() for _ in range(batch_size)]
+    elif subset in ["val", "test"]:
+        return RougePythonReward()
     else:
         raise ValueError(
             f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
