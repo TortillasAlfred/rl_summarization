@@ -35,7 +35,7 @@ D_t_source: "word-level"
 ### DATASET ARGS ###
 ####################
 dataset: "cnn_dailymail" # One of ['cnn_dailymail']
-data_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/" # Argument to the Dataset object
+data_path: "$SLURM_TMPDIR/sit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/scratch/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first

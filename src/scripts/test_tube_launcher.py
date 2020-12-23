@@ -5,7 +5,6 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 
 def optimize_on_cluster(hparams):
-    hparams.data_path = "$SLURM_TMPDIR/sit_dataset/"
     cluster = SlurmCluster(
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
