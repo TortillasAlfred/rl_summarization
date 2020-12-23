@@ -15,9 +15,10 @@ def main(_config, cluster=None):
     configure_logging()
     set_random_seed(_config.seed)
 
-    _config.data_path = _config.data_path.replace(
-        "$SLURM_TMPDIR", os.environ["SLURM_TMPDIR"]
-    )
+    if "$SLURM_TMPDIR" in _config.data_path:
+        _config.data_path = _config.data_path.replace(
+            "$SLURM_TMPDIR", os.environ["SLURM_TMPDIR"]
+        )
 
     logging.info("Beginning Training script with following config :")
     logging.info(_config)
