@@ -1,6 +1,5 @@
 from src.domain.loader_utils import TextDataCollator
-from src.domain.rewards.rouge_python import RougePythonReward
-import src.domain.mcts_oful_exp as mcts_oful
+
 import threading
 import pickle
 
@@ -18,10 +17,14 @@ import math
 import torch.multiprocessing as mp
 import os
 import functools
+from itertools import combinations
 from collections import defaultdict, namedtuple
+from joblib import Parallel, delayed
+
+np.seterr(invalid="ignore")
 
 
-class RLSumOFUL(pl.LightningModule):
+class RLSumMCTSEXP(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
@@ -29,6 +32,7 @@ class RLSumOFUL(pl.LightningModule):
         self.reward_builder = reward
 
         self.embedding_dim = dataset.embedding_dim
+        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
@@ -54,57 +58,17 @@ class RLSumOFUL(pl.LightningModule):
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
 
-        self.__build_model(dataset)
+        self.__build_model(hparams.hidden_dim, dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = os.path.join(
-            "/project/def-lulam50/magod/rl_summ/mcts_exp", f"alpha_{self.alpha_oful}"
-        )
+        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp"
         os.makedirs(self.mcts_log_path, exist_ok=True)
+        self.mcts_log_path += "/results.pck"
+        with open(self.mcts_log_path, "wb") as f:
+            pickle.dump({"argmax": {}, "q_vals": {}}, f)
 
-        self.raw_path = os.path.join(self.mcts_log_path, "raw")
-        self.pretrained_path = os.path.join(self.mcts_log_path, "pretrained")
-
-        os.makedirs(self.raw_path, exist_ok=True)
-        with open(os.path.join(self.raw_path, "results.pck"), "wb") as f:
-            pickle.dump(
-                {
-                    "n_sents": [],
-                    "max_scores": [],
-                    "theta_hat_predictions": [],
-                    "regrets": [],
-                    "times": [],
-                },
-                f,
-            )
-
-        os.makedirs(self.pretrained_path, exist_ok=True)
-        with open(os.path.join(self.pretrained_path, "results.pck"), "wb") as f:
-            pickle.dump(
-                {
-                    "n_sents": [],
-                    "max_scores": [],
-                    "theta_hat_predictions": [],
-                    "regrets": [],
-                    "times": [],
-                },
-                f,
-            )
-
-        self.lock = threading.Lock()
-
-        mp.set_start_method("forkserver", force=True)
-        if hparams.n_jobs_for_mcts == -1:
-            self.n_processes = os.cpu_count()
-        else:
-            self.n_processes = hparams.n_jobs_for_mcts
-        self.pools = [
-            mp.Pool(processes=self.n_processes)
-            for _ in range(torch.cuda.device_count())
-        ]
-
-    def __build_model(self, dataset):
+    def __build_model(self, hidden_dim, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
             dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
@@ -140,221 +104,33 @@ class RLSumOFUL(pl.LightningModule):
 
         return sent_contents, doc_contents, valid_sentences, contents
 
-    def mcts_oful(
-        self, sent_contents, doc_contents, valid_sentences, scorers, gpu_device_idx
-    ):
-        mcts_pures = self.pools[gpu_device_idx].map(
-            mcts_oful.RLSumOFULValueProcess(
-                n_samples=self.n_mcts_samples,
-                lambda_oful=self.lambda_oful,
-                alpha_oful=self.alpha_oful,
-                action_dim=sent_contents.shape[-1],
-                device=sent_contents.device,
-                n_sents_per_summary=self.n_sents_per_summary,
-            ),
-            zip(
-                sent_contents,
-                doc_contents,
-                valid_sentences,
-                [s.scores for s in scorers],
-            ),
-        )
-
-        mcts_theta_hats = torch.stack([m[0] for m in mcts_pures]).transpose(2, 1)
-        max_scores = torch.stack([m[1] for m in mcts_pures])
-        n_sents = torch.stack([m[2] for m in mcts_pures])
-        theta_hat_predictions = torch.stack([m[3] for m in mcts_pures]).T
-        regrets = torch.stack([m[4] for m in mcts_pures]).T
-        times = torch.stack([m[5] for m in mcts_pures])
-
-        return (
-            mcts_theta_hats,
-            max_scores,
-            n_sents,
-            theta_hat_predictions,
-            regrets,
-            times,
-        )
-
-    def __get_reward_scorers(self, ids, subset, gpu_idx, batch_size):
+    def __get_reward_scorers(self, ids, subset):
         if subset in ["train", "val", "test"]:
-            return [
-                self.reward_builder.init_scorer(id, subset)
-                for id in ids[gpu_idx * batch_size : (gpu_idx + 1) * batch_size]
-            ]
-        # elif subset in ["val", "test"]:
-        #     return [RougePythonReward() for _ in range(batch_size)]
+            return [self.reward_builder.init_scorer(id, subset) for id in ids]
         else:
             raise ValueError(
                 f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
             )
 
+    def mcts_exp(self, scorers, ids, c_pucts):
+        return Parallel(n_jobs=-1, verbose=1, backend="loky")(
+            collect_sims(scorer, id, c_puct)
+            for scorer, id in zip(scorers, ids)
+            for c_puct in c_pucts
+        )
+
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids = batch
-        gpu_idx = contents.device.index
-        batch_size = len(contents)
+        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         torch.set_grad_enabled(False)
 
-        self.wl_encoder.flatten_parameters()
-        self.model.sl_encoder.flatten_parameters()
+        c_pucts = np.logspace(-2, 2, 5)
 
-        scorers = self.__get_reward_scorers(ids, subset, gpu_idx, batch_size)
+        results = self.mcts_exp(scorers, ids, c_pucts)
+        keys = [key for r in results for key in r[0]]
+        argmax_hats = [vals for r in results for vals in r[1]]
+        q_vals_hats = [vals for r in results for vals in r[2]]
 
-        (
-            sent_contents,
-            doc_contents,
-            valid_sentences,
-            raw_sent_contents,
-        ) = self.__extract_features(contents)
-
-        if subset == "train":
-            if self.batch_idx >= self.warmup_batches:
-                mcts_theta_hats, max_scores = self.mcts_oful(
-                    sent_contents, doc_contents, valid_sentences, scorers, gpu_idx,
-                )
-
-                mcts_rewards = []
-
-                for theta_hat_doc, sent_conts, val_sents, scorer in zip(
-                    mcts_theta_hats, sent_contents, valid_sentences, scorers
-                ):
-                    sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
-                    sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
-                    _, selected_sents = sent_predicted_vals.topk(
-                        self.n_sents_per_summary
-                    )
-                    mcts_rewards.append(
-                        torch.from_numpy(scorer(selected_sents.tolist()))
-                    )
-
-                mcts_rewards = torch.stack(mcts_rewards)
-
-                torch.set_grad_enabled(True)
-
-                (
-                    sent_contents,
-                    doc_contents,
-                    valid_sentences,
-                    _,
-                ) = self.__extract_features(contents)
-                theta_hats = self.model.produce_theta_hat(doc_contents)
-
-                greedy_rewards = []
-
-                for theta_hat_doc, sent_conts, val_sents, scorer in zip(
-                    theta_hats, sent_contents, valid_sentences, scorers
-                ):
-                    sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
-                    sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
-                    _, selected_sents = sent_predicted_vals.topk(
-                        self.n_sents_per_summary
-                    )
-                    greedy_rewards.append(
-                        torch.from_numpy(scorer(selected_sents.tolist()))
-                    )
-
-                greedy_rewards = torch.stack(greedy_rewards)
-
-                loss = (mcts_theta_hats.to(valid_sentences.device) - theta_hats) ** 2
-                loss = loss.sum()
-
-                return greedy_rewards, loss, mcts_rewards, max_scores
-            else:
-                sampled_summs, sampled_scores = self.warmup_oful(
-                    valid_sentences, scorers
-                )
-
-                theta_hats = self.model.produce_theta_hat(doc_contents)
-
-                greedy_rewards = []
-
-                for theta_hat_doc, sent_conts, val_sents, scorer in zip(
-                    theta_hats, sent_contents, valid_sentences, scorers
-                ):
-                    sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
-                    sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
-                    _, selected_sents = sent_predicted_vals.topk(
-                        self.n_sents_per_summary
-                    )
-                    greedy_rewards.append(
-                        torch.from_numpy(scorer(selected_sents.tolist()))
-                    )
-
-                greedy_rewards = torch.stack(greedy_rewards)
-
-                torch.set_grad_enabled(True)
-
-                (
-                    sent_contents,
-                    doc_contents,
-                    valid_sentences,
-                    _,
-                ) = self.__extract_features(contents)
-                predicted_scores = self.model.pretraining_output(
-                    sent_contents, doc_contents, sampled_summs
-                )
-
-                loss = (
-                    sampled_scores.to(valid_sentences.device) - predicted_scores
-                ) ** 2
-                loss = loss.sum()
-
-                return (
-                    greedy_rewards,
-                    loss,
-                    torch.zeros_like(greedy_rewards),
-                    torch.zeros_like(greedy_rewards),
-                )
-        elif subset == "test":
-            (
-                mcts_theta_hats,
-                max_scores,
-                n_sents,
-                theta_hat_predictions,
-                regrets,
-                times,
-            ) = self.mcts_oful(
-                sent_contents, doc_contents, valid_sentences, scorers, gpu_idx,
-            )
-
-            theta_hats = self.model.produce_theta_hat(doc_contents)
-            greedy_rewards = []
-            decal = gpu_idx * batch_size
-
-            for (i, (theta_hat_doc, sent_conts, val_sents, scorer,),) in enumerate(
-                zip(theta_hats, sent_contents, valid_sentences, scorers,)
-            ):
-                sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
-                sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
-                _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
-                greedy_rewards.append(torch.from_numpy(scorer(selected_sents.tolist())))
-
-            greedy_rewards = torch.stack(greedy_rewards)
-
-            return (
-                greedy_rewards.to(self.device),
-                n_sents.to("cpu"),
-                max_scores.to("cpu"),
-                theta_hat_predictions.to("cpu"),
-                regrets.to("cpu"),
-                times.to("cpu"),
-            )
-        else:
-            theta_hats = self.model.produce_theta_hat(doc_contents)
-            greedy_rewards = []
-            decal = gpu_idx * batch_size
-
-            for (i, (theta_hat_doc, sent_conts, val_sents, scorer,),) in enumerate(
-                zip(theta_hats, sent_contents, valid_sentences, scorers,)
-            ):
-                sent_predicted_vals = theta_hat_doc.mm(sent_conts.T)
-                sent_predicted_vals = sent_predicted_vals.squeeze()[val_sents]
-                _, selected_sents = sent_predicted_vals.topk(self.n_sents_per_summary)
-                greedy_rewards.append(torch.from_numpy(scorer(selected_sents.tolist())))
-
-            greedy_rewards = torch.stack(greedy_rewards)
-
-            return greedy_rewards.to(self.device)
+        return (keys, argmax_hats, q_vals_hats)
 
     def get_step_output(self, loss, greedy_rewards, mcts_rewards, max_scores):
         output_dict = {}
@@ -446,50 +222,20 @@ class RLSumOFUL(pl.LightningModule):
         return output_dict
 
     def test_step(self, batch, batch_idx):
-        (
-            greedy_rewards,
-            n_sents,
-            max_scores,
-            theta_hat_predictions,
-            regrets,
-            times,
-        ) = self.forward(batch, subset="test")
+        keys, argmax_hats, q_vals_hats = self.forward(batch, subset="test")
 
-        reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[:, 0],
-            "test_greedy_rouge_2": greedy_rewards[:, 1],
-            "test_greedy_rouge_L": greedy_rewards[:, 2],
-            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
-        }
+        with open(self.mcts_log_path, "rb") as f:
+            d = pickle.load(f)
 
-        if self.raw_run_done:
-            pickle_path = os.path.join(self.pretrained_path, "results.pck")
-        else:
-            pickle_path = os.path.join(self.raw_path, "results.pck")
+        for key, argmax_vals, q_vals in zip(keys, argmax_hats, q_vals_hats):
+            d["argmax"][key] = argmax_vals
+            d["q_vals"][key] = q_vals
 
-        self.lock.acquire()
-        try:
-            with open(pickle_path, "rb") as f:
-                d = pickle.load(f)
-
-            d["n_sents"].append(n_sents)
-            d["max_scores"].append(max_scores)
-            d["theta_hat_predictions"].append(theta_hat_predictions)
-            d["regrets"].append(regrets)
-            d["times"].append(times)
-
-            with open(pickle_path, "wb") as f:
-                pickle.dump(d, f)
-        finally:
-            self.lock.release()
-
-        return reward_dict
+        with open(self.mcts_log_path, "wb") as f:
+            pickle.dump(d, f)
 
     def test_step_end(self, outputs):
-        for vals in outputs.values():
-            vals = vals.mean()
-
-        return outputs
+        pass
 
     def generic_epoch_end(self, outputs, is_test=False):
         combined_outputs = {}
@@ -554,7 +300,7 @@ class RLSumOFUL(pl.LightningModule):
         )
 
     def val_dataloader(self):
-        dataset = self.splits["val"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
@@ -565,7 +311,7 @@ class RLSumOFUL(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        dataset = self.splits["test"]
+        dataset = self.splits["train"]
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
@@ -577,7 +323,7 @@ class RLSumOFUL(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return RLSumOFUL(dataset, reward, config,)
+        return RLSumMCTSEXP(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):
@@ -644,3 +390,47 @@ class RLSummModel(torch.nn.Module):
 
     def forward(self, x):
         pass
+
+
+@delayed
+def collect_sims(scorer, id, c_puct):
+    n_sents = min(scorer.scores.shape[0], 50)
+    max_rouge = scorer.scores.mean(-1).max()
+    results = collect_sim(scorer, c_puct, n_sents)
+    argmax_hats, q_vals_hats = results
+
+    return [(c_puct, n_sents, max_rouge, id)], [argmax_hats], [q_vals_hats]
+
+
+def collect_sim(scorer, c_puct, n_sents, n_samples=250):
+    n_sents = min(scorer.scores.shape[0], 50)
+
+    n_visits = np.zeros(n_sents, dtype=int)
+    q_vals = np.zeros(n_sents, dtype=np.float32)
+    priors = np.ones(n_sents, dtype=np.float32) / n_sents
+    argmax_sims = np.zeros(n_samples, dtype=np.float32)
+    q_vals_sims = np.zeros(n_samples, dtype=np.float32)
+
+    for n in range(1, n_samples + 1):
+        ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(n) / n_visits)
+        ucb = np.nan_to_num(ucb, nan=np.inf)
+        threshold = np.partition(ucb, -3)[-3]
+        elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]
+        sampled_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        summ_score = scorer.scores[tuple(sampled_idxs)].mean()
+        q_vals[sampled_idxs] = (
+            summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]
+        ) / (n_visits[sampled_idxs] + 1)
+        n_visits[sampled_idxs] += 1
+
+        threshold = np.partition(n_visits, -3)[-3]
+        elligible_idxs = np.argwhere(n_visits >= threshold)[:, 0]
+        best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        argmax_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
+
+        threshold = np.partition(q_vals, -3)[-3]
+        elligible_idxs = np.argwhere(q_vals >= threshold)[:, 0]
+        best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
+        q_vals_sims[n - 1] = scorer.scores[tuple(best_idxs)].mean()
+
+    return argmax_sims, q_vals_sims
