@@ -22,7 +22,7 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "1-00:00:00"
     cluster.gpu_type = "p100"
-    cluster.memory_mb_per_node = 40000
+    cluster.memory_mb_per_node = int(1e5)
     cluster.minutes_to_checkpoint_before_walltime = 2
 
     # any modules for code to run in env
@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     cluster.add_command("tar -xf $SLURM_TMPDIR/sit_dataset.tar -C $SLURM_TMPDIR/")
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-adurand", comment="CCDB account for running"
+        cmd="account", value="def-lulam50", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(
