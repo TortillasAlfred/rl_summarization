@@ -89,6 +89,7 @@ class BanditSum(pl.LightningModule):
                 probs = affinities[doc].clone()
                 val_sents = valid_sentences[doc].clone()
                 for sent in range(self.n_sents_per_summary):
+                    probs = probs + 1e-6
                     probs = probs * val_sents
                     if uniform_sampler.sample() <= self.epsilon:
                         idx = Categorical(val_sents.float()).sample()
@@ -96,7 +97,7 @@ class BanditSum(pl.LightningModule):
                         idx = Categorical(probs).sample()
                     logit = (
                         self.epsilon / val_sents.sum()
-                        + (1 - self.epsilon) * probs[idx] / probs.sum()
+                        + (1 - self.epsilon) * probs[idx] / (probs.sum() + 1e-6)
                     ).log()
                     val_sents = val_sents.clone()
                     val_sents[idx] = 0
