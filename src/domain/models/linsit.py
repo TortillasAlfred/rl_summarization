@@ -1,5 +1,5 @@
-from src.domain.loader_utils import TextDataCollator
-from src.domain.ucb import UCBProcess
+from src.domain.loader_utils import TextDataCollator, NGRAMSLoader
+from src.domain.linucb import LinUCBProcess
 
 import pytorch_lightning as pl
 import torch
@@ -9,12 +9,13 @@ import torch.multiprocessing as mp
 import os
 
 
-class SITModel(pl.LightningModule):
+class LinSITModel(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
+        self.data_path = hparams.data_path
 
         self.embedding_dim = dataset.embedding_dim
         self.pad_idx = dataset.pad_idx
@@ -79,7 +80,18 @@ class SITModel(pl.LightningModule):
         return affinities, valid_sentences
 
     def forward(self, batch, subset):
-        raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
+        if subset == "train":
+            (
+                raw_contents,
+                contents,
+                raw_abstracts,
+                abstracts,
+                ids,
+                scorers,
+                n_grams_dense,
+            ) = batch
+        else:
+            (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
         batch_size = len(contents)
 
         self.wl_encoder.flatten_parameters()
@@ -94,19 +106,20 @@ class SITModel(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
-            ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers,
+            linucb_results = self.pool.map(
+                LinUCBProcess(self.ucb_sampling, self.c_puct),
+                zip(scorers, n_grams_dense),
             )
 
-            ucb_targets = torch.tensor(
-                [r[0] for r in ucb_results], device=action_vals.device
+            linucb_targets = torch.stack([r[0] for r in linucb_results]).to(
+                action_vals.device
             )
-            ucb_deltas = torch.tensor([r[1] for r in ucb_results])
+            linucb_deltas = torch.tensor([r[1] for r in linucb_results])
 
-            loss = (ucb_targets - action_vals) ** 2
+            loss = (linucb_targets - action_vals) ** 2
             loss = loss.sum() / valid_sentences.sum() * batch_size
 
-            return greedy_rewards, loss, ucb_deltas
+            return greedy_rewards, loss, linucb_deltas
         else:
             greedy_rewards = scorers.get_scores(
                 greedy_idxs, raw_contents, raw_abstracts
@@ -115,11 +128,11 @@ class SITModel(pl.LightningModule):
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        greedy_rewards, loss, linucb_deltas = self.forward(batch, subset="train")
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
-            "ucb_deltas": ucb_deltas.mean(),
+            "ucb_deltas": linucb_deltas.mean(),
             "loss": loss.detach(),
         }
 
@@ -181,7 +194,10 @@ class SITModel(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
+                self.fields,
+                self.reward_builder,
+                subset="train",
+                n_grams_loader=NGRAMSLoader(self.data_path),
             ),
             batch_size=self.train_batch_size,
             num_workers=2,
@@ -216,7 +232,7 @@ class SITModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return SITModel(dataset, reward, config,)
+        return LinSITModel(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):

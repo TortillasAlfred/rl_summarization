@@ -9,6 +9,7 @@ from src.domain.models.linear_hypothesis_tests import *
 from src.domain.models.ngrams_calc import *
 from src.domain.models.sit import *
 from src.domain.models.sit_priors import *
+from src.domain.models.linsit import *
 
 
 class ModelFactory:
@@ -25,6 +26,7 @@ class ModelFactory:
     NGRAMS_CALC = "ngrams_calc"
     SIT = "sit"
     SIT_PRIORS = "sit_priors"
+    LINSIT = "linsit"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -52,5 +54,7 @@ class ModelFactory:
             return SITModel.from_config(dataset, reward, config)
         elif model == cls.SIT_PRIORS:
             return SITPriorsModel.from_config(dataset, reward, config)
+        elif model == cls.LINSIT:
+            return LinSITModel.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")
