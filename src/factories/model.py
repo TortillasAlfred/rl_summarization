@@ -7,7 +7,8 @@ from src.domain.models.linsit_exp import *
 from src.domain.models.linsit_exp_priors import *
 from src.domain.models.linear_hypothesis_tests import *
 from src.domain.models.ngrams_calc import *
-from src.domain.models.sit import SITModel
+from src.domain.models.sit import *
+from src.domain.models.sit_priors import *
 
 
 class ModelFactory:
@@ -23,6 +24,7 @@ class ModelFactory:
     LINEAR_HYPOTHESIS = "lin_hyp"
     NGRAMS_CALC = "ngrams_calc"
     SIT = "sit"
+    SIT_PRIORS = "sit_priors"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -48,5 +50,7 @@ class ModelFactory:
             return NGramsPCA.from_config(dataset, reward, config)
         elif model == cls.SIT:
             return SITModel.from_config(dataset, reward, config)
+        elif model == cls.SIT_PRIORS:
+            return SITPriorsModel.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

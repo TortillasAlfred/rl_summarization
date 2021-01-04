@@ -1,15 +1,16 @@
 from src.domain.loader_utils import TextDataCollator
-from src.domain.ucb import UCBProcess
+from src.domain.ucb import UCBPriorsProcess
 
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from math import ceil
 import torch.multiprocessing as mp
 import os
 
 
-class SITModel(pl.LightningModule):
+class SITPriorsModel(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.fields = dataset.fields
@@ -31,6 +32,8 @@ class SITModel(pl.LightningModule):
         self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
+        self.prior_version = hparams.prior_version
+        self.batches_per_epoch = ceil(len(self.splits["train"]) / self.train_batch_size)
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -78,7 +81,7 @@ class SITModel(pl.LightningModule):
 
         return affinities, valid_sentences
 
-    def forward(self, batch, subset):
+    def forward(self, batch, subset, batch_idx=0):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
@@ -94,8 +97,12 @@ class SITModel(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
+            batch_float = batch_idx / self.batches_per_epoch
             ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers,
+                UCBPriorsProcess(
+                    self.ucb_sampling, self.c_puct, self.prior_version, batch_float
+                ),
+                zip(scorers, action_vals.detach().cpu().numpy()),
             )
 
             ucb_targets = torch.tensor(
@@ -115,7 +122,9 @@ class SITModel(pl.LightningModule):
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        greedy_rewards, loss, ucb_deltas = self.forward(
+            batch, subset="train", batch_idx=batch_idx
+        )
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
@@ -216,7 +225,7 @@ class SITModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return SITModel(dataset, reward, config,)
+        return SITPriorsModel(dataset, reward, config,)
 
 
 class RLSummModel(torch.nn.Module):

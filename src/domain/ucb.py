@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import softmax
 
 
 class UCBProcess:
@@ -6,7 +7,7 @@ class UCBProcess:
         self.ucb_sampling = ucb_sampling
         self.c_puct = c_puct
 
-    def __call__(self, scorer, priors=None):
+    def __call__(self, scorer):
         n_sents = min(scorer.n_sents, 50)
 
         if self.ucb_sampling == "fix":
@@ -18,11 +19,49 @@ class UCBProcess:
                 f"{self.ucb_sampling} is not a valid UCB sampling method."
             )
 
+        return ucb(scorer, self.c_puct, n_samples, n_sents)
+
+
+class UCBPriorsProcess:
+    def __init__(self, ucb_sampling, c_puct, prior_version, batch_float):
+        self.ucb_sampling = ucb_sampling
+        self.c_puct = c_puct
+        self.prior_version = prior_version
+        self.batch_float = batch_float
+
+    def __call__(self, args):
+        scorer, action_vals = args
+        n_sents = min(scorer.n_sents, 50)
+
+        if self.ucb_sampling == "fix":
+            n_samples = 100
+        elif self.ucb_sampling == "linear":
+            n_samples = 2 * n_sents + 50
+        else:
+            raise NotImplementedError(
+                f"{self.ucb_sampling} is not a valid UCB sampling method."
+            )
+
+        beta_n = np.log(n_sents + 9) - np.log(9)
+
+        if self.prior_version == "aggro":
+            beta = 10 ** (2 * self.batch_float)
+            beta = min(beta, 10000) * beta_n
+        elif self.prior_version == "soft":
+            beta = 10 ** (self.batch_float)
+            beta = min(beta, 100) * beta_n
+        else:
+            raise NotImplementedError(
+                f"{self.prior_version} is not a valid Prior version."
+            )
+
+        priors = softmax(action_vals[:n_sents] * beta)
+
         return ucb(scorer, self.c_puct, n_samples, n_sents, priors)
 
 
 def ucb(scorer, c_puct, n_samples, n_sents, priors=None):
-    if not priors:
+    if priors is None:
         priors = np.ones((n_sents,)) / n_sents
 
     n_visits = np.zeros(n_sents, dtype=int)
