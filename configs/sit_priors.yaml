@@ -17,7 +17,7 @@ n_repeats_per_sample: 16
 learning_rate: 0.00005
 epsilon: 0.1
 n_sents_per_summary: 3
-n_jobs_for_mcts: 9
+n_jobs_for_mcts: 8
 
 ####################
 ### DATASET ARGS ###

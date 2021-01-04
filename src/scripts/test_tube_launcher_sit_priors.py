@@ -21,8 +21,8 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
     cluster.job_time = "3-00:00:00"
-    cluster.gpu_type = "t4"
-    cluster.memory_mb_per_node = 48000
+    cluster.gpu_type = "p100"
+    cluster.memory_mb_per_node = 40000
     cluster.minutes_to_checkpoint_before_walltime = 2
 
     # any modules for code to run in env
