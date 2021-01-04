@@ -1,7 +1,3 @@
-# from src.domain.models.rlsum_mcts import *
-# from src.domain.models.rlsum_mcts_pure import *
-from src.domain.models.rlsum_oful import *
-from src.domain.models.rlsum_oful_exp import *
 from src.domain.models.banditsum import *
 from src.domain.models.banditsum_exp import *
 from src.domain.models.rlsum_mcts_exp import *
@@ -11,14 +7,13 @@ from src.domain.models.linsit_exp import *
 from src.domain.models.linsit_exp_priors import *
 from src.domain.models.linear_hypothesis_tests import *
 from src.domain.models.ngrams_calc import *
+from src.domain.models.sit import SITModel
 
 
 class ModelFactory:
     BANDITSUM = "banditsum"
     RLSUM_MCTS = "rlsum_mcts"
     RLSUM_MCTS_PURE = "rlsum_mcts_pure"
-    RLSUM_OFUL = "rlsum_oful"
-    RLSUM_OFUL_EXP = "rlsum_oful_exp"
     BANDITUM_MCS_EXP = "banditsum_mcs_exp"
     RLSUM_MCTS_EXP = "rlsum_mcts_exp"
     RLSUM_MCTS_EXP_PRIORS = "rlsum_mcts_exp_priors"
@@ -27,6 +22,7 @@ class ModelFactory:
     LINSIT_EXP_PRIORS = "linsit_exp_priors"
     LINEAR_HYPOTHESIS = "lin_hyp"
     NGRAMS_CALC = "ngrams_calc"
+    SIT = "sit"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -34,10 +30,6 @@ class ModelFactory:
 
         if model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
-        elif model == cls.RLSUM_OFUL:
-            return RLSumOFUL.from_config(dataset, reward, config)
-        elif model == cls.RLSUM_OFUL_EXP:
-            return RLSumOFULEXP.from_config(dataset, reward, config)
         elif model == cls.BANDITUM_MCS_EXP:
             return BanditSumMCSExperiment.from_config(dataset, reward, config)
         elif model == cls.RLSUM_MCTS_EXP:
@@ -54,5 +46,7 @@ class ModelFactory:
             return LinearHypothesisTests.from_config(dataset, reward, config)
         elif model == cls.NGRAMS_CALC:
             return NGramsPCA.from_config(dataset, reward, config)
+        elif model == cls.SIT:
+            return SITModel.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

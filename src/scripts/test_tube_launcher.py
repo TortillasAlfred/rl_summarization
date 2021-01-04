@@ -17,10 +17,10 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 4
+    cluster.per_experiment_nb_cpus = 11
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "7-00:00:00"
+    cluster.job_time = "3-00:00:00"
     cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = int(1e5)
     cluster.minutes_to_checkpoint_before_walltime = 2
@@ -36,7 +36,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=15, job_name="rl_summarization"
+        main, nb_trials=10, job_name="rl_summarization"
     )
 
 
@@ -45,8 +45,8 @@ if __name__ == "__main__":
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}
-    fine_tuned_items["n_repeats_per_sample"] = dict(
-        default=16, type=int, tunable=True, options=[8, 16, 32],
+    fine_tuned_items["ucb_sampling"] = dict(
+        default="linear", type=str, tunable=True, options=["fix", "linear"],
     )
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))
