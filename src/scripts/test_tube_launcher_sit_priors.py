@@ -17,10 +17,10 @@ def optimize_on_cluster(hparams):
     )
 
     # configure cluster
-    cluster.per_experiment_nb_cpus = 11
+    cluster.per_experiment_nb_cpus = 8
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "3-00:00:00"
+    cluster.job_time = "1-00:00:00"
     cluster.gpu_type = "p100"
     cluster.memory_mb_per_node = 40000
     cluster.minutes_to_checkpoint_before_walltime = 2
