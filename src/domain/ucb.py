@@ -45,11 +45,11 @@ class UCBPriorsProcess:
         beta_n = np.log(n_sents + 9) - np.log(9)
 
         if self.prior_version == "aggro":
-            beta = 10 ** (2 * self.batch_float)
-            beta = min(beta, 10000) * beta_n
-        elif self.prior_version == "soft":
-            beta = 10 ** (self.batch_float)
+            beta = 10 ** (-2 + 2 * self.batch_float)
             beta = min(beta, 100) * beta_n
+        elif self.prior_version == "soft":
+            beta = 10 ** (-2 + self.batch_float)
+            beta = min(beta, 1) * beta_n
         else:
             raise NotImplementedError(
                 f"{self.prior_version} is not a valid Prior version."

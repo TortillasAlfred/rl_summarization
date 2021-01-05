@@ -14,7 +14,7 @@ test_batch_size: 256
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
-learning_rate: 0.00005
+learning_rate: 0.001
 epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 8
@@ -44,13 +44,13 @@ prior_version: "aggro" # One of ["aggro", "soft"]
 ### TRAINER ARGS ###
 ####################
 trainer: "pl" # One of ['gradient_free', 'pl']
-gradient_clip_val: 1
+gradient_clip_val: 5
 gpus: -1
 overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 0.1
-default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/new_results/"
+default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/last_results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/new_weight_saving/"
 max_epochs: 10
 weight_decay: 0.000001

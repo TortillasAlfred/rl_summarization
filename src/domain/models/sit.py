@@ -12,6 +12,7 @@ import os
 class SITModel(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
+        self.hparams = hparams
         self.fields = dataset.fields
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
@@ -85,7 +86,7 @@ class SITModel(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        action_vals, valid_sentences = self.__extract_features(contents)
+        action_vals, _ = self.__extract_features(contents)
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
 
         if subset == "train":
@@ -104,7 +105,7 @@ class SITModel(pl.LightningModule):
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
             loss = (ucb_targets - action_vals) ** 2
-            loss = loss.sum() / valid_sentences.sum() * batch_size
+            loss = loss.mean(-1).sum()
 
             return greedy_rewards, loss, ucb_deltas
         else:
@@ -140,6 +141,15 @@ class SITModel(pl.LightningModule):
 
         for name, val in reward_dict.items():
             self.log(name, val)
+
+        return reward_dict["val_greedy_rouge_mean"]
+
+    def validation_epoch_end(self, outputs):
+        mean_rouge = torch.stack(outputs).mean()
+        self.lr_scheduler.step(mean_rouge)
+
+        current_lr = self.trainer.optimizers[0].param_groups[1]["lr"]
+        self.log("lr", current_lr)
 
     def test_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="test")
@@ -232,9 +242,13 @@ class RLSummModel(torch.nn.Module):
             batch_first=True,
         )
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(hidden_dim * 2, decoder_dim),
+            torch.nn.Linear(hidden_dim * 2, decoder_dim * 2),
             torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim, 1),
+            torch.nn.Linear(decoder_dim * 2, decoder_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(decoder_dim, int(decoder_dim / 2)),
+            torch.nn.ReLU(),
+            torch.nn.Linear(int(decoder_dim / 2), 1),
             torch.nn.Sigmoid(),
         )
 
