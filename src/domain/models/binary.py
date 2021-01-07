@@ -1,5 +1,4 @@
 from src.domain.loader_utils import TextDataCollator
-from src.domain.ucb import UCBProcess
 
 import time
 import pytorch_lightning as pl
@@ -33,6 +32,7 @@ class BinaryModel(pl.LightningModule):
         self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
+        self.criterion = torch.nn.BCELoss(reduction="none")
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -96,20 +96,16 @@ class BinaryModel(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
-            ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers,
-            )
+            binary_idxs = [scorer.get_max_idxs() for scorer in scorers]
+            binary_idxs = torch.tensor(binary_idxs, device=action_vals.device)
+            binary_targets = torch.zeros_like(action_vals)
+            binary_targets.scatter_(1, binary_idxs, 1)
 
-            ucb_targets = torch.tensor(
-                [r[0] for r in ucb_results], device=action_vals.device
-            )
-            ucb_deltas = torch.tensor([r[1] for r in ucb_results])
-
-            loss = (ucb_targets - action_vals) ** 2 * valid_sentences
+            loss = self.criterion(action_vals, binary_targets) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.sum()
 
-            return greedy_rewards, loss, ucb_deltas
+            return greedy_rewards, loss
         else:
             greedy_rewards = scorers.get_scores(
                 greedy_idxs, raw_contents, raw_abstracts
@@ -119,12 +115,11 @@ class BinaryModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         start = time.time()
-        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        greedy_rewards, loss = self.forward(batch, subset="train")
         end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
-            "ucb_deltas": ucb_deltas.mean(),
             "loss": loss.detach(),
             "batch_time": end - start,
         }

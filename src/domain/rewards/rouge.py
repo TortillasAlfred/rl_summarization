@@ -99,6 +99,11 @@ class RougeRewardScorer:
         else:
             return np.zeros((1,), dtype=np.float32)
 
+    def get_max_idxs(self):
+        max_idx = self.scores.argmax()
+
+        return self.summary_from_idx(max_idx)
+
     def summary_from_idx(self, index):
         for k in range(2, self.n_sents + 1):
             if comb(k + 1, 3, exact=True) > index:
