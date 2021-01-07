@@ -1,4 +1,3 @@
-
 #####################
 ### MISCELLANEOUS ###
 #####################
@@ -10,12 +9,12 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ### MODEL ARGS ###
 ##################
 model: "banditsum_mcs_exp" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
-train_batch_size: 64
+train_batch_size: 32
 test_batch_size: 512
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
-learning_rate: 0.001
+learning_rate: 0.00005
 epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 1
@@ -65,7 +64,7 @@ distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 1.0
 default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
-max_epochs: 10
+max_epochs: 20
 weight_decay: 0.000001
 dropout: 0.01
 accumulate_grad_batches: 1

@@ -9,7 +9,7 @@ def optimize_on_cluster(hparams):
         hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
     )
 
-    cluster.script_name = "-um src.scripts.test_tube_launcher_sit_priors"
+    cluster.script_name = "-um src.scripts.test_tube_launcher_sit"
 
     # email for cluster coms
     cluster.notify_job_status(
@@ -20,7 +20,7 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_cpus = 8
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "1-00:00:00"
+    cluster.job_time = "2-00:00:00"
     cluster.gpu_type = "p100"
     cluster.memory_mb_per_node = 64000
     cluster.minutes_to_checkpoint_before_walltime = 2
@@ -41,7 +41,7 @@ def optimize_on_cluster(hparams):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(open("./configs/sit_priors.yaml"), Loader=yaml.FullLoader)
+    base_configs = yaml.load(open("./configs/sit.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}

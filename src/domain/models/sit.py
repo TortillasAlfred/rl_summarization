@@ -1,6 +1,7 @@
 from src.domain.loader_utils import TextDataCollator
 from src.domain.ucb import UCBProcess
 
+import time
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
@@ -86,7 +87,7 @@ class SITModel(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        action_vals, _ = self.__extract_features(contents)
+        action_vals, valid_sentences = self.__extract_features(contents)
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
 
         if subset == "train":
@@ -105,7 +106,8 @@ class SITModel(pl.LightningModule):
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
             loss = (ucb_targets - action_vals) ** 2
-            loss = loss.mean(-1).sum()
+            loss = loss.sum(-1) / valid_sentences.sum(-1)
+            loss = loss.mean()
 
             return greedy_rewards, loss, ucb_deltas
         else:
@@ -116,16 +118,19 @@ class SITModel(pl.LightningModule):
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
+        start = time.time()
         greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
             "ucb_deltas": ucb_deltas.mean(),
             "loss": loss.detach(),
+            "batch_time": end - start,
         }
 
         for key, val in log_dict.items():
-            self.log(key, val)
+            self.log(key, val, prog_bar="greedy" in key)
 
         return loss
 
@@ -140,7 +145,7 @@ class SITModel(pl.LightningModule):
         }
 
         for name, val in reward_dict.items():
-            self.log(name, val)
+            self.log(name, val, prog_bar="mean" in name)
 
         return reward_dict["val_greedy_rouge_mean"]
 
@@ -181,7 +186,7 @@ class SITModel(pl.LightningModule):
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.1, verbose=True
+            optimizer, mode="max", patience=10, factor=0.2, verbose=True
         )
 
         return optimizer
@@ -242,13 +247,9 @@ class RLSummModel(torch.nn.Module):
             batch_first=True,
         )
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(hidden_dim * 2, decoder_dim * 2),
+            torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim * 2, decoder_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(decoder_dim, int(decoder_dim / 2)),
-            torch.nn.ReLU(),
-            torch.nn.Linear(int(decoder_dim / 2), 1),
+            torch.nn.Linear(decoder_dim, 1),
             torch.nn.Sigmoid(),
         )
 

@@ -1,9 +1,9 @@
 from src.domain.loader_utils import TextDataCollator
 
-import pytorch_lightning as pl
+import time
 import torch
+import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from torch.distributions.uniform import Uniform
 from torch.distributions.categorical import Categorical
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super(BanditSum, self).__init__()
+        self.hparams = hparams
         self.fields = dataset.fields
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
@@ -73,38 +74,46 @@ class BanditSum(pl.LightningModule):
 
     def select_idxs(self, affinities, valid_sentences):
         n_docs = affinities.shape[0]
-        idxs = torch.zeros(
+
+        affinities = affinities.repeat_interleave(self.n_repeats_per_sample, 0)
+        valid_sentences = valid_sentences.repeat_interleave(
+            self.n_repeats_per_sample, 0
+        )
+
+        all_idxs = torch.zeros(
             (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
             dtype=torch.int,
             device=affinities.device,
         )
-        logits = torch.zeros(
+        all_logits = torch.zeros(
             (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
             dtype=torch.float,
             device=affinities.device,
         )
-        uniform_sampler = Uniform(0, 1)
-        for doc in range(n_docs):
-            for repeat in range(self.n_repeats_per_sample):
-                probs = affinities[doc].clone()
-                val_sents = valid_sentences[doc].clone()
-                for sent in range(self.n_sents_per_summary):
-                    probs = probs + 1e-6
-                    probs = probs * val_sents
-                    if uniform_sampler.sample() <= self.epsilon:
-                        idx = Categorical(val_sents.float()).sample()
-                    else:
-                        idx = Categorical(probs).sample()
-                    logit = (
-                        self.epsilon / val_sents.sum()
-                        + (1 - self.epsilon) * probs[idx] / (probs.sum() + 1e-6)
-                    ).log()
-                    val_sents = val_sents.clone()
-                    val_sents[idx] = 0
-                    idxs[doc, repeat, sent] = idx
-                    logits[doc, repeat, sent] = logit
 
-        return idxs, logits.sum(-1)
+        uniform_distro = torch.ones_like(affinities) * valid_sentences
+        for step in range(self.n_sents_per_summary):
+            step_affinities = affinities * valid_sentences
+            step_affinities = step_affinities / step_affinities.sum(-1, keepdim=True)
+
+            step_unif = uniform_distro * valid_sentences
+            step_unif = step_unif / step_unif.sum(-1, keepdim=True)
+
+            step_probas = (
+                self.epsilon * step_unif + (1 - self.epsilon) * step_affinities
+            )
+
+            c = Categorical(step_probas)
+
+            idxs = c.sample()
+            logits = c.logits.gather(1, idxs.unsqueeze(1))
+
+            valid_sentences = valid_sentences.scatter(1, idxs.unsqueeze(1), 0)
+
+            all_idxs[:, :, step] = idxs.view(n_docs, self.n_repeats_per_sample)
+            all_logits[:, :, step] = logits.view(n_docs, self.n_repeats_per_sample)
+
+        return all_idxs, all_logits.sum(-1)
 
     def forward(self, batch, subset):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
@@ -120,7 +129,7 @@ class BanditSum(pl.LightningModule):
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
-            greedy_rewards = torch.tensor(greedy_rewards)
+            greedy_rewards = torch.tensor(greedy_rewards).unsqueeze(1)
 
             selected_idxs, selected_logits = self.select_idxs(
                 action_vals, valid_sentences
@@ -135,7 +144,9 @@ class BanditSum(pl.LightningModule):
                 )
             generated_rewards = torch.stack(generated_rewards)
 
-            greedy_rewards = greedy_rewards.repeat(1, self.n_repeats_per_sample, 1)
+            greedy_rewards = greedy_rewards.repeat_interleave(
+                self.n_repeats_per_sample, 1
+            )
 
             rewards = (
                 ((greedy_rewards - generated_rewards))
@@ -155,16 +166,19 @@ class BanditSum(pl.LightningModule):
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
+        start = time.time()
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
+        end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
             "generated_rouge_mean": generated_rewards.mean(),
             "loss": loss.detach(),
+            "batch_time": end - start,
         }
 
         for key, val in log_dict.items():
-            self.log(key, val)
+            self.log(key, val, prog_bar="greedy" in key)
 
         return loss
 
@@ -179,7 +193,14 @@ class BanditSum(pl.LightningModule):
         }
 
         for name, val in reward_dict.items():
-            self.log(name, val)
+            self.log(name, val, prog_bar="mean" in name)
+
+    def validation_epoch_end(self, outputs):
+        mean_rouge = torch.stack(outputs).mean()
+        self.lr_scheduler.step(mean_rouge)
+
+        current_lr = self.trainer.optimizers[0].param_groups[1]["lr"]
+        self.log("lr", current_lr)
 
     def test_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="test")
@@ -211,7 +232,7 @@ class BanditSum(pl.LightningModule):
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.1, verbose=True
+            optimizer, mode="max", patience=10, factor=0.2, verbose=True
         )
 
         return optimizer
