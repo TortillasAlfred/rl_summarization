@@ -56,7 +56,7 @@ class LinSITExp:
 
             torch.set_grad_enabled(False)
 
-            c_pucts = np.logspace(7, 11, 5)
+            c_pucts = [10 ** 6]
 
             valid_tokens = ~(contents == self.pad_idx)
             sentences_len = valid_tokens.sum(dim=-1)
