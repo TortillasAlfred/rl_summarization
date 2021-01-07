@@ -67,6 +67,11 @@ def linucb(scorer, c_puct, n_samples, n_sents, action_vectors, priors=None):
     best_score = torch.tensor(scorer(tuple(sorted(selected_sents.tolist()))))
     ucb_delta = max_score_mean - best_score
 
+    # min-max scaling
+    sent_predicted_vals = (sent_predicted_vals - sent_predicted_vals.min()) / (
+        sent_predicted_vals.max() - sent_predicted_vals.min()
+    )
+
     returned_q_vals = torch.zeros(50, dtype=torch.float32)
     returned_q_vals[:n_sents] = sent_predicted_vals
 
