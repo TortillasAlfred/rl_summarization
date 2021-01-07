@@ -45,8 +45,8 @@ if __name__ == "__main__":
     argument_parser = HyperOptArgumentParser(strategy="random_search")
 
     fine_tuned_items = {}
-    fine_tuned_items["prior_version"] = dict(
-        default="aggro", type=str, tunable=True, options=["aggro", "soft"],
+    fine_tuned_items["ucb_sampling"] = dict(
+        default="linear", type=str, tunable=True, options=["linear", "fix"],
     )
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))
