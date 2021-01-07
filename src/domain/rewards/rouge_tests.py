@@ -70,12 +70,7 @@ if __name__ == "__main__":
     scores_python = []
 
     loader = DataLoader(
-        subset,
-        collate_fn=collator,
-        batch_size=64,
-        num_workers=0,
-        pin_memory=True,
-        drop_last=False,
+        subset, collate_fn=collator, batch_size=64, num_workers=0, drop_last=False,
     )
 
     for batch in tqdm(loader):
@@ -95,5 +90,5 @@ if __name__ == "__main__":
         # if diff > 0.04:
         #     print(diff, scores_python, scores_numpy, ids)
 
-    print("Done !")
+    print(np.vstack(scores_python).mean(0))
 
