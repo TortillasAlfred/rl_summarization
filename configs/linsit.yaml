@@ -9,7 +9,7 @@ slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
 ### MODEL ARGS ###
 ##################
 model: "linsit" # One of ['lead3', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
-train_batch_size: 32
+train_batch_size: 64
 test_batch_size: 64
 hidden_dim: 200
 decoder_dim: 100
@@ -49,9 +49,9 @@ overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 0.1
-default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/final_results/"
+default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/real_final_results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/new_weight_saving/"
-max_epochs: 20
-weight_decay: 0.000001
+max_epochs: 15
+weight_decay: 0.00001
 dropout: 0.0
 accumulate_grad_batches: 1

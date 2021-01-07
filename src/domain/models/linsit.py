@@ -118,9 +118,9 @@ class LinSITModel(pl.LightningModule):
             )
             linucb_deltas = torch.tensor([r[1] for r in linucb_results])
 
-            loss = (linucb_targets - action_vals) ** 2
+            loss = (linucb_targets - action_vals) ** 2 * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
-            loss = loss.mean()
+            loss = loss.sum()
 
             return greedy_rewards, loss, linucb_deltas
         else:
