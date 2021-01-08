@@ -20,8 +20,8 @@ def optimize_on_cluster(hparams):
     cluster.per_experiment_nb_cpus = 8
     cluster.per_experiment_nb_gpus = 1
     cluster.per_experiment_nb_nodes = 1
-    cluster.job_time = "1-00:00:00"
-    cluster.gpu_type = "p100"
+    cluster.job_time = "0-12:00:00"
+    cluster.gpu_type = "t4"
     cluster.memory_mb_per_node = 64000
     cluster.minutes_to_checkpoint_before_walltime = 2
 
@@ -36,7 +36,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
+        main, nb_trials=30, job_name="rl_summarization"
     )
 
 
@@ -47,6 +47,9 @@ if __name__ == "__main__":
     fine_tuned_items = {}
     fine_tuned_items["ucb_sampling"] = dict(
         default="linear", type=str, tunable=True, options=["linear", "fix"],
+    )
+    fine_tuned_items["tau"] = dict(
+        default=10.0, type=float, tunable=True, options=[5.0, 10.0, 20.0],
     )
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))

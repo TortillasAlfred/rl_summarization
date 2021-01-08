@@ -34,7 +34,8 @@ class LinSITModel(pl.LightningModule):
         self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
-        self.criterion = torch.nn.MSELoss(reduction="none")
+        self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+        self.tau = hparams.tau
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -78,7 +79,7 @@ class LinSITModel(pl.LightningModule):
         contents, valid_sentences = self.word_level_encoding(contents)
         sent_contents = self.model.sentence_level_encoding(contents)
         affinities = self.model.produce_affinities(sent_contents)
-        affinities = affinities * valid_sentences
+        affinities = affinities + valid_sentences.float().log()
 
         return affinities, valid_sentences
 
@@ -119,9 +120,21 @@ class LinSITModel(pl.LightningModule):
             )
             linucb_deltas = torch.tensor([r[1] for r in linucb_results])
 
-            loss = self.criterion(action_vals, linucb_targets) * valid_sentences
+            # Softmax
+            linucb_targets = linucb_targets + valid_sentences.float().log()
+            target_distro = torch.nn.functional.softmax(
+                self.tau * linucb_targets, dim=-1
+            )
+
+            # MinMaxScaling
+            target_max = target_distro.max(-1, keepdim=True)[0]
+            target_min = target_distro.min(-1, keepdim=True)[0]
+            target_distro = (target_distro - target_min) / (target_max - target_min)
+
+            loss = self.criterion(action_vals, target_distro)
+            loss[~valid_sentences] = 0.0
             loss = loss.sum(-1) / valid_sentences.sum(-1)
-            loss = loss.sum()
+            loss = loss.mean()
 
             return greedy_rewards, loss, linucb_deltas
         else:
@@ -200,7 +213,7 @@ class LinSITModel(pl.LightningModule):
         )
 
         self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.2, verbose=True
+            optimizer, mode="max", patience=5, factor=0.2, verbose=True
         )
 
         return optimizer
@@ -267,7 +280,6 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
-            torch.nn.Sigmoid(),
         )
 
     def sentence_level_encoding(self, contents):

@@ -86,7 +86,7 @@ def ucb(scorer, c_puct, n_samples, n_sents, priors=None):
     best_score = scorer(tuple(best_idxs))
     ucb_delta = max_score - best_score
 
-    # min-max scaling
+    # MinMax scaling
     q_vals = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min())
 
     returned_q_vals = np.zeros(50, dtype=np.float32)
