@@ -36,7 +36,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=30, job_name="rl_summarization"
+        main, nb_trials=20, job_name="rl_summarization"
     )
 
 
@@ -48,8 +48,8 @@ if __name__ == "__main__":
     fine_tuned_items["ucb_sampling"] = dict(
         default="linear", type=str, tunable=True, options=["fix", "linear"],
     )
-    fine_tuned_items["tau"] = dict(
-        default=10.0, type=float, tunable=True, options=[5.0, 10.0, 20.0],
+    fine_tuned_items["l3loss"] = dict(
+        default=True, type=bool, tunable=True, options=[True, False],
     )
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))

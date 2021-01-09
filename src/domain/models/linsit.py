@@ -35,7 +35,7 @@ class LinSITModel(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.tau = hparams.tau
+        self.l3loss = hparams.l3loss
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -121,20 +121,24 @@ class LinSITModel(pl.LightningModule):
             linucb_deltas = torch.tensor([r[1] for r in linucb_results])
 
             # Softmax
-            linucb_targets = linucb_targets + valid_sentences.float().log()
-            target_distro = torch.nn.functional.softmax(
-                self.tau * linucb_targets, dim=-1
-            )
-
-            # MinMaxScaling
-            target_max = target_distro.max(-1, keepdim=True)[0]
-            target_min = target_distro.min(-1, keepdim=True)[0]
-            target_distro = (target_distro - target_min) / (target_max - target_min)
+            target_distro = 5 ** (-10 * (1 - linucb_targets)) * valid_sentences
 
             loss = self.criterion(action_vals, target_distro)
             loss[~valid_sentences] = 0.0
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
+
+            if self.l3loss:
+                action_probas = torch.sigmoid(action_vals) * valid_sentences
+                action_probas = (
+                    action_probas - action_probas.min(-1, keepdim=True)[0]
+                ) / (
+                    action_probas.max(-1, keepdim=True)[0]
+                    - action_probas.min(-1, keepdim=True)[0]
+                )
+                l3loss = action_probas[:, :3].mean()
+
+                loss = loss + l3loss / 20
 
             return greedy_rewards, loss, linucb_deltas
         else:

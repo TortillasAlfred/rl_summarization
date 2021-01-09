@@ -32,7 +32,8 @@ class BinaryModel(pl.LightningModule):
         self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
-        self.criterion = torch.nn.BCELoss(reduction="none")
+        self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+        self.l3loss = hparams.l3loss
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -104,6 +105,18 @@ class BinaryModel(pl.LightningModule):
             loss = self.criterion(action_vals, binary_targets) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.sum()
+
+            if self.l3loss:
+                action_probas = torch.sigmoid(action_vals) * valid_sentences
+                action_probas = (
+                    action_probas - action_probas.min(-1, keepdim=True)[0]
+                ) / (
+                    action_probas.max(-1, keepdim=True)[0]
+                    - action_probas.min(-1, keepdim=True)[0]
+                )
+                l3loss = action_probas[:, :3].mean()
+
+                loss = loss + l3loss / 20
 
             return greedy_rewards, loss
         else:
@@ -245,7 +258,6 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Linear(hidden_dim * 2, decoder_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(decoder_dim, 1),
-            torch.nn.Sigmoid(),
         )
 
     def sentence_level_encoding(self, contents):
