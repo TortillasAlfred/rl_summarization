@@ -77,7 +77,7 @@ class BinaryModel(pl.LightningModule):
         contents, valid_sentences = self.word_level_encoding(contents)
         sent_contents = self.model.sentence_level_encoding(contents)
         affinities = self.model.produce_affinities(sent_contents)
-        affinities = affinities * valid_sentences
+        affinities = affinities + valid_sentences.float().log()
 
         return affinities, valid_sentences
 
@@ -102,9 +102,10 @@ class BinaryModel(pl.LightningModule):
             binary_targets = torch.zeros_like(action_vals)
             binary_targets.scatter_(1, binary_idxs, 1)
 
-            loss = self.criterion(action_vals, binary_targets) * valid_sentences
+            loss = self.criterion(action_vals, binary_targets)
+            loss[~valid_sentences] = 0.0
             loss = loss.sum(-1) / valid_sentences.sum(-1)
-            loss = loss.sum()
+            loss = loss.mean()
 
             if self.l3loss:
                 action_probas = torch.sigmoid(action_vals) * valid_sentences
