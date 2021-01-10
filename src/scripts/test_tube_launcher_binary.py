@@ -36,7 +36,7 @@ def optimize_on_cluster(hparams):
     )
 
     cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
+        main, nb_trials=5, job_name="rl_summarization"
     )
 
 
@@ -47,9 +47,6 @@ if __name__ == "__main__":
     fine_tuned_items = {}
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))
-    )
-    fine_tuned_items["l3loss"] = dict(
-        default=True, type=bool, tunable=True, options=[True, False],
     )
 
     for config, value in base_configs.items():

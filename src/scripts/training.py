@@ -28,7 +28,7 @@ def main(_config, cluster=None):
     reward = RewardFactory.get_reward(_config)
     model = ModelFactory.get_model(dataset, reward, _config)
 
-    # trainer.fit(model)
+    trainer.fit(model)
     trainer.test(model)
 
     logging.info("Done")
@@ -49,8 +49,5 @@ if __name__ == "__main__":
             argument_parser.add_argument(
                 "--{}".format(config), type=type(value), default=value
             )
-
-    argument_parser.add_argument("--hpc_exp_number", type=int, default=0)
-
     options = argument_parser.parse_args()
     main(options)

@@ -34,9 +34,10 @@ class SITModel(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.l3loss = hparams.l3loss
         self.idxs_repart = torch.zeros(50, dtype=torch.float32, device="cuda:0")
         self.test_size = len(self.splits["test"])
+        self.targets_repart = torch.zeros(50, dtype=torch.float64, device="cuda:0")
+        self.train_size = len(self.splits["train"])
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -117,17 +118,7 @@ class SITModel(pl.LightningModule):
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
 
-            if self.l3loss:
-                action_probas = torch.sigmoid(action_vals) * valid_sentences
-                action_probas = (
-                    action_probas - action_probas.min(-1, keepdim=True)[0]
-                ) / (
-                    action_probas.max(-1, keepdim=True)[0]
-                    - action_probas.min(-1, keepdim=True)[0]
-                )
-                l3loss = action_probas[:, :3].mean()
-
-                loss = loss + l3loss / 20
+            self.targets_repart += target_distro.sum(0)
 
             return greedy_rewards, loss, ucb_deltas
         else:
@@ -159,6 +150,12 @@ class SITModel(pl.LightningModule):
             self.log(key, val, prog_bar="greedy" in key)
 
         return loss
+
+    def training_epoch_end(self, outputs):
+        for i, idx_repart in enumerate(self.targets_repart / self.train_size):
+            self.log(f"targets_idx_{i}", idx_repart)
+
+        self.targets_repart.zero_()
 
     def validation_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="val")

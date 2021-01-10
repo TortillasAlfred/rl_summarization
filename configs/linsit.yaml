@@ -18,7 +18,6 @@ learning_rate: 0.00005
 epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 8
-l3loss: True
 
 ####################
 ### DATASET ARGS ###
@@ -50,7 +49,7 @@ overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 0.1
-default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/real_final_results/"
+default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/last_results/"
 weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/new_weight_saving/"
 max_epochs: 5
 weight_decay: 0.000001
