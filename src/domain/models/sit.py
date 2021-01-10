@@ -35,6 +35,8 @@ class SITModel(pl.LightningModule):
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.l3loss = hparams.l3loss
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device="cuda:0")
+        self.test_size = len(self.splits["test"])
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -117,7 +119,9 @@ class SITModel(pl.LightningModule):
 
             if self.l3loss:
                 action_probas = torch.sigmoid(action_vals) * valid_sentences
-                action_probas = (action_probas - action_probas.min(-1, keepdim=True)[0]) / (
+                action_probas = (
+                    action_probas - action_probas.min(-1, keepdim=True)[0]
+                ) / (
                     action_probas.max(-1, keepdim=True)[0]
                     - action_probas.min(-1, keepdim=True)[0]
                 )
@@ -130,6 +134,12 @@ class SITModel(pl.LightningModule):
             greedy_rewards = scorers.get_scores(
                 greedy_idxs, raw_contents, raw_abstracts
             )
+
+            if subset == "test":
+                idxs_repart = torch.zeros_like(action_vals)
+                idxs_repart.scatter_(1, greedy_idxs, 1)
+
+                self.idxs_repart += idxs_repart.sum(0)
 
             return torch.from_numpy(greedy_rewards)
 
@@ -184,6 +194,10 @@ class SITModel(pl.LightningModule):
 
         for name, val in reward_dict.items():
             self.log(name, val)
+
+    def test_epoch_end(self, outputs):
+        for i, idx_repart in enumerate(self.idxs_repart / self.test_size):
+            self.log(f"idx_{i}", idx_repart)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

@@ -36,6 +36,8 @@ class LinSITModel(pl.LightningModule):
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.l3loss = hparams.l3loss
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device="cuda:0")
+        self.test_size = len(self.splits["test"])
 
         self.__build_model(dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
@@ -146,6 +148,12 @@ class LinSITModel(pl.LightningModule):
                 greedy_idxs, raw_contents, raw_abstracts
             )
 
+            if subset == "test":
+                idxs_repart = torch.zeros_like(action_vals)
+                idxs_repart.scatter_(1, greedy_idxs, 1)
+
+                self.idxs_repart += idxs_repart.sum(0)
+
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
@@ -199,6 +207,10 @@ class LinSITModel(pl.LightningModule):
 
         for name, val in reward_dict.items():
             self.log(name, val)
+
+    def test_epoch_end(self, outputs):
+        for i, idx_repart in enumerate(self.idxs_repart / self.test_size):
+            self.log(f"idx_{i}", idx_repart)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
