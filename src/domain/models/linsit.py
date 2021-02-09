@@ -124,7 +124,7 @@ class LinSITModel(pl.LightningModule):
             linucb_deltas = torch.tensor([r[1] for r in linucb_results])
 
             # Softmax
-            target_distro = 5 ** (-10 * (1 - linucb_targets)) * valid_sentences
+            target_distro = 10 ** (-10 * (1 - linucb_targets)) * valid_sentences
 
             loss = self.criterion(action_vals, target_distro)
             loss[~valid_sentences] = 0.0
