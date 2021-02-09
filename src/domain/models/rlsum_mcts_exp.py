@@ -40,7 +40,7 @@ class RLSumMCTSEXP(pl.LightningModule):
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
-        self.n_repeats_per_sample = hparams.n_repeats_per_sample
+        self.n_summaries_per_doc_warmup = hparams.n_summaries_per_doc_warmup
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
         self.dirichlet_epsilon = hparams.dirichlet_epsilon
@@ -57,6 +57,9 @@ class RLSumMCTSEXP(pl.LightningModule):
         self.warmup_batches = hparams.warmup_batches
         self.batch_idx = 0
         self.alpha_oful = hparams.alpha_oful
+        self.scaling_n_samples = hparams.scaling_n_samples
+        self.mcts_loss = torch.nn.CosineEmbeddingLoss(reduction="mean")
+        self.transfer_batches = hparams.transfer_batches
 
         self.__build_model(hparams.hidden_dim, dataset)
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
@@ -192,7 +195,23 @@ class RLSumMCTSEXP(pl.LightningModule):
         return out_dict
 
     def validation_step(self, batch, batch_idx):
-        greedy_rewards = self.forward(batch, subset="val")
+        greedy_rewards, greedy_summaries, raw_summaries, ids = self.forward(
+            batch, subset="val"
+        )
+
+        for predicted, target, id in zip(greedy_summaries, raw_summaries, ids):
+            with open(
+                os.path.join(self.valid_raw_summaries_path, "predicted", f"{id}.txt"),
+                "w",
+            ) as f:
+                f.writelines(predicted)
+
+            target_path = os.path.join(
+                self.valid_raw_summaries_path, "target", f"{id}.txt"
+            )
+            if not os.path.exists(target_path):
+                with open(target_path, "w") as f:
+                    f.writelines("\n".join(target))
 
         reward_dict = {
             "val_greedy_rouge_1": greedy_rewards[:, 0],
@@ -344,12 +363,13 @@ class RLSummModel(torch.nn.Module):
             torch.nn.Linear(decoder_dim, 3),
             torch.nn.Sigmoid(),
         )
-        self.theta_decoder = torch.nn.Sequential(
-            torch.nn.Linear(hidden_dim * 2, hidden_dim * 2),
-            torch.nn.Dropout(dropout),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_dim * 2, hidden_dim * 2),
-            torch.nn.Tanh(),
+        self.theta_decoder = torch.nn.LSTM(
+            input_size=hidden_dim * 2,
+            hidden_size=hidden_dim * 2,
+            num_layers=1,
+            bidirectional=False,
+            batch_first=True,
+            dropout=dropout,
         )
 
     def sentence_level_encoding(self, contents):
@@ -385,8 +405,16 @@ class RLSummModel(torch.nn.Module):
 
         return predicted_scores
 
-    def produce_theta_hat(self, doc_contents):
-        return self.theta_decoder(doc_contents)
+    def produce_theta_hat(self, doc_contents, sent_embeddings):
+        _, (theta_hats, _) = self.theta_decoder(
+            sent_embeddings,
+            (
+                doc_contents.permute(1, 0, 2),
+                torch.zeros_like(doc_contents.permute(1, 0, 2)),
+            ),
+        )
+
+        return theta_hats.permute(1, 0, 2)
 
     def forward(self, x):
         pass

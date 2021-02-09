@@ -43,7 +43,6 @@ class PytorchLightningTrainer(Trainer):
             name = f"{model}_{config.hpc_exp_number}"
         else:
             name = model
-
         weights_save_path = "/".join([weights_save_path, name])
         checkpoint_callback = ModelCheckpoint(
             filepath="/".join(
@@ -54,6 +53,13 @@ class PytorchLightningTrainer(Trainer):
             monitor="val_greedy_rouge_mean",
             mode="max",
             prefix="",
+        )
+        early_stop_callback = EarlyStopping(
+            monitor="val_greedy_rouge_mean",
+            min_delta=0.001,
+            patience=8,
+            verbose=True,
+            mode="max",
         )
         logger = TestTubeLogger(
             save_dir=default_save_path, name=name, create_git_tag=True
@@ -71,12 +77,9 @@ class PytorchLightningTrainer(Trainer):
             fast_dev_run=fast_dev_run,
             accelerator=distributed_backend,
             overfit_batches=overfit_pct,
-            val_check_interval=val_check_interval,
-            default_root_dir=default_save_path,
-            weights_save_path=weights_save_path,
-            checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
+            early_stop_callback=early_stop_callback,
         )
 
     @staticmethod

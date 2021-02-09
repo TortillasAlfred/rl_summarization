@@ -25,7 +25,7 @@ class BanditSum(pl.LightningModule):
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
-        self.n_repeats_per_sample = hparams.n_repeats_per_sample
+        self.n_summaries_per_doc_warmup = hparams.n_summaries_per_doc_warmup
         self.learning_rate = hparams.learning_rate
         self.epsilon = hparams.epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary

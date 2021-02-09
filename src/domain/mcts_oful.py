@@ -1,3 +1,4 @@
+from numpy.lib.type_check import nan_to_num
 import torch
 import math
 import itertools
@@ -16,6 +17,7 @@ class RLSumOFULValueProcess:
         action_dim,
         device,
         n_sents_per_summary,
+        scaling_n_samples,
     ):
         self.n_samples = n_samples
         self.lambda_oful = lambda_oful
@@ -23,6 +25,7 @@ class RLSumOFULValueProcess:
         self.action_dim = action_dim
         self.device = device
         self.n_sents_per_summary = n_sents_per_summary
+        self.scaling_n_samples = scaling_n_samples
 
     def __call__(self, iterable):
         (sent_contents, doc_contents, valid_sentences, scores,) = iterable
@@ -37,6 +40,7 @@ class RLSumOFULValueProcess:
             self.action_dim,
             self.device,
             self.n_sents_per_summary,
+            self.scaling_n_samples,
         )
 
 
@@ -51,6 +55,7 @@ def rlsum_oful_value(
     action_dim,
     device,
     n_sents_per_summary,
+    scaling_n_samples,
 ):
     torch.set_grad_enabled(False)
     n_valid_actions = valid_sentences.sum(-1)
