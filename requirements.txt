@@ -1,8 +1,13 @@
 matplotlib
 numpy
-pytorch-lightning
+scipy
+joblib
+pytorch-lightning==1.1
 scikit-learn
+tarfile
+tensorflow
+test-tube
 torch
+torchtext
 torchvision
 tqdm
-dvc[gdrive]
