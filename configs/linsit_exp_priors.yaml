@@ -3,7 +3,7 @@
 #####################
 seed: 42 # Random seed
 dev: True
-slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
+slurm_log_path: /project/def-adurand/magod/rl_summ/slurm_outputs/
 
 ##################
 ### MODEL ARGS ###
@@ -22,8 +22,8 @@ n_sents_per_summary: 3
 n_jobs_for_mcts: 24
 lambda_loss: 0.5
 warmup_batches: 10000
-pretraining_path: "/project/def-lulam50/magod/rl_summ/exp_logging/pretraining/"
-log_path: "/project/def-lulam50/magod/rl_summ/linsit_exp_priors"
+pretraining_path: "/project/def-adurand/magod/rl_summ/exp_logging/pretraining/"
+log_path: "/project/def-adurand/magod/rl_summ/linsit_exp_priors"
 
 ######################
 ### MCTS OFUL ARGS ###
@@ -41,7 +41,7 @@ D_t_source: "word-level"
 dataset: "cnn_dailymail" # One of ['cnn_dailymail']
 data_path: "/scratch/magod/summarization_datasets/cnn_dailymail/data/" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
-embeddings_location: "/scratch/magod/embeddings/"
+embeddings_location: "/project/def-adurand/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first
 
 ###################
@@ -66,8 +66,8 @@ overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 1.0
-default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/results/"
-weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/weight_saving"
+default_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/results/"
+weights_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/weight_saving"
 max_epochs: 4
 weight_decay: 0.000001
 dropout: 0.0

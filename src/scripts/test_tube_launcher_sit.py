@@ -32,7 +32,7 @@ def optimize_on_cluster(hparams):
     cluster.add_command("tar -xf $SLURM_TMPDIR/sit_dataset.tar -C $SLURM_TMPDIR/")
     cluster.add_command("source ~/venvs/default/bin/activate")
     cluster.add_slurm_cmd(
-        cmd="account", value="def-lulam50", comment="CCDB account for running"
+        cmd="account", value="def-adurand", comment="CCDB account for running"
     )
 
     cluster.optimize_parallel_cluster_gpu(

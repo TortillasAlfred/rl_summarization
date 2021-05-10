@@ -51,7 +51,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcs_log_path = "/project/def-lulam50/magod/rl_summ/mcs_exp"
+        self.mcs_log_path = "/project/def-adurand/magod/rl_summ/mcs_exp"
         os.makedirs(self.mcs_log_path, exist_ok=True)
         self.mcs_log_path += "/results.pck"
         with open(self.mcs_log_path, "wb") as f:

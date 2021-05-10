@@ -3,7 +3,7 @@
 #####################
 seed: 42 # Random seed
 dev: False
-slurm_log_path: /project/def-lulam50/magod/rl_summ/slurm_outputs/
+slurm_log_path: /project/def-adurand/magod/rl_summ/slurm_outputs/
 
 ##################
 ### MODEL ARGS ###
@@ -25,7 +25,7 @@ n_jobs_for_mcts: 8
 dataset: "cnn_dailymail" # One of ['cnn_dailymail']
 data_path: "$SLURM_TMPDIR/linsit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
-embeddings_location: "/scratch/magod/embeddings/"
+embeddings_location: "/project/def-adurand/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first
 
 ###################
@@ -49,8 +49,8 @@ overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 0.1
-default_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/last_results/"
-weights_save_path: "/project/def-lulam50/magod/rl_summ/exp_logging/new_weight_saving/"
+default_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/last_results/"
+weights_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/new_weight_saving/"
 max_epochs: 5
 weight_decay: 0.000001
 dropout: 0.0

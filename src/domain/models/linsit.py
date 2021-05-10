@@ -35,9 +35,10 @@ class LinSITModel(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device="cuda:0")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.device)
         self.test_size = len(self.splits["test"])
-        self.targets_repart = torch.zeros(50, dtype=torch.float64, device="cuda:0")
+        self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.device)
         self.train_size = len(self.splits["train"])
 
         self.__build_model(dataset)

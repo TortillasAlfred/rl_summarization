@@ -62,7 +62,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp_priors/"
+        self.mcts_log_path = "/project/def-adurand/magod/rl_summ/mcts_exp_priors/"
         os.makedirs(self.mcts_log_path, exist_ok=True)
 
     def __build_model(self, hidden_dim, dataset):

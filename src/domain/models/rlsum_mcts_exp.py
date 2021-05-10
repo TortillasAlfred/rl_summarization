@@ -62,7 +62,7 @@ class RLSumMCTSEXP(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
         self.raw_run_done = False
 
-        self.mcts_log_path = "/project/def-lulam50/magod/rl_summ/mcts_exp"
+        self.mcts_log_path = "/project/def-adurand/magod/rl_summ/mcts_exp"
         os.makedirs(self.mcts_log_path, exist_ok=True)
         self.mcts_log_path += "/results.pck"
         with open(self.mcts_log_path, "wb") as f:
