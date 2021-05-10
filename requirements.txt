@@ -6,7 +6,7 @@ pytorch-lightning==1.1
 scikit-learn
 tensorflow
 test-tube
-torch
+pytorch
 torchtext
 torchvision
 tqdm
