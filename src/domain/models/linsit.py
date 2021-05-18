@@ -189,7 +189,7 @@ class LinSITModel(pl.LightningModule):
         for name, val in reward_dict.items():
             self.log(name, val, prog_bar="mean" in name)
 
-        return reward_dict["val_greedy_rouge_mean"]
+        return reward_dict["val_greedy_rouge_mean"].mean()
 
     def validation_epoch_end(self, outputs):
         mean_rouge = torch.stack(outputs).mean()
