@@ -22,7 +22,7 @@ class NGramsPCA:
             dataset.get_splits()["train"],
             collate_fn=TextDataCollator(dataset.fields, None, subset="train",),
             batch_size=128,
-            num_workers=0,
+            num_workers=self.num_workers,
             drop_last=False,
         )
 

@@ -20,6 +20,7 @@ class LinearHypothesisTests(pl.LightningModule):
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
+        self.num_workers = hparams.num_workers
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
@@ -215,7 +216,7 @@ class LinearHypothesisTests(pl.LightningModule):
                 self.fields, self.reward_builder, subset="train"
             ),
             batch_size=self.train_batch_size,
-            num_workers=4,
+            num_workers=self.num_workers,
             pin_memory=True,
             shuffle=True,
             drop_last=True,
@@ -227,7 +228,7 @@ class LinearHypothesisTests(pl.LightningModule):
             dataset,
             collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
-            num_workers=4,
+            num_workers=self.num_workers,
             pin_memory=True,
             drop_last=True,
         )
@@ -240,7 +241,7 @@ class LinearHypothesisTests(pl.LightningModule):
                 self.fields, self.reward_builder, subset="test"
             ),
             batch_size=self.test_batch_size,
-            num_workers=0,
+            num_workers=self.num_workers,
             pin_memory=True,
             drop_last=True,
         )

@@ -70,7 +70,11 @@ if __name__ == "__main__":
     scores_python = []
 
     loader = DataLoader(
-        subset, collate_fn=collator, batch_size=64, num_workers=0, drop_last=False,
+        subset,
+        collate_fn=collator,
+        batch_size=64,
+        num_workers=self.num_workers,
+        drop_last=False,
     )
 
     for batch in tqdm(loader):
