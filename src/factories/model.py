@@ -14,6 +14,7 @@ from src.domain.models.binary import *
 
 
 class ModelFactory:
+    BERTSUMEXT = "bertsumext"
     BANDITSUM = "banditsum"
     RLSUM_MCTS = "rlsum_mcts"
     RLSUM_MCTS_PURE = "rlsum_mcts_pure"
@@ -34,7 +35,9 @@ class ModelFactory:
     def get_model(cls, dataset, reward, config):
         model = config.model
 
-        if model == cls.BANDITSUM:
+        if model == cls.BERTSUMEXT:
+            return BertSumExt.from_config(dataset, reward, config)
+        elif model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
         elif model == cls.BANDITUM_MCS_EXP:
             return BanditSumMCSExperiment.from_config(dataset, reward, config)

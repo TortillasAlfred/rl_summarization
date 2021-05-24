@@ -23,7 +23,7 @@ n_jobs_for_mcts: 8
 ####################
 ### DATASET ARGS ###
 ####################
-dataset: "cnn_dailymail" # One of ['cnn_dailymail']
+dataset: "cnn_dailymail" # One of ['cnn_dailymail, cnn_dailymail_bert']
 data_path: "$SLURM_TMPDIR/sit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/project/def-adurand/magod/embeddings/"

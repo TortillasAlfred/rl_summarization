@@ -138,3 +138,7 @@ weights
 *.csv 
 *.pt
 *.tar
+*.swp
+
+#Database
+/dev
