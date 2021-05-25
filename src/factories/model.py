@@ -1,3 +1,4 @@
+from src.domain.models.bertsumext import *
 from src.domain.models.banditsum import *
 from src.domain.models.banditsum_exp import *
 from src.domain.models.rlsum_mcts_exp import *

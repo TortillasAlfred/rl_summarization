@@ -5,8 +5,9 @@ import math
 import os
 import logging
 import torch
-from collections import defaultdict
+import transformers
 
+from collections import defaultdict
 from joblib import Parallel, delayed
 from collections import OrderedDict
 from torchtext.data import (
@@ -16,6 +17,58 @@ from torchtext.data import (
     Field,
     NestedField,
 )
+
+"""
+Useful Information:
+
+In: 
+import transformers
+tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
+sample_txt = "When was I last outside? I am stuck at home for two weeks."
+tokens = tokenizer.tokenize(sample_text)
+print(tokens)
+
+Out: 
+['when', 'was', 'i', 'last', 'outside', '?', 'i', 'am', 'stuck', 'at', 'home', 'for', 'two', 'weeks', '.']
+
+In: 
+token_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+Out: 
+[2043, 2001, 1045, 2197, 2648, 1029, 1045, 2572, 5881, 2012, 2188, 2005, 2048, 3134, 1012]
+
+In: tokenizer.sep_token, tokenizer.sep_token_id
+Out: ('[SEP]', 102)
+
+In: tokenizer.cls_token, tokenizer.cls_token_id
+Out: ('[CLS]', 101)
+
+In: tokenizer.pad_token, tokenizer.pad_token_id
+Out: ('[PAD]', 0)
+
+In: tokenizer.unk_token, tokenizer.unk_token_id
+Out: ('[UNK]', 100)
+
+In: encoding = tokenizer.encode_plus(sample_text, 
+                                    max_length=32,
+                                    add_special_tokens=True,
+                                    pad_to_max_length=True,
+                                    return_attention_mask=True,
+                                    return_token_type_ids=False,
+                                    return_tensors="pt")
+
+In [17]: encoding.keys()
+Out[17]: dict_keys(['input_ids', 'attention_mask'])
+
+In [18]: encoding['input_ids'], encoding['attention_mask']
+Out[18]: 
+(tensor([[ 101, 2043, 2001, 1045, 2197, 2648, 1029, 1045, 2572, 5881, 2012, 2188,
+          2005, 2048, 3134, 1012,  102,    0,    0,    0,    0,    0,    0,    0,
+             0,    0,    0,    0,    0,    0,    0,    0]]),
+ tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0]]))
+          
+"""
 
 
 class SummarizationDataset(Dataset):
@@ -36,7 +89,7 @@ def not_empty_example(example):
     return len(example.content) > 3 and len(example.abstract) > 0
 
 
-class CnnDailyMailDataset(SummarizationDataset):
+class CnnDailyMailDatasetBert(SummarizationDataset):
     def __init__(
         self,
         path,
@@ -52,7 +105,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.path = path
         self._build_reading_fields()
         subsets, self.fpaths = self._load_all(sets, dev, begin_idx, end_idx)
-        super(CnnDailyMailDataset, self).__init__(
+        super(CnnDailyMailDatasetBert, self).__init__(
             subsets, self.fields, vectors, vectors_cache, filter_pred
         )
 
@@ -145,7 +198,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
     @staticmethod
     def from_config(config):
-        return CnnDailyMailDataset(
+        return CnnDailyMailDatasetBert(
             config.data_path,
             config.embeddings,
             sets=config.sets.split("-"),
@@ -191,7 +244,7 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset(
+    dataset = CnnDailyMailDatasetBert(
         "./data/cnn_dailymail", "glove.6B.100d", dev=True, sets=["train"]
     )
 
