@@ -1,5 +1,5 @@
 from src.domain.dataset import CnnDailyMailDataset
-from src.domain.dataset_bert import CnnDailyMailDatasetBert
+from src.domain.dataset_bert import DatasetBertWrapper
 
 
 class DatasetFactory:
@@ -11,7 +11,7 @@ class DatasetFactory:
         dataset_type = config.dataset
 
         if dataset_type == cls.CNN_DAILYMAIL_BERT:
-            return CnnDailyMailDatasetBert.from_config(config)
+            return DatasetBertWrapper.from_config(config)
         elif dataset_type == cls.CNN_DAILYMAIL:
             return CnnDailyMailDataset.from_config(config)
         else:

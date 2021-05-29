@@ -8,7 +8,7 @@ slurm_log_path: /project/def-adurand/magod/rl_summ/slurm_outputs/
 ##################
 ### MODEL ARGS ###
 ##################
-model: "banditsum" # One of ['bertsumext', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+model: "bertsumext" # One of ['bertsumext', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
 num_workers: 0
 train_batch_size: 64
 test_batch_size: 128

@@ -1,3 +1,4 @@
+datasets==1.6.2
 matplotlib
 nltk
 numpy

@@ -49,8 +49,6 @@ class BertSumExt(pl.LightningModule):
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
-        self.embedding_dim = dataset.embedding_dim
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
 
