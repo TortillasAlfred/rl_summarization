@@ -10,7 +10,7 @@ from transformers import BertTokenizerFast
 class CnnDailyMailDatasetBert():
     def __init__(self, data_path):
         self.loaded_data = self._load_dataset(join(data_path, 'finished_files' , 'train'), 
-                                              join(data_path, 'finished_files/test/'),
+                                              join(data_path, 'finished_files' ,'test'),
                                               join(data_path, 'finished_files/val/'))
         self.dataset = self.tokenized_dataset(self.loaded_data)
 
