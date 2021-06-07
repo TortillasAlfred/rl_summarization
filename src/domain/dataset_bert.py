@@ -11,7 +11,7 @@ class CnnDailyMailDatasetBert():
     def __init__(self, data_path):
         self.loaded_data = self._load_dataset(join(data_path, 'finished_files' , 'train'), 
                                               join(data_path, 'finished_files' ,'test'),
-                                              join(data_path, 'finished_files/val/'))
+                                              join(data_path, 'finished_files', 'val'))
         self.dataset = self.tokenized_dataset(self.loaded_data)
 
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"): 
