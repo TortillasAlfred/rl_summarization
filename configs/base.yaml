@@ -8,7 +8,7 @@ slurm_log_path: /project/def-adurand/magod/rl_summ/slurm_outputs/
 ##################
 ### MODEL ARGS ###
 ##################
-model: "banditsum" # One of ['banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+model: "bertsumext" # One of ['bertsumext', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
 num_workers: 0
 train_batch_size: 64
 test_batch_size: 128
@@ -23,7 +23,7 @@ n_jobs_for_mcts: 8
 ####################
 ### DATASET ARGS ###
 ####################
-dataset: "cnn_dailymail" # One of ['cnn_dailymail']
+dataset: "cnn_dailymail_bert" # One of ['cnn_dailymail, cnn_dailymail_bert']
 data_path: "$SLURM_TMPDIR/sit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/project/def-adurand/magod/embeddings/"

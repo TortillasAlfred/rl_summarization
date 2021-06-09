@@ -109,7 +109,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         all_files = os.listdir(reading_path)
 
         if dev:
-            all_files = all_files[:25000]
+            all_files = all_files[:25000] #Customizable
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
@@ -128,10 +128,10 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.content.build_vocab(
             [
                 field
-                for subset in self.subsets.values()
+                for subset in self.subsets.values() 
                 for field in [subset.content, subset.abstract]
             ],
-            vectors=vectors,
+            vectors=vectors, #vectors = glove.6B.100d is Stanford's GloVe 100d word embeddings (pretrained model)
             vectors_cache=vectors_cache,
         )
 
