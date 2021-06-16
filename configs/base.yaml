@@ -28,6 +28,8 @@ data_path: "$SLURM_TMPDIR/sit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/project/def-adurand/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first
+bert_cache: True # If no internet connection, save pretrained parameters
+                 # for BertTokenizerFast and BertModel in bert_cache/ directory
 
 ###################
 ### REWARD ARGS ###

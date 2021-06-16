@@ -1,7 +1,3 @@
-from src.domain.loader_utils import TextDataCollator
-from .bertsum_transformer import Summarizer
-from src.domain.ucb import UCBProcess
-
 import os
 import time
 import torch
@@ -13,6 +9,10 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from src.domain.ucb import UCBProcess
+from src.domain.loader_utils import TextDataCollator
+from .bertsum_transformer import Summarizer
+
 
 class BertCombiSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
@@ -23,10 +23,8 @@ class BertCombiSum(pl.LightningModule):
         self.colname_2_field_objs = dataset.fields
 
         self.pad_idx = dataset.pad_idx
-        self.reward_builder = reward
-
-        self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
+        self.reward_builder = reward
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -49,7 +47,7 @@ class BertCombiSum(pl.LightningModule):
             50, dtype=torch.float64, device=self.tensor_device
         )
         self.train_size = len(self.splits["train"])
-        self.my_core_model = Summarizer(self.tensor_device)
+        self.my_core_model = Summarizer(self.tensor_device, self.hparams)
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
         else:
@@ -239,4 +237,4 @@ class BertCombiSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertCombiSum(dataset, reward, config,)
+        return BertCombiSum(dataset, reward, config)

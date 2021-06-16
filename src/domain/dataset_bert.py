@@ -1,7 +1,7 @@
 import time
 import torch
 
-from os import listdir
+from os import listdir, getcwd
 from os.path import isfile, join
 from torch._C import dtype
 from torch.utils.data import Dataset
@@ -13,21 +13,22 @@ from torchtext.data import (
     Field,
     RawField
 )
+from nltk.tokenize import sent_tokenize, word_tokenize
 
-MAX_LEN_DOCUMENT= 512
-UNK = 100
-SEP = 102
+SEN_PER_DOC = 50 #SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
+MAX_LEN_SENTENCE = 80
+MAX_LEN_DOCUMENT = SEN_PER_DOC * MAX_LEN_SENTENCE
 PAD = 0
-CLS = 101
-MASK= 103
 
+bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
 
 class CnnDailyMailDatasetBert():
-    def __init__(self, data_path):
-        self.loaded_data = self._load_dataset(join(data_path, 'finished_files', 'train'),
-                                              join(data_path, 'finished_files', 'test'),
-                                              join(data_path, 'finished_files', 'val'))
+    def __init__(self, config):
+        self.loaded_data = self._load_dataset(join(config.data_path, 'finished_files', 'train'),
+                                              join(config.data_path, 'finished_files', 'test'),
+                                              join(config.data_path, 'finished_files', 'val'))
         self.dataset = self.tokenized_dataset(self.loaded_data)
+        self.config = config
 
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"): 
         """Utility method use to load the data
@@ -68,18 +69,45 @@ class CnnDailyMailDatasetBert():
                 'segs':[],
                 'clss':[0],
                 'mark_clss':[True]}
-        seg=1
-        for sentence in document:
-            seg=1-seg
+        for seg, sentence in enumerate(document[:SEN_PER_DOC]):
+            # words_tokenized = word_tokenize(sentence)
+            # if len(words_tokenized)>512:
+            #     sentences_tokenized = sent_tokenize(sentence)
+            #     ids, types, mark =[],[],[]
+            #     for i, sentence_ in enumerate(sentences_tokenized):
+            #         output = tokenizer(sentence_,  
+            #                         add_special_tokens=True,
+            #                         return_tensors='pt')
+            #         ids_, types_, mark_ = output['input_ids'][0], output['token_type_ids'][0], output['attention_mask'][0]
+            #         if i<len(sentences_tokenized)-1:
+            #             ids_=ids_[:-1]
+            #             types_=types_[:-1]
+            #             mark_=mark_[:-1]
+            #         if i>0:
+            #             ids_=ids_[1:]
+            #             types_=types_[1:]
+            #             mark_=mark_[1:]
+            #         ids.append(ids_)
+            #         types.append(types_)
+            #         mark.append(mark_)
+                
+            #     ids = torch.cat(ids)
+            #     types = torch.cat(types)
+            #     mark = torch.cat(mark)
+
+            # else:
             output = tokenizer(sentence,  
-                            add_special_tokens=True,
-                            return_tensors='pt')
+                        add_special_tokens=True,
+                        max_length = MAX_LEN_SENTENCE,
+                        truncation = True,
+                        return_tensors = 'pt')
             ids, types, mark = output['input_ids'][0], output['token_type_ids'][0], output['attention_mask'][0]
-            if len(result_['token_ids']) + len(ids.tolist()) >MAX_LEN_DOCUMENT: break
+            
+            if len(result_['token_ids']) + len(ids.tolist()) > MAX_LEN_DOCUMENT: break
             result_['token_ids'].extend(ids.tolist())
             result_['token_type_ids'].extend(types.tolist())
             result_['mark'].extend(mark.tolist())
-            result_['segs'].extend([seg]*len(ids))
+            result_['segs'].extend([seg % 2]*len(ids))
             result_['clss'].append(len(result_['segs']))
             result_['mark_clss'].append(True)
 
@@ -87,13 +115,14 @@ class CnnDailyMailDatasetBert():
         result_['mark_clss'].pop()
         
         #padding
-        pad_ = MAX_LEN_DOCUMENT -len(result_["token_ids"])
+        pad_ = MAX_LEN_DOCUMENT - len(result_["token_ids"])
         result_['token_ids'].extend([PAD]*pad_)
         result_['token_type_ids'].extend([result_['token_type_ids'][-1]]*pad_)
         result_['mark'].extend([0]*pad_)
-        result_['segs'].extend([1-seg]*pad_)
+        result_['segs'].extend([1-(seg%2)]*pad_)
 
         return result_
+
     
     def get_values(self, set_, part_, dataset, tokenizer):
         """Utility method used inside `tokenized_dataset`
@@ -119,7 +148,12 @@ class CnnDailyMailDatasetBert():
         Returns:
             dict: dataset once tokenized
         """
-        tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        if self.config.bert_cache: #Used if there's no internet connection
+            bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
+            tokenizer = BertTokenizerFast.from_pretrained(bert_cache_dir, local_files_only=True)
+        else:
+            tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+
 
         print("\n"+"="*10, "Start Tokenizing", "="*10)
         start = time.process_time()
@@ -203,8 +237,8 @@ class TextDatasetBert(Dataset):
 class DatasetBertWrapper(CnnDailyMailDatasetBert):
     """ Wrapper used to reformat the data generated by CnnDailyMailDatasetBert """
 
-    def __init__(self, data_path):
-        super().__init__(data_path)
+    def __init__(self, config):
+        super().__init__(config)
         self.fields = [
             ("id", IdField()), 
             ("content", DataField()), 
@@ -234,4 +268,4 @@ class DatasetBertWrapper(CnnDailyMailDatasetBert):
         Args:
             config: configuration to fill different parameters and hyperparameters 
         """
-        return DatasetBertWrapper(config.data_path)
+        return DatasetBertWrapper(config)

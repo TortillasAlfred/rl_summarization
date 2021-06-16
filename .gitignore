@@ -143,3 +143,4 @@ weights
 #Database
 /dev
 /cache_dir
+/bert_cache
