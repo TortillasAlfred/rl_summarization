@@ -70,32 +70,6 @@ class CnnDailyMailDatasetBert():
                 'clss':[0],
                 'mark_clss':[True]}
         for seg, sentence in enumerate(document[:SEN_PER_DOC]):
-            # words_tokenized = word_tokenize(sentence)
-            # if len(words_tokenized)>512:
-            #     sentences_tokenized = sent_tokenize(sentence)
-            #     ids, types, mark =[],[],[]
-            #     for i, sentence_ in enumerate(sentences_tokenized):
-            #         output = tokenizer(sentence_,  
-            #                         add_special_tokens=True,
-            #                         return_tensors='pt')
-            #         ids_, types_, mark_ = output['input_ids'][0], output['token_type_ids'][0], output['attention_mask'][0]
-            #         if i<len(sentences_tokenized)-1:
-            #             ids_=ids_[:-1]
-            #             types_=types_[:-1]
-            #             mark_=mark_[:-1]
-            #         if i>0:
-            #             ids_=ids_[1:]
-            #             types_=types_[1:]
-            #             mark_=mark_[1:]
-            #         ids.append(ids_)
-            #         types.append(types_)
-            #         mark.append(mark_)
-                
-            #     ids = torch.cat(ids)
-            #     types = torch.cat(types)
-            #     mark = torch.cat(mark)
-
-            # else:
             output = tokenizer(sentence,  
                         add_special_tokens=True,
                         max_length = MAX_LEN_SENTENCE,
