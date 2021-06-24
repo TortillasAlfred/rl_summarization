@@ -28,7 +28,7 @@ data_path: "$SLURM_TMPDIR/sit_dataset" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/project/def-adurand/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first
-bert_cache: True # If no internet connection, save pretrained parameters
+bert_cache: False # If no internet connection, save pretrained parameters
                  # for BertTokenizerFast and BertModel in bert_cache/ directory
 
 ###################
@@ -54,7 +54,7 @@ distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
 val_check_interval: 0.1
 default_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/last_results/"
 weights_save_path: "/project/def-adurand/magod/rl_summ/exp_logging/new_weight_saving/"
-max_epochs: 5
+max_epochs: 20
 weight_decay: 0.000001
 dropout: 0.0
 accumulate_grad_batches: 1

@@ -10,9 +10,10 @@ from transformers import BertTokenizerFast
 from torchtext.data import Dataset as torchtextDataset, Example, Field, RawField
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-SEN_PER_DOC = # SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
+SEN_PER_DOC = 50 # SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
 MAX_LEN_SENTENCE = 80
-MAX_LEN_DOCUMENT = SEN_PER_DOC * MAX_LEN_SENTENCE
+MIN_LEN_SENTENCE = 6
+MAX_NB_TOKENS_PER_DOCUMENT = 512
 PAD = 0
 
 bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
@@ -25,8 +26,8 @@ class CnnDailyMailDatasetBert:
             join(config.data_path, "finished_files", "test"),
             join(config.data_path, "finished_files", "val"),
         )
-        self.dataset = self.tokenized_dataset(self.loaded_data)
         self.config = config
+        self.dataset = self.tokenized_dataset(self.loaded_data)
 
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"):
         """Utility method use to load the data
@@ -76,7 +77,9 @@ class CnnDailyMailDatasetBert:
             "segs": [],
             "clss": [0],
             "mark_clss": [True],
+            "sentence_gap": [],
         }
+        current_sentence = 0
         for seg, sentence in enumerate(document[:SEN_PER_DOC]):
             # words_tokenized = word_tokenize(sentence)
             # if len(words_tokenized)>512:
@@ -116,8 +119,10 @@ class CnnDailyMailDatasetBert:
                 output["token_type_ids"][0],
                 output["attention_mask"][0],
             )
-
-            if len(result_["token_ids"]) + len(ids.tolist()) > MAX_LEN_DOCUMENT:
+            if len(ids) < MIN_LEN_SENTENCE + 2:
+                current_sentence += 1
+                continue
+            if len(result_["token_ids"]) + len(ids.tolist()) > MAX_NB_TOKENS_PER_DOCUMENT:
                 break
             result_["token_ids"].extend(ids.tolist())
             result_["token_type_ids"].extend(types.tolist())
@@ -125,17 +130,17 @@ class CnnDailyMailDatasetBert:
             result_["segs"].extend([seg % 2] * len(ids))
             result_["clss"].append(len(result_["segs"]))
             result_["mark_clss"].append(True)
+            result_["sentence_gap"].append(current_sentence)
 
         result_["clss"].pop()
         result_["mark_clss"].pop()
 
         # padding
-        pad_ = MAX_LEN_DOCUMENT - len(result_["token_ids"])
+        pad_ = MAX_NB_TOKENS_PER_DOCUMENT - len(result_["token_ids"])
         result_["token_ids"].extend([PAD] * pad_)
         result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
         result_["mark"].extend([0] * pad_)
         result_["segs"].extend([1 - (seg % 2)] * pad_)
-
         return result_
 
     def get_values(self, set_, part_, dataset, tokenizer):
@@ -240,6 +245,8 @@ class DataField(Field):
 
         for field_ in batch[0]:
             try:
+                if field_ == "sentence_gap":
+                    continue
                 # stack to tensor for: token_ids, token_type_ids, mark, segs
                 result[field_] = torch.Tensor(result[field_]).long()
                 if field_ in ["mark", "mark_clss"]:

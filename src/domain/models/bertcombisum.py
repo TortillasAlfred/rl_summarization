@@ -9,7 +9,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from src.domain.ucb import UCBProcess
+from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
@@ -73,19 +73,21 @@ class BertCombiSum(pl.LightningModule):
         _, greedy_idxs = torch.topk(
             contents_extracted, self.n_sents_per_summary, sorted=False
         )
+        # revert greedy_idx into origin index (before truncate)
+        sentence_gap = contents["sentence_gap"]
+        for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
+            sentence_gap_ = torch.tensor(sentence_gap_).to(self.tensor_device)
+            greedy_idx += torch.index_select(sentence_gap_, 0, greedy_idx)
 
         if subset == "train":
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
-            greedy_rewards = (
-                torch.tensor(greedy_rewards)
-                if isinstance(greedy_rewards[0], list)
-                else torch.tensor([greedy_rewards])
-            )
+            greedy_rewards = torch.tensor(greedy_rewards)
 
             ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers
+                BertUCBProcess(self.ucb_sampling, self.c_puct),
+                list(zip(sentence_gap, scorers)),
             )
 
             ucb_targets = torch.tensor(
@@ -127,12 +129,14 @@ class BertCombiSum(pl.LightningModule):
                 greedy_idxs, raw_contents, raw_abstracts
             )
 
-            if subset == "test":
-                idxs_repart = torch.zeros_like(contents_extracted)
-                idxs_repart.scatter_(1, greedy_idxs, 1)
+            # if subset == "test":
+            #     idxs_repart = torch.zeros(contents_extracted.size(0), 50).to(
+            #         self.tensor_device
+            #     )
+            #     idxs_repart.scatter_(1, greedy_idxs, 1)
 
-                self.idxs_repart += idxs_repart.sum(0)
-
+            #     self.idxs_repart += idxs_repart.sum(0)
+            # greedy_rewards shape(batch_size, 3), 3 rouge scores for 3 sentences.
             return (
                 torch.from_numpy(greedy_rewards)
                 if greedy_rewards.ndim > 1

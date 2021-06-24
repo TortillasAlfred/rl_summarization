@@ -7,6 +7,7 @@ from transformers import BertModel
 
 from .encoder import TransformerInterEncoder
 from ..dataset_bert import MAX_LEN_DOCUMENT
+import numpy as np
 
 D_FFN = 2048
 HEAD = 8
@@ -52,6 +53,10 @@ class Summarizer(nn.Module):
             contents["mark"],
             contents["mark_clss"],
         )
+        x = x.to(self.device)
+        segs = segs.to(self.device)
+        mask = mask.to(self.device)
+
         len_seq = contents["token_ids"].size(-1)
         top_vec = self.bert(
             x, mask, segs, position_ids=self.position_ids[:len_seq]
@@ -74,4 +79,6 @@ class Summarizer(nn.Module):
         mark_cls_ = (mask_cls[:, :, None].float().to(self.device))  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
         sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
+        regularize = mask_cls.float().masked_fill(mask_cls == False, -np.inf)
+        sent_scores += regularize
         return sent_scores, mask_cls
