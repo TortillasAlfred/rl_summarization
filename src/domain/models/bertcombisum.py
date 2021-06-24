@@ -89,19 +89,20 @@ class BertCombiSum(pl.LightningModule):
             pad_ = torch.zeros(
                 (ucb_targets.size(0), ucb_targets.size(1) - valid_sentences.size(1)),
                 dtype=torch.bool,
-            ).to(ucb_targets.device)
-            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(ucb_targets.device)
+                device=ucb_targets.device,
+            )
+            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(device=ucb_targets.device)
 
             target_distro = 10 ** (-10 * (1 - ucb_targets)) * valid_sentences
             pad_ = torch.zeros(
                 (
                     target_distro.size(0),
                     target_distro.size(1) - contents_extracted.size(1),
-                )
-            ).to(target_distro.device)
-            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(target_distro.device)
+                ),
+                device=target_distro.device,
+            )
+            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(device=target_distro.device)
 
-            # Softmax
             loss = self.criterion(contents_extracted, target_distro)
             loss[~valid_sentences] = 0.0
             loss = loss.sum(-1) / valid_sentences.sum(-1)
