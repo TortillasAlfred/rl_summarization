@@ -60,7 +60,7 @@ class BertCombiSum(pl.LightningModule):
 
     def forward(self, batch, subset):  # (data_batch, "train" or "test")
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
-        batch_size = len(contents)
+        batch_size = len(ids)
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
 
@@ -113,14 +113,12 @@ class BertCombiSum(pl.LightningModule):
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
-            # if subset == "test":
-            #     idxs_repart = torch.zeros(contents_extracted.size(0), 50).to(
-            #         self.tensor_device
-            #     )
-            #     idxs_repart.scatter_(1, greedy_idxs, 1)
+            if subset == "test":
+                idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
+                idxs_repart.scatter_(1, greedy_idxs, 1)
 
-            #     self.idxs_repart += idxs_repart.sum(0)
-            # greedy_rewards shape(batch_size, 3), 3 rouge scores for 3 sentences.
+                self.idxs_repart += idxs_repart.sum(0)
+
             return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
 
     def training_step(self, batch, batch_idx):
