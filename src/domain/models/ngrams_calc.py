@@ -40,9 +40,7 @@ class NGramsPCA:
                 ids,
             ) = batch
 
-            Parallel(n_jobs=self.n_jobs, verbose=1)(
-                delayed(self.ngrams)(*doc) for doc in zip(contents, ids)
-            )
+            Parallel(n_jobs=self.n_jobs, verbose=1)(delayed(self.ngrams)(*doc) for doc in zip(contents, ids))
 
     @staticmethod
     def from_config(dataset, reward, config):

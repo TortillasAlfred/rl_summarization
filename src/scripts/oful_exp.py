@@ -43,8 +43,6 @@ if __name__ == "__main__":
                 default=value,
             )
         else:
-            argument_parser.add_argument(
-                "--{}".format(config), type=type(value), default=value
-            )
+            argument_parser.add_argument("--{}".format(config), type=type(value), default=value)
     options = argument_parser.parse_args()
     main(options)

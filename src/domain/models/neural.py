@@ -5,11 +5,7 @@ import torch.nn as nn
 
 
 def gelu(x):
-    return (
-        0.5
-        * x
-        * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
-    )
+    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -137,11 +133,7 @@ class MultiHeadedAttention(nn.Module):
 
         def unshape(x):
             """compute context"""
-            return (
-                x.transpose(1, 2)
-                .contiguous()
-                .view(batch_size, -1, head_count * dim_per_head)
-            )
+            return x.transpose(1, 2).contiguous().view(batch_size, -1, head_count * dim_per_head)
 
         # 1) Project key, value, and query.
         if layer_cache is not None:
@@ -158,13 +150,9 @@ class MultiHeadedAttention(nn.Module):
                 if layer_cache is not None:
                     device = key.device
                     if layer_cache["self_keys"] is not None:
-                        key = torch.cat(
-                            (layer_cache["self_keys"].to(device), key), dim=2
-                        )
+                        key = torch.cat((layer_cache["self_keys"].to(device), key), dim=2)
                     if layer_cache["self_values"] is not None:
-                        value = torch.cat(
-                            (layer_cache["self_values"].to(device), value), dim=2
-                        )
+                        value = torch.cat((layer_cache["self_values"].to(device), value), dim=2)
                     layer_cache["self_keys"] = key
                     layer_cache["self_values"] = value
             elif type == "context":

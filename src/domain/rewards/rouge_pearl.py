@@ -35,11 +35,7 @@ class RougePearlReward:
     def __call__(self, hyps, refs):
         refs = [[r] for r in refs]
 
-        scores = list(
-            Parallel(n_jobs=self.n_jobs)(
-                rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs)
-            )
-        )
+        scores = list(Parallel(n_jobs=self.n_jobs)(rouge_reward(seqs, self.stemming) for seqs in zip(hyps, refs)))
 
         return np.asarray(scores[0], dtype=np.float32)
 
@@ -66,9 +62,7 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail", "glove.6B.50d", dev=False, sets=["test"]
-    )
+    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.50d", dev=False, sets=["test"])
 
     test_loader = dataset.get_loaders(batch_size=64, device="cuda:0")["test"]
     scorer = RougeReward()

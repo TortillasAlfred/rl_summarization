@@ -19,9 +19,7 @@ def process_sample(fpath, saving_dir):
 
         del data["rouge"]
 
-        with open(
-            os.path.join(saving_dir, f"{data['id']}.json"), "w", encoding="utf8"
-        ) as f:
+        with open(os.path.join(saving_dir, f"{data['id']}.json"), "w", encoding="utf8") as f:
             json.dump(rouge_scores, f)
 
         with open(fpath, "w", encoding="utf8") as f:
@@ -46,9 +44,7 @@ def main(options):
 
     Parallel(n_jobs=-1)(
         process_sample(fpath, saving_dir)
-        for fpath in datetime_tqdm(
-            dataset.fpaths[options.dataset], desc="Saving rouge scores"
-        )
+        for fpath in datetime_tqdm(dataset.fpaths[options.dataset], desc="Saving rouge scores")
     )
 
     logging.info("Done")
@@ -56,15 +52,9 @@ def main(options):
 
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument(
-        "--data_path", type=str, default="./data/cnn_dailymail"
-    )
+    argument_parser.add_argument("--data_path", type=str, default="./data/cnn_dailymail")
     argument_parser.add_argument("--dataset", type=str, default="train")
-    argument_parser.add_argument(
-        "--vectors_cache", type=str, default="./data/embeddings"
-    )
-    argument_parser.add_argument(
-        "--target_dir", type=str, default="./data/cnn_dailymail/rouge/"
-    )
+    argument_parser.add_argument("--vectors_cache", type=str, default="./data/embeddings")
+    argument_parser.add_argument("--target_dir", type=str, default="./data/cnn_dailymail/rouge/")
     options = argument_parser.parse_args()
     main(options)

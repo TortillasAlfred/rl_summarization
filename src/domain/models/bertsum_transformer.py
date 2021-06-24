@@ -17,9 +17,7 @@ class Summarizer(nn.Module):
         super(Summarizer, self).__init__()
         self.device = device
         self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
-        self.encoder = TransformerInterEncoder(
-            D_MODEL_BERT, D_FFN, HEAD, DROPOUT, NUM_TLAYER
-        )
+        self.encoder = TransformerInterEncoder(D_MODEL_BERT, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
 
         self.position_ids = torch.arange(MAX_LEN_DOCUMENT).to(self.device)
 
@@ -37,9 +35,7 @@ class Summarizer(nn.Module):
             contents["mark_clss"],
         )
         len_seq = contents["token_ids"].size(-1)
-        top_vec = self.bert(
-            x, mask, segs, position_ids=self.position_ids[:len_seq]
-        ).last_hidden_state
+        top_vec = self.bert(x, mask, segs, position_ids=self.position_ids[:len_seq]).last_hidden_state
 
         # /input_ids, attention_mask, token_type_ids
         # sents_vec: lay [CLS] cua moi cau. shape top_vec (5, 17, 768) (5 docs, 17 sentences, 768: hiden state of word)
@@ -55,11 +51,7 @@ class Summarizer(nn.Module):
         mask_cls = mask_cls.to(self.device)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
 
-        mark_cls_ = (
-            mask_cls[:, :, None].float().to(self.device)
-        )  # mark_cls_ shape (2,24,1)
+        mark_cls_ = mask_cls[:, :, None].float().to(self.device)  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
-        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(
-            -1
-        )  # sents_vec(2, 54, 768) mask_cls(1, 54)
+        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
         return sent_scores, mask_cls

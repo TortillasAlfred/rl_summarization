@@ -17,9 +17,7 @@ class LinUCBProcess:
         elif self.ucb_sampling == "linear":
             n_samples = 2 * n_sents
         else:
-            raise NotImplementedError(
-                f"{self.ucb_sampling} is not a valid UCB sampling method."
-            )
+            raise NotImplementedError(f"{self.ucb_sampling} is not a valid UCB sampling method.")
 
         return linucb(scorer, self.c_puct, n_samples, n_sents, ngrams)
 
@@ -39,17 +37,10 @@ def linucb(scorer, c_puct, n_samples, n_sents, action_vectors, priors=None):
     theta_hat = A_inv.mm(b)
     sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
     for _ in range(n_samples):
-        p_t_a = (
-            sent_predicted_vals
-            + c_puct
-            * priors
-            * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
-        )
+        p_t_a = sent_predicted_vals + c_puct * priors * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         threshold = p_t_a.topk(3)[0][-1]
         elligible_idxs = torch.where(p_t_a >= threshold)[0]
-        sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(
-            3
-        )
+        sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(3)
         idxs = elligible_idxs[sampled_idxs]
         reward = torch.tensor(scorer(tuple(sorted(idxs.tolist()))))
 

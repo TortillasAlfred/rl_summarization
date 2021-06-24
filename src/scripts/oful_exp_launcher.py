@@ -13,9 +13,7 @@ def optimize_on_cluster(hparams):
     cluster.script_name = "-um src.scripts.oful_exp_launcher"
 
     # email for cluster coms
-    cluster.notify_job_status(
-        email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True
-    )
+    cluster.notify_job_status(email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True)
 
     # configure cluster
     cluster.per_experiment_nb_cpus = 16
@@ -31,13 +29,9 @@ def optimize_on_cluster(hparams):
         "trap \"sbatch resubmitting_script.sh 150 $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')\" SIGUSR1"
     )
     cluster.add_command("source ~/venvs/default/bin/activate")
-    cluster.add_slurm_cmd(
-        cmd="account", value="def-adurand", comment="CCDB account for running"
-    )
+    cluster.add_slurm_cmd(cmd="account", value="def-adurand", comment="CCDB account for running")
 
-    cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=12, job_name="rl_summarization"
-    )
+    cluster.optimize_parallel_cluster_gpu(main, nb_trials=12, job_name="rl_summarization")
 
 
 if __name__ == "__main__":
@@ -68,9 +62,7 @@ if __name__ == "__main__":
                     default=value,
                 )
             else:
-                argument_parser.add_argument(
-                    "--{}".format(config), type=type(value), default=value
-                )
+                argument_parser.add_argument("--{}".format(config), type=type(value), default=value)
 
     for name, kwargs in fine_tuned_items.items():
         argument_parser.opt_list(f"--{name}", **kwargs)

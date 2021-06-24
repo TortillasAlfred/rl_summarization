@@ -42,9 +42,7 @@ def main(options):
 
         Parallel(n_jobs=-1)(
             process_sample(fname, saving_dir)
-            for fname in datetime_tqdm(
-                dataset.fpaths[subset], desc="Saving rouge scores"
-            )
+            for fname in datetime_tqdm(dataset.fpaths[subset], desc="Saving rouge scores")
         )
 
     logging.info("Done")
@@ -52,14 +50,8 @@ def main(options):
 
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument(
-        "--data_path", type=str, default="./data/cnn_dailymail"
-    )
-    argument_parser.add_argument(
-        "--vectors_cache", type=str, default="./data/embeddings"
-    )
-    argument_parser.add_argument(
-        "--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/"
-    )
+    argument_parser.add_argument("--data_path", type=str, default="./data/cnn_dailymail")
+    argument_parser.add_argument("--vectors_cache", type=str, default="./data/embeddings")
+    argument_parser.add_argument("--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/")
     options = argument_parser.parse_args()
     main(options)

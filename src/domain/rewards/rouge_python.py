@@ -87,9 +87,7 @@ class Rouge:
         self.limit_length = limit_length
         if self.limit_length:
             if length_limit_type not in Rouge.AVAILABLE_LENGTH_LIMIT_TYPES:
-                raise ValueError(
-                    "Unknown length_limit_type '{}'".format(length_limit_type)
-                )
+                raise ValueError("Unknown length_limit_type '{}'".format(length_limit_type))
 
         self.length_limit = length_limit
         if self.length_limit == 0:
@@ -334,17 +332,11 @@ class Rouge:
         if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
             raise ValueError("Collections must contain at least 1 sentence.")
 
-        evaluated_ngrams, _, evaluated_count = Rouge._get_word_ngrams_and_length(
-            n, evaluated_sentences
-        )
-        reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(
-            n, reference_sentences
-        )
+        evaluated_ngrams, _, evaluated_count = Rouge._get_word_ngrams_and_length(n, evaluated_sentences)
+        reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(n, reference_sentences)
 
         # Gets the overlapping ngrams between evaluated and reference
-        overlapping_ngrams = set(evaluated_ngrams.keys()).intersection(
-            set(reference_ngrams.keys())
-        )
+        overlapping_ngrams = set(evaluated_ngrams.keys()).intersection(set(reference_ngrams.keys()))
         overlapping_count = 0
         for ngram in overlapping_ngrams:
             overlapping_count += min(evaluated_ngrams[ngram], reference_ngrams[ngram])
@@ -352,9 +344,7 @@ class Rouge:
         return evaluated_count, reference_count, overlapping_count
 
     @staticmethod
-    def _compute_ngrams_lcs(
-        evaluated_sentences, reference_sentences, weight_factor=1.0
-    ):
+    def _compute_ngrams_lcs(evaluated_sentences, reference_sentences, weight_factor=1.0):
         """
         Computes ROUGE-L (summary level) of two text collections of sentences.
         http://research.microsoft.com/en-us/um/people/cyl/download/papers/
@@ -402,9 +392,7 @@ class Rouge:
                     if x[i - 1] == y[j - 1]:
                         length_tmp = lengths[i - 1, j - 1]
                         vals[i, j] = (
-                            vals[i - 1, j - 1]
-                            + (length_tmp + 1) ** weight_factor
-                            - length_tmp ** weight_factor
+                            vals[i - 1, j - 1] + (length_tmp + 1) ** weight_factor - length_tmp ** weight_factor
                         )
                         dirs[i, j] = "|"
                         lengths[i, j] = length_tmp + 1
@@ -437,12 +425,8 @@ class Rouge:
         if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
             raise ValueError("Collections must contain at least 1 sentence.")
 
-        evaluated_unigrams_dict, evaluated_count = Rouge._get_unigrams(
-            evaluated_sentences
-        )
-        reference_unigrams_dict, reference_count = Rouge._get_unigrams(
-            reference_sentences
-        )
+        evaluated_unigrams_dict, evaluated_count = Rouge._get_unigrams(evaluated_sentences)
+        reference_unigrams_dict, reference_count = Rouge._get_unigrams(reference_sentences)
 
         # Has to use weight factor for WLCS
         use_WLCS = weight_factor != 1.0
@@ -467,9 +451,7 @@ class Rouge:
                         weight_factor,
                     )
                 else:
-                    _, lcs_dirs = _lcs(
-                        reference_sentence_tokens, evaluated_sentence_tokens
-                    )
+                    _, lcs_dirs = _lcs(reference_sentence_tokens, evaluated_sentence_tokens)
                 _mark_lcs(
                     hit_mask,
                     lcs_dirs,
@@ -481,22 +463,16 @@ class Rouge:
             for ref_token_id, val in enumerate(hit_mask):
                 if val == 1:
                     token = reference_sentence_tokens[ref_token_id]
-                    if (
-                        evaluated_unigrams_dict[token] > 0
-                        and reference_unigrams_dict[token] > 0
-                    ):
+                    if evaluated_unigrams_dict[token] > 0 and reference_unigrams_dict[token] > 0:
                         evaluated_unigrams_dict[token] -= 1
                         reference_unigrams_dict[ref_token_id] -= 1
 
                         if use_WLCS:
                             overlapping_count_length += 1
                             if (
-                                ref_token_id + 1 < len(hit_mask)
-                                and hit_mask[ref_token_id + 1] == 0
+                                ref_token_id + 1 < len(hit_mask) and hit_mask[ref_token_id + 1] == 0
                             ) or ref_token_id + 1 == len(hit_mask):
-                                overlapping_count += (
-                                    overlapping_count_length ** weight_factor
-                                )
+                                overlapping_count += overlapping_count_length ** weight_factor
                                 overlapping_count_length = 0
                         else:
                             overlapping_count += 1
@@ -511,25 +487,13 @@ class Rouge:
         hypothesis, references = evaluated_pair
         hypothesis, references = [hypothesis], [references]
         scores = []
-        has_rouge_n_metric = (
-            len([metric for metric in self.metrics if metric.split("-")[-1].isdigit()])
-            > 0
-        )
+        has_rouge_n_metric = len([metric for metric in self.metrics if metric.split("-")[-1].isdigit()]) > 0
         if has_rouge_n_metric:
             n_scores = self._get_scores_rouge_n(hypothesis, references)
             scores.append(n_scores["rouge-1"])
             scores.append(n_scores["rouge-2"])
 
-        has_rouge_l_metric = (
-            len(
-                [
-                    metric
-                    for metric in self.metrics
-                    if metric.split("-")[-1].lower() == "l"
-                ]
-            )
-            > 0
-        )
+        has_rouge_l_metric = len([metric for metric in self.metrics if metric.split("-")[-1].lower() == "l"]) > 0
         if has_rouge_l_metric:
             scores.append(self._get_scores_rouge_l_or_w(hypothesis, references, False))
 
@@ -540,9 +504,7 @@ class Rouge:
 
     def get_all_scores(self, evaluated_pairs):
         used_jobs = self.n_jobs if len(evaluated_pairs) > 8 else 1
-        scores = Parallel(n_jobs=used_jobs)(
-            self.get_pair_score(pair) for pair in evaluated_pairs
-        )
+        scores = Parallel(n_jobs=used_jobs)(self.get_pair_score(pair) for pair in evaluated_pairs)
 
         return scores
 
@@ -561,9 +523,7 @@ class Rouge:
 
         scores = {metric: [] * len(all_hypothesis) for metric in metrics}
 
-        for sample_id, (hypothesis, references) in enumerate(
-            zip(all_hypothesis, all_references)
-        ):
+        for sample_id, (hypothesis, references) in enumerate(zip(all_hypothesis, all_references)):
             assert isinstance(hypothesis, str)
             has_multiple_references = False
             if isinstance(references, list):
@@ -574,10 +534,7 @@ class Rouge:
             # Prepare hypothesis and reference(s)
             hypothesis = self._preprocess_summary_as_a_whole(hypothesis)
             references = (
-                [
-                    self._preprocess_summary_as_a_whole(reference)
-                    for reference in references
-                ]
+                [self._preprocess_summary_as_a_whole(reference) for reference in references]
                 if has_multiple_references
                 else [self._preprocess_summary_as_a_whole(references)]
             )
@@ -617,9 +574,7 @@ class Rouge:
         metric = "rouge-l"
         scores = []
 
-        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(
-            zip(all_hypothesis, all_references)
-        ):
+        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(zip(all_hypothesis, all_references)):
             assert isinstance(hypothesis_sentences, str)
             has_multiple_references = False
             if isinstance(references_sentences, list):
@@ -628,24 +583,15 @@ class Rouge:
                     references_sentences = references_sentences[0]
 
             # Prepare hypothesis and reference(s)
-            hypothesis_sentences = self._preprocess_summary_per_sentence(
-                hypothesis_sentences
-            )
+            hypothesis_sentences = self._preprocess_summary_per_sentence(hypothesis_sentences)
             references_sentences = (
-                [
-                    self._preprocess_summary_per_sentence(reference)
-                    for reference in references_sentences
-                ]
+                [self._preprocess_summary_per_sentence(reference) for reference in references_sentences]
                 if has_multiple_references
                 else [self._preprocess_summary_per_sentence(references_sentences)]
             )
 
             for reference_sentences in references_sentences:
-                (
-                    hypothesis_count,
-                    reference_count,
-                    overlapping_ngrams,
-                ) = Rouge._compute_ngrams_lcs(
+                (hypothesis_count, reference_count, overlapping_ngrams,) = Rouge._compute_ngrams_lcs(
                     hypothesis_sentences,
                     reference_sentences,
                     self.weight_factor if use_w else 1.0,
@@ -681,9 +627,7 @@ class Rouge:
         # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
         # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
         if self.ensure_compatibility:
-            tokens = self.tokenize_text(
-                Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", summary)
-            )
+            tokens = self.tokenize_text(Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", summary))
         else:
             tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(" ", summary))
 
@@ -691,9 +635,7 @@ class Rouge:
             self.stem_tokens(tokens)  # stemming in-place
 
         if self.ensure_compatibility:
-            preprocessed_summary = [
-                Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub("cannot", " ".join(tokens))
-            ]
+            preprocessed_summary = [Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub("cannot", " ".join(tokens))]
         else:
             preprocessed_summary = [" ".join(tokens)]
 
@@ -718,21 +660,15 @@ class Rouge:
             # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
             # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
             if self.ensure_compatibility:
-                tokens = self.tokenize_text(
-                    Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", sentence)
-                )
+                tokens = self.tokenize_text(Rouge.KEEP_CANNOT_IN_ONE_WORD.sub("_cannot_", sentence))
             else:
-                tokens = self.tokenize_text(
-                    Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence)
-                )
+                tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence))
 
             if self.stemming:
                 self.stem_tokens(tokens)  # stemming in-place
 
             if self.ensure_compatibility:
-                sentence = Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub(
-                    "cannot", " ".join(tokens)
-                )
+                sentence = Rouge.KEEP_CANNOT_IN_ONE_WORD_REVERSED.sub("cannot", " ".join(tokens))
             else:
                 sentence = " ".join(tokens)
 
@@ -791,9 +727,7 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail", "glove.6B.50d", dev=False, sets=["test"]
-    )
+    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.50d", dev=False, sets=["test"])
 
     test_split = dataset.get_splits()["test"]
     test_loader = BucketIterator(

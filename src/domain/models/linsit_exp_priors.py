@@ -41,13 +41,9 @@ class LinSITExpPriors:
             drop_last=False,
         )
 
-    def linsit_exp_priors(
-        self, sent_contents, greedy_priors, all_prior_choices, scorers, ids, c_puct, tau
-    ):
+    def linsit_exp_priors(self, sent_contents, greedy_priors, all_prior_choices, scorers, ids, c_puct, tau):
         results = self.pool.map(
-            LinSITExpPriorsProcess(
-                n_samples=self.n_mcts_samples, c_puct=c_puct, tau=tau
-            ),
+            LinSITExpPriorsProcess(n_samples=self.n_mcts_samples, c_puct=c_puct, tau=tau),
             zip(
                 sent_contents,
                 greedy_priors,
@@ -148,9 +144,7 @@ class LinSITExpPriors:
                 else:
                     # Get median
                     selected_sents = np.argsort(s)[len(s) // 2]
-                selected_sents = torch.from_numpy(
-                    scorer.summary_from_idx(selected_sents)
-                )
+                selected_sents = torch.from_numpy(scorer.summary_from_idx(selected_sents))
                 greedy_priors[batch_idx][sample_idx][selected_sents] = 1 / 3
 
         return greedy_priors, all_prior_choices

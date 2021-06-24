@@ -15,9 +15,7 @@ class UCBProcess:
         elif self.ucb_sampling == "linear":
             n_samples = 2 * n_sents + 50
         else:
-            raise NotImplementedError(
-                f"{self.ucb_sampling} is not a valid UCB sampling method."
-            )
+            raise NotImplementedError(f"{self.ucb_sampling} is not a valid UCB sampling method.")
 
         return ucb(scorer, self.c_puct, n_samples, n_sents)
 
@@ -38,9 +36,7 @@ class UCBPriorsProcess:
         elif self.ucb_sampling == "linear":
             n_samples = 2 * n_sents + 50
         else:
-            raise NotImplementedError(
-                f"{self.ucb_sampling} is not a valid UCB sampling method."
-            )
+            raise NotImplementedError(f"{self.ucb_sampling} is not a valid UCB sampling method.")
 
         beta_n = np.log(n_sents + 9) - np.log(9)
 
@@ -51,9 +47,7 @@ class UCBPriorsProcess:
             beta = 10 ** (-2 + self.batch_float)
             beta = min(beta, 1) * beta_n
         else:
-            raise NotImplementedError(
-                f"{self.prior_version} is not a valid Prior version."
-            )
+            raise NotImplementedError(f"{self.prior_version} is not a valid Prior version.")
 
         priors = softmax(action_vals[:n_sents] * beta)
 
@@ -74,9 +68,9 @@ def ucb(scorer, c_puct, n_samples, n_sents, priors=None):
         elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]
         sampled_idxs = np.random.choice(elligible_idxs, 3, replace=False)
         summ_score = scorer(tuple(sampled_idxs))
-        q_vals[sampled_idxs] = (
-            summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]
-        ) / (n_visits[sampled_idxs] + 1)
+        q_vals[sampled_idxs] = (summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]) / (
+            n_visits[sampled_idxs] + 1
+        )
         n_visits[sampled_idxs] += 1
 
     max_score = scorer.scores.max()

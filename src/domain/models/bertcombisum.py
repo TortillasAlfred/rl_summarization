@@ -41,13 +41,9 @@ class BertCombiSum(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.idxs_repart = torch.zeros(
-            50, dtype=torch.float32, device=self.tensor_device
-        )
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
         self.test_size = len(self.splits["test"])
-        self.targets_repart = torch.zeros(
-            50, dtype=torch.float64, device=self.tensor_device
-        )
+        self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.tensor_device)
         self.train_size = len(self.splits["train"])
         self.my_core_model = Summarizer(self.tensor_device)
         if hparams.n_jobs_for_mcts == -1:
@@ -68,22 +64,16 @@ class BertCombiSum(pl.LightningModule):
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
         batch_size = len(contents)
 
-        contents_extracted, valid_sentences = self.__my_document_level_encoding(
-            contents
-        )
+        contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
 
-        _, greedy_idxs = torch.topk(
-            contents_extracted, self.n_sents_per_summary, sorted=False
-        )
+        _, greedy_idxs = torch.topk(contents_extracted, self.n_sents_per_summary, sorted=False)
 
         if subset == "train":
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = (
-                torch.tensor(greedy_rewards)
-                if isinstance(greedy_rewards[0], list)
-                else torch.tensor([greedy_rewards])
+                torch.tensor(greedy_rewards) if isinstance(greedy_rewards[0], list) else torch.tensor([greedy_rewards])
             )
 
             ucb_results = self.pool.map(
@@ -91,9 +81,7 @@ class BertCombiSum(pl.LightningModule):
                 scorers,
             )
 
-            ucb_targets = torch.tensor(
-                [r[0] for r in ucb_results], device=valid_sentences.device
-            )
+            ucb_targets = torch.tensor([r[0] for r in ucb_results], device=valid_sentences.device)
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
             # Padding if max len_doc < 50 sentences
@@ -101,9 +89,7 @@ class BertCombiSum(pl.LightningModule):
                 (ucb_targets.size(0), ucb_targets.size(1) - valid_sentences.size(1)),
                 dtype=torch.bool,
             ).to(ucb_targets.device)
-            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(
-                ucb_targets.device
-            )
+            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(ucb_targets.device)
 
             target_distro = 10 ** (-10 * (1 - ucb_targets)) * valid_sentences
             pad_ = torch.zeros(
@@ -112,9 +98,7 @@ class BertCombiSum(pl.LightningModule):
                     target_distro.size(1) - contents_extracted.size(1),
                 )
             ).to(target_distro.device)
-            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(
-                target_distro.device
-            )
+            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(target_distro.device)
 
             # Softmax
             loss = self.criterion(contents_extracted, target_distro)
@@ -126,9 +110,7 @@ class BertCombiSum(pl.LightningModule):
 
             return greedy_rewards, loss, ucb_deltas
         else:
-            greedy_rewards = scorers.get_scores(
-                greedy_idxs, raw_contents, raw_abstracts
-            )
+            greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             if subset == "test":
                 idxs_repart = torch.zeros_like(contents_extracted)
@@ -136,11 +118,7 @@ class BertCombiSum(pl.LightningModule):
 
                 self.idxs_repart += idxs_repart.sum(0)
 
-            return (
-                torch.from_numpy(greedy_rewards)
-                if greedy_rewards.ndim > 1
-                else torch.tensor([greedy_rewards])
-            )
+            return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
 
     def training_step(self, batch, batch_idx):
         start = time.time()
@@ -214,9 +192,7 @@ class BertCombiSum(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=5, factor=0.2, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=5, factor=0.2, verbose=True)
 
         return optimizer
 
@@ -224,9 +200,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -238,9 +212,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="val"
-            ),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -251,9 +223,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
