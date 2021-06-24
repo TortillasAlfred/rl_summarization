@@ -38,7 +38,10 @@ class SITPriorsModel(pl.LightningModule):
         self.batches_per_epoch = ceil(len(self.splits["train"]) / self.train_batch_size)
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+        )
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -236,12 +239,18 @@ class SITPriorsModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return SITPriorsModel(dataset, reward, config,)
+        return SITPriorsModel(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(
-        self, hidden_dim, decoder_dim,
+        self,
+        hidden_dim,
+        decoder_dim,
     ):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(

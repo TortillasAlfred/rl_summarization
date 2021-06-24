@@ -39,10 +39,18 @@ class LinSITExp:
         )
 
     def linsit_exp(
-        self, sent_contents, priors, scorers, ids, c_pucts,
+        self,
+        sent_contents,
+        priors,
+        scorers,
+        ids,
+        c_pucts,
     ):
         results = self.pool.map(
-            LinSITExpProcess(n_samples=self.n_mcts_samples, c_pucts=c_pucts,),
+            LinSITExpProcess(
+                n_samples=self.n_mcts_samples,
+                c_pucts=c_pucts,
+            ),
             zip(sent_contents, priors, scorers, ids),
         )
 
@@ -50,7 +58,15 @@ class LinSITExp:
 
     def process_all(self):
         for batch_idx, batch in enumerate(tqdm(self.dataloader)):
-            (_, contents, _, _, ids, scorers, n_grams_dense,) = batch
+            (
+                _,
+                contents,
+                _,
+                _,
+                ids,
+                scorers,
+                n_grams_dense,
+            ) = batch
 
             n_grams_dense = [torch.from_numpy(_) for _ in n_grams_dense]
 
@@ -65,7 +81,13 @@ class LinSITExp:
             priors = torch.ones_like(valid_sentences, dtype=torch.float32)
             priors /= valid_sentences.sum(-1, keepdim=True)
 
-            results = self.linsit_exp(n_grams_dense, priors, scorers, ids, c_pucts,)
+            results = self.linsit_exp(
+                n_grams_dense,
+                priors,
+                scorers,
+                ids,
+                c_pucts,
+            )
 
             keys = [r[0] for r in results]
             theta_hat_predictions = [r[1] for r in results]
@@ -99,4 +121,8 @@ class LinSITExp:
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSITExp(dataset, reward, config,)
+        return LinSITExp(
+            dataset,
+            reward,
+            config,
+        )

@@ -797,7 +797,12 @@ if __name__ == "__main__":
 
     test_split = dataset.get_splits()["test"]
     test_loader = BucketIterator(
-        test_split, train=False, batch_size=64, shuffle=False, sort=False, device="cpu",
+        test_split,
+        train=False,
+        batch_size=64,
+        shuffle=False,
+        sort=False,
+        device="cpu",
     )
     scorer = RougeReward()
 

@@ -6,7 +6,8 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 def optimize_on_cluster(hparams):
     cluster = SlurmCluster(
-        hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
+        hyperparam_optimizer=hparams,
+        log_path=hparams.slurm_log_path,
     )
 
     cluster.script_name = "-um src.scripts.test_tube_launcher_sit"
@@ -46,7 +47,10 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
     fine_tuned_items["ucb_sampling"] = dict(
-        default="linear", type=str, tunable=True, options=["linear", "fix"],
+        default="linear",
+        type=str,
+        tunable=True,
+        options=["linear", "fix"],
     )
     fine_tuned_items["seed"] = dict(
         default=1, type=int, tunable=True, options=list(range(5))

@@ -280,7 +280,11 @@ class BanditSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BanditSum(dataset, reward, config,)
+        return BanditSum(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):

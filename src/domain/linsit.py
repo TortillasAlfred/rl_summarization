@@ -4,7 +4,9 @@ import numpy as np
 
 class LinSITExpProcess:
     def __init__(
-        self, n_samples, c_pucts,
+        self,
+        n_samples,
+        c_pucts,
     ):
         self.n_samples = n_samples
         self.c_pucts = c_pucts
@@ -12,7 +14,14 @@ class LinSITExpProcess:
     def __call__(self, iterable):
         (sent_contents, priors, scorer, id) = iterable
         results = [
-            linsit_exp(sent_contents, priors, scorer, id, c_puct, self.n_samples,)
+            linsit_exp(
+                sent_contents,
+                priors,
+                scorer,
+                id,
+                c_puct,
+                self.n_samples,
+            )
             for c_puct in self.c_pucts
         ]
 
@@ -20,12 +29,21 @@ class LinSITExpProcess:
 
 
 def linsit_exp(
-    sent_contents, priors, scorer, id, c_puct, n_samples,
+    sent_contents,
+    priors,
+    scorer,
+    id,
+    c_puct,
+    n_samples,
 ):
     priors = priors[: sent_contents.shape[0]]
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        sent_contents, priors, scorer, n_samples, c_puct,
+        sent_contents,
+        priors,
+        scorer,
+        n_samples,
+        c_puct,
     )
 
     key = (c_puct, int(sent_contents.shape[0]), max_rouge, id)
@@ -76,7 +94,11 @@ def linsit_exp_prior(
     priors /= priors.sum()
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        sent_contents, priors, scorer, n_samples, c_puct,
+        sent_contents,
+        priors,
+        scorer,
+        n_samples,
+        c_puct,
     )
 
     best_idxs = np.argpartition(priors, -3)[-3:]

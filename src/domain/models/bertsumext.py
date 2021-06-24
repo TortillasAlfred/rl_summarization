@@ -75,7 +75,10 @@ class BertSumExt(pl.LightningModule):
         self.train_size = len(self.splits["train"])
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+        )
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -137,7 +140,8 @@ class BertSumExt(pl.LightningModule):
             greedy_rewards = torch.tensor(greedy_rewards)
 
             ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers,
+                UCBProcess(self.ucb_sampling, self.c_puct),
+                scorers,
             )
 
             ucb_targets = torch.tensor(
@@ -293,12 +297,18 @@ class BertSumExt(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertSumExt(dataset, reward, config,)
+        return BertSumExt(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(
-        self, hidden_dim, decoder_dim,
+        self,
+        hidden_dim,
+        decoder_dim,
     ):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(

@@ -65,7 +65,11 @@ if __name__ == "__main__":
         sets=subsets,
     )
     subset = dataset.get_splits()["test"]
-    collator = TextDataCollator(dataset.fields, None, "test",)
+    collator = TextDataCollator(
+        dataset.fields,
+        None,
+        "test",
+    )
     rouge_python = RougePythonReward()
     scores_python = []
 

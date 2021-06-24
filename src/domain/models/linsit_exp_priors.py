@@ -48,14 +48,28 @@ class LinSITExpPriors:
             LinSITExpPriorsProcess(
                 n_samples=self.n_mcts_samples, c_puct=c_puct, tau=tau
             ),
-            zip(sent_contents, greedy_priors, all_prior_choices, scorers, ids,),
+            zip(
+                sent_contents,
+                greedy_priors,
+                all_prior_choices,
+                scorers,
+                ids,
+            ),
         )
 
         return [r for res in results for r in res]
 
     def process_all(self):
         for batch_idx, batch in enumerate(tqdm(self.dataloader)):
-            (_, contents, _, _, ids, scorers, n_grams_dense,) = batch
+            (
+                _,
+                contents,
+                _,
+                _,
+                ids,
+                scorers,
+                n_grams_dense,
+            ) = batch
             batch_size = len(contents)
 
             n_grams_dense = [torch.from_numpy(_) for _ in n_grams_dense]
@@ -143,4 +157,8 @@ class LinSITExpPriors:
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSITExpPriors(dataset, reward, config,)
+        return LinSITExpPriors(
+            dataset,
+            reward,
+            config,
+        )

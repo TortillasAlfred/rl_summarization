@@ -13,7 +13,7 @@ def gelu(x):
 
 
 class PositionwiseFeedForward(nn.Module):
-    """ A two-layer Feed-Forward-Network with residual layer norm.
+    """A two-layer Feed-Forward-Network with residual layer norm.
 
     Args:
         d_model (int): the size of input for the first-layer of the FFN.
@@ -132,11 +132,11 @@ class MultiHeadedAttention(nn.Module):
         query_len = query.size(1)
 
         def shape(x):
-            """  projection """
+            """projection"""
             return x.view(batch_size, -1, head_count, dim_per_head).transpose(1, 2)
 
         def unshape(x):
-            """  compute context """
+            """compute context"""
             return (
                 x.transpose(1, 2)
                 .contiguous()

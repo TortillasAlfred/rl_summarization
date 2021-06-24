@@ -33,7 +33,11 @@ class LinearHypothesisTests(pl.LightningModule):
         self.batch_idx = 0
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
 
         self.results = []
         self.config_args = {
@@ -195,7 +199,9 @@ class LinearHypothesisTests(pl.LightningModule):
                     "params": self.model.decoder.parameters(),
                     "lr": self.learning_rate * 0.1,
                 },
-                {"params": self.model.pretraining_decoder.parameters(),},
+                {
+                    "params": self.model.pretraining_decoder.parameters(),
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
@@ -248,7 +254,11 @@ class LinearHypothesisTests(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinearHypothesisTests(dataset, reward, config,)
+        return LinearHypothesisTests(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):

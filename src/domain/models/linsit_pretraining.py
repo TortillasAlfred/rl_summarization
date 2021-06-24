@@ -41,7 +41,11 @@ class LinSIT(pl.LightningModule):
         os.makedirs(self.pretraining_path, exist_ok=True)
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
 
     def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -107,9 +111,11 @@ class LinSIT(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        (action_vals, valid_sentences, sent_contents,) = self.__extract_features(
-            contents
-        )
+        (
+            action_vals,
+            valid_sentences,
+            sent_contents,
+        ) = self.__extract_features(contents)
 
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
         greedy_rewards = []
@@ -267,7 +273,9 @@ class LinSIT(pl.LightningModule):
                     "params": self.model.decoder.parameters(),
                     "lr": self.learning_rate * 0.1,
                 },
-                {"params": self.model.pretraining_decoder.parameters(),},
+                {
+                    "params": self.model.pretraining_decoder.parameters(),
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
@@ -320,7 +328,11 @@ class LinSIT(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSIT(dataset, reward, config,)
+        return LinSIT(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):

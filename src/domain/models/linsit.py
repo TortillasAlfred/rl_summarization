@@ -47,7 +47,10 @@ class LinSITModel(pl.LightningModule):
         self.train_size = len(self.splits["train"])
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+        )
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -104,7 +107,14 @@ class LinSITModel(pl.LightningModule):
                 n_grams_dense,
             ) = batch
         else:
-            (raw_contents, contents, raw_abstracts, abstracts, ids, scorers,) = batch
+            (
+                raw_contents,
+                contents,
+                raw_abstracts,
+                abstracts,
+                ids,
+                scorers,
+            ) = batch
         batch_size = len(contents)
 
         self.wl_encoder.flatten_parameters()
@@ -280,12 +290,18 @@ class LinSITModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSITModel(dataset, reward, config,)
+        return LinSITModel(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(
-        self, hidden_dim, decoder_dim,
+        self,
+        hidden_dim,
+        decoder_dim,
     ):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(

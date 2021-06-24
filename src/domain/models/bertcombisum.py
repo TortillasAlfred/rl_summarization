@@ -87,7 +87,8 @@ class BertCombiSum(pl.LightningModule):
             )
 
             ucb_results = self.pool.map(
-                UCBProcess(self.ucb_sampling, self.c_puct), scorers,
+                UCBProcess(self.ucb_sampling, self.c_puct),
+                scorers,
             )
 
             ucb_targets = torch.tensor(
@@ -205,7 +206,9 @@ class BertCombiSum(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
-            [{"params": self.my_core_model.parameters(), "lr": self.learning_rate},],
+            [
+                {"params": self.my_core_model.parameters(), "lr": self.learning_rate},
+            ],
             lr=self.learning_rate,
             betas=[0, 0.999],
             weight_decay=self.weight_decay,
@@ -259,4 +262,8 @@ class BertCombiSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertCombiSum(dataset, reward, config,)
+        return BertCombiSum(
+            dataset,
+            reward,
+            config,
+        )

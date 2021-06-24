@@ -60,7 +60,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.alpha_oful = hparams.alpha_oful
 
         self.__build_model(hparams.hidden_dim, dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
         self.raw_run_done = False
 
         self.mcts_log_path = "/project/def-adurand/magod/rl_summ/mcts_exp_priors/"
@@ -332,7 +336,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return RLSumMCTSEXPPriors(dataset, reward, config,)
+        return RLSumMCTSEXPPriors(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):

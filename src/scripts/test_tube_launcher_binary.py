@@ -6,7 +6,8 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 def optimize_on_cluster(hparams):
     cluster = SlurmCluster(
-        hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
+        hyperparam_optimizer=hparams,
+        log_path=hparams.slurm_log_path,
     )
 
     cluster.script_name = "-um src.scripts.test_tube_launcher_binary"

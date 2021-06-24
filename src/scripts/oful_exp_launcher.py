@@ -6,7 +6,8 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 def optimize_on_cluster(hparams):
     cluster = SlurmCluster(
-        hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
+        hyperparam_optimizer=hparams,
+        log_path=hparams.slurm_log_path,
     )
 
     cluster.script_name = "-um src.scripts.oful_exp_launcher"
@@ -51,7 +52,10 @@ if __name__ == "__main__":
         options=[0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
     )
     fine_tuned_items["warmup_batches"] = dict(
-        default=100, type=int, tunable=True, options=[100, 1000],
+        default=100,
+        type=int,
+        tunable=True,
+        options=[100, 1000],
     )
 
     for config, value in base_configs.items():

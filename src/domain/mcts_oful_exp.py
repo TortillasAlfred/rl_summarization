@@ -26,7 +26,12 @@ class RLSumOFULValueProcess:
         self.n_sents_per_summary = n_sents_per_summary
 
     def __call__(self, iterable):
-        (sent_contents, doc_contents, valid_sentences, scores,) = iterable
+        (
+            sent_contents,
+            doc_contents,
+            valid_sentences,
+            scores,
+        ) = iterable
         return rlsum_oful_value(
             sent_contents.to(self.device),
             doc_contents.to(self.device),
@@ -266,8 +271,16 @@ def rlsum_value_oful_episode(
 
 class RLSumOFULWarmupProcess:
     def __call__(self, iterable):
-        (state, valid_sentences, scores,) = iterable
-        return rlsum_oful_warmup(state, valid_sentences, scores,)
+        (
+            state,
+            valid_sentences,
+            scores,
+        ) = iterable
+        return rlsum_oful_warmup(
+            state,
+            valid_sentences,
+            scores,
+        )
 
 
 def rlsum_oful_warmup(state, valid_sentences, scores, n_warmup_summs=3):
@@ -282,7 +295,9 @@ def rlsum_oful_warmup(state, valid_sentences, scores, n_warmup_summs=3):
     )
 
     sampled_bases = np.random.choice(
-        range(n_sents ** 2), n_warmup_summs, replace=False,
+        range(n_sents ** 2),
+        n_warmup_summs,
+        replace=False,
     )
     sampled_bases = all_bases[sampled_bases]
 

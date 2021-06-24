@@ -20,7 +20,11 @@ class NGramsPCA:
 
         self.dataloader = DataLoader(
             dataset.get_splits()["train"],
-            collate_fn=TextDataCollator(dataset.fields, None, subset="train",),
+            collate_fn=TextDataCollator(
+                dataset.fields,
+                None,
+                subset="train",
+            ),
             batch_size=128,
             num_workers=self.num_workers,
             drop_last=False,
@@ -28,7 +32,13 @@ class NGramsPCA:
 
     def process_all(self):
         for batch in tqdm(self.dataloader):
-            (_, contents, _, _, ids,) = batch
+            (
+                _,
+                contents,
+                _,
+                _,
+                ids,
+            ) = batch
 
             Parallel(n_jobs=self.n_jobs, verbose=1)(
                 delayed(self.ngrams)(*doc) for doc in zip(contents, ids)
@@ -36,4 +46,7 @@ class NGramsPCA:
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return NGramsPCA(dataset, config.log_path,)
+        return NGramsPCA(
+            dataset,
+            config.log_path,
+        )

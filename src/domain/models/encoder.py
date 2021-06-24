@@ -74,7 +74,7 @@ class TransformerInterEncoder(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, top_vecs, mask):
-        """ See :obj:`EncoderBase.forward()`"""
+        """See :obj:`EncoderBase.forward()`"""
 
         batch_size, n_sents = top_vecs.size(0), top_vecs.size(1)
         pos_emb = self.pos_emb.pe[:, :n_sents]
