@@ -10,7 +10,7 @@ from transformers import BertTokenizerFast
 from torchtext.data import Dataset as torchtextDataset, Example, Field, RawField
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-SEN_PER_DOC = 50 # SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
+SEN_PER_DOC = 50  # SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
 MAX_LEN_SENTENCE = 80
 MIN_LEN_SENTENCE = 6
 MAX_NB_TOKENS_PER_DOCUMENT = 512
@@ -42,15 +42,9 @@ class CnnDailyMailDatasetBert:
             DatasetDict: return the dataset loaded from train_dir, test_dir and val_dir
         """
 
-        train_files = [
-            join(train_dir, f) for f in listdir(train_dir) if isfile(join(train_dir, f))
-        ]
-        test_files = [
-            join(test_dir, f) for f in listdir(test_dir) if isfile(join(test_dir, f))
-        ]
-        val_files = [
-            join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))
-        ]
+        train_files = [join(train_dir, f) for f in listdir(train_dir) if isfile(join(train_dir, f))]
+        test_files = [join(test_dir, f) for f in listdir(test_dir) if isfile(join(test_dir, f))]
+        val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
         return load_dataset(
             "json",
@@ -130,10 +124,7 @@ class CnnDailyMailDatasetBert:
         Returns:
             list: return a list of tokenized documents
         """
-        return [
-            self.encode_document(document, tokenizer)
-            for document in dataset[set_][part_]
-        ]
+        return [self.encode_document(document, tokenizer) for document in dataset[set_][part_]]
 
     def tokenized_dataset(self, dataset):
         """Method that tokenizes each document in the train, test and validation dataset
@@ -146,9 +137,7 @@ class CnnDailyMailDatasetBert:
         """
         if self.config.bert_cache:  # Used if there's no internet connection
             bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
-            tokenizer = BertTokenizerFast.from_pretrained(
-                bert_cache_dir, local_files_only=True
-            )
+            tokenizer = BertTokenizerFast.from_pretrained(bert_cache_dir, local_files_only=True)
         else:
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
 
@@ -233,9 +222,7 @@ class DataField(Field):
 
 class TextDatasetBert(Dataset):
     def __init__(self, dataset):
-        self.examples = [
-            self.__process_example(x, dataset.fields) for x in dataset.examples
-        ]
+        self.examples = [self.__process_example(x, dataset.fields) for x in dataset.examples]
 
     def __process_example(self, x, fields):
         return {name: getattr(x, name) for name, f in fields.items()}
@@ -287,9 +274,7 @@ class DatasetBertWrapper(CnnDailyMailDatasetBert):
 
     def get_splits(self):
         """Method used to build the dataloader for train, test and validation"""
-        return {
-            name: TextDatasetBert(dataset) for name, dataset in self.subsets.items()
-        }
+        return {name: TextDatasetBert(dataset) for name, dataset in self.subsets.items()}
 
     @staticmethod
     def from_config(config):

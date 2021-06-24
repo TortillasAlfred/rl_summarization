@@ -36,9 +36,7 @@ class BertUCBProcess:
         elif self.ucb_sampling == "linear":
             n_samples = 2 * n_sents + 50
         else:
-            raise NotImplementedError(
-                f"{self.ucb_sampling} is not a valid UCB sampling method."
-            )
+            raise NotImplementedError(f"{self.ucb_sampling} is not a valid UCB sampling method.")
 
         return ucb_bert(scorer, self.c_puct, n_samples, n_sents, sentence_gap)
 
@@ -132,9 +130,9 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
         real_sampled_idxs = sampled_idxs + sentence_gap[sampled_idxs]
 
         summ_score = scorer(tuple(real_sampled_idxs))
-        q_vals[sampled_idxs] = (
-            summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]
-        ) / (n_visits[sampled_idxs] + 1)
+        q_vals[sampled_idxs] = (summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]) / (
+            n_visits[sampled_idxs] + 1
+        )
         n_visits[sampled_idxs] += 1
 
     max_score = scorer.scores.max()

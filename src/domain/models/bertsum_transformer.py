@@ -21,20 +21,14 @@ class Summarizer(nn.Module):
         self.device = device
         if config.bert_cache:
             bert_cache_dir = join(getcwd(), "bert_cache/bertmodel_save_pretrained")
-            self.bert = BertModel.from_pretrained(
-                bert_cache_dir, local_files_only=True
-            ).to(self.device)
+            self.bert = BertModel.from_pretrained(bert_cache_dir, local_files_only=True).to(self.device)
         else:
             self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
 
         if MAX_LEN_DOCUMENT > 512:
-            pos_embeddings = nn.Embedding(
-                MAX_LEN_DOCUMENT, self.bert.config.hidden_size
-            )
+            pos_embeddings = nn.Embedding(MAX_LEN_DOCUMENT, self.bert.config.hidden_size)
             bert_weight = self.bert.embeddings.position_embeddings.weight.data
-            bert_weight_dup = torch.cat(
-                (bert_weight,) * int(MAX_LEN_DOCUMENT // 512 + 1)
-            )
+            bert_weight_dup = torch.cat((bert_weight,) * int(MAX_LEN_DOCUMENT // 512 + 1))
             pos_embeddings.weight.data = bert_weight_dup[:MAX_LEN_DOCUMENT]
             self.bert.embeddings.position_embeddings = pos_embeddings
 
@@ -58,9 +52,7 @@ class Summarizer(nn.Module):
         mask = mask.to(self.device)
 
         len_seq = contents["token_ids"].size(-1)
-        top_vec = self.bert(
-            x, mask, segs, position_ids=self.position_ids[:len_seq]
-        ).last_hidden_state
+        top_vec = self.bert(x, mask, segs, position_ids=self.position_ids[:len_seq]).last_hidden_state
 
         # /input_ids, attention_mask, token_type_ids
         # sents_vec: lay [CLS] cua moi cau. shape top_vec (5, 17, 768) (5 docs, 17 sentences, 768: hiden state of word)
@@ -76,13 +68,9 @@ class Summarizer(nn.Module):
         mask_cls = mask_cls.to(self.device)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
 
-        mark_cls_ = (
-            mask_cls[:, :, None].float().to(self.device)
-        )  # mark_cls_ shape (2,24,1)
+        mark_cls_ = mask_cls[:, :, None].float().to(self.device)  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
-        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(
-            -1
-        )  # sents_vec(2, 54, 768) mask_cls(1, 54)
+        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
         regularize = mask_cls.float().masked_fill(mask_cls == False, -np.inf)
         sent_scores += regularize
         return sent_scores, mask_cls
