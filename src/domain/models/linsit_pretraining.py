@@ -41,7 +41,11 @@ class LinSIT(pl.LightningModule):
         os.makedirs(self.pretraining_path, exist_ok=True)
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
 
     def __build_model(self, dataset):
         self.embeddings = torch.nn.Embedding.from_pretrained(
@@ -62,15 +66,11 @@ class LinSIT(pl.LightningModule):
         valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
         orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
+        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(*orig_shape[:3], -1)
         contents = contents * valid_tokens.unsqueeze(-1)
         contents = contents.sum(-2)
         word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        word_level_encodings[valid_sentences] = contents[valid_sentences] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
@@ -107,9 +107,11 @@ class LinSIT(pl.LightningModule):
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        (action_vals, valid_sentences, sent_contents,) = self.__extract_features(
-            contents
-        )
+        (
+            action_vals,
+            valid_sentences,
+            sent_contents,
+        ) = self.__extract_features(contents)
 
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
         greedy_rewards = []
@@ -127,9 +129,7 @@ class LinSIT(pl.LightningModule):
 
             summs, targets = self.warmup_oful(valid_sentences, scorers)
 
-            predicted_scores = self.model.pretraining_output(
-                sent_contents, summs
-            ).squeeze()
+            predicted_scores = self.model.pretraining_output(sent_contents, summs).squeeze()
 
             loss = (targets.to(valid_sentences.device) - predicted_scores) ** 2
             loss = loss.sum() / batch_size
@@ -141,9 +141,7 @@ class LinSIT(pl.LightningModule):
     def save_pretraining(self):
         save_path = f"{self.pretraining_path}/{self.batch_idx}_batches.pt"
 
-        filtered_model_dict = {
-            k: v for k, v in self.state_dict().items() if not "decoder" in k
-        }
+        filtered_model_dict = {k: v for k, v in self.state_dict().items() if not "decoder" in k}
 
         torch.save(filtered_model_dict, save_path)
 
@@ -206,9 +204,7 @@ class LinSIT(pl.LightningModule):
 
         self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
 
-        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
-            1
-        ]["lr"]
+        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[1]["lr"]
 
         return output_dict
 
@@ -244,9 +240,7 @@ class LinSIT(pl.LightningModule):
         else:
             tqdm_keys = ["rouge_mean"]
             combined_outputs["progress_bar"] = {
-                k: v
-                for k, v in log_dict.items()
-                if any([t_k in k for t_k in tqdm_keys])
+                k: v for k, v in log_dict.items() if any([t_k in k for t_k in tqdm_keys])
             }
 
         return combined_outputs
@@ -267,16 +261,16 @@ class LinSIT(pl.LightningModule):
                     "params": self.model.decoder.parameters(),
                     "lr": self.learning_rate * 0.1,
                 },
-                {"params": self.model.pretraining_decoder.parameters(),},
+                {
+                    "params": self.model.pretraining_decoder.parameters(),
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.1, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=10, factor=0.1, verbose=True)
 
         return optimizer
 
@@ -284,9 +278,7 @@ class LinSIT(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -309,9 +301,7 @@ class LinSIT(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -320,7 +310,11 @@ class LinSIT(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSIT(dataset, reward, config,)
+        return LinSIT(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
@@ -358,9 +352,7 @@ class RLSummModel(torch.nn.Module):
 
         for sents_doc, sampled_sents in zip(sent_contents, sampled_summs):
             for summ in sampled_sents:
-                all_sents.append(
-                    torch.stack([sents_doc[sent_id] for sent_id in summ]).sum(0)
-                )
+                all_sents.append(torch.stack([sents_doc[sent_id] for sent_id in summ]).sum(0))
 
         return torch.stack(all_sents)
 

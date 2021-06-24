@@ -16,9 +16,7 @@ def main(_config, cluster=None):
     set_random_seed(_config.seed)
 
     if "$SLURM_TMPDIR" in _config.data_path:
-        _config.data_path = _config.data_path.replace(
-            "$SLURM_TMPDIR", os.environ["SLURM_TMPDIR"]
-        )
+        _config.data_path = _config.data_path.replace("$SLURM_TMPDIR", os.environ["SLURM_TMPDIR"])
 
     logging.info("Beginning Training script with following config :")
     logging.info(_config)
@@ -46,8 +44,6 @@ if __name__ == "__main__":
                 default=value,
             )
         else:
-            argument_parser.add_argument(
-                "--{}".format(config), type=type(value), default=value
-            )
+            argument_parser.add_argument("--{}".format(config), type=type(value), default=value)
     options = argument_parser.parse_args()
     main(options)

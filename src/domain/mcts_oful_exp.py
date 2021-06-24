@@ -26,7 +26,12 @@ class RLSumOFULValueProcess:
         self.n_sents_per_summary = n_sents_per_summary
 
     def __call__(self, iterable):
-        (sent_contents, doc_contents, valid_sentences, scores,) = iterable
+        (
+            sent_contents,
+            doc_contents,
+            valid_sentences,
+            scores,
+        ) = iterable
         return rlsum_oful_value(
             sent_contents.to(self.device),
             doc_contents.to(self.device),
@@ -114,8 +119,7 @@ class RLSumOFULValueNode:
         self.q_sum = torch.zeros((3,), dtype=torch.float32, device=device)
 
         self.parents_sets = chain.from_iterable(
-            combinations(self.selected_idxs, r)
-            for r in reversed(range(len(self.selected_idxs)))
+            combinations(self.selected_idxs, r) for r in reversed(range(len(self.selected_idxs)))
         )
         self.parents_sets = [frozenset(ps) for ps in self.parents_sets]
         self.parents = []
@@ -160,13 +164,7 @@ class RLSumOFULValueNode:
             children_weights = [c.n_visits + 1 for c in self.children]
             denom = sum(children_weights)
             self.feature_vector = (
-                sum(
-                    [
-                        c.feature_vector * weight
-                        for c, weight in zip(self.children, children_weights)
-                    ]
-                )
-                / denom
+                sum([c.feature_vector * weight for c, weight in zip(self.children, children_weights)]) / denom
             )
 
     def expand(self, action_vectors, node_dict):
@@ -222,9 +220,7 @@ def rlsum_value_oful_episode(
             if not current_node.expanded:
                 current_node.expand(action_vectors, node_dict)
 
-            all_fv_a = torch.stack(
-                [c.feature_vector.squeeze() for c in current_node.children]
-            )
+            all_fv_a = torch.stack([c.feature_vector.squeeze() for c in current_node.children])
             all_n_visits = torch.tensor(
                 [c.n_visits + 1 for c in current_node.children],
                 dtype=float,
@@ -233,16 +229,12 @@ def rlsum_value_oful_episode(
 
             p_t_a = (
                 all_fv_a.matmul(theta_hat).squeeze()
-                + alpha
-                * (n_updates / all_n_visits).sqrt()
-                * (all_fv_a.matmul(A_inv) * all_fv_a).sum(-1).sqrt()
+                + alpha * (n_updates / all_n_visits).sqrt() * (all_fv_a.matmul(A_inv) * all_fv_a).sum(-1).sqrt()
             )
             idx = p_t_a.argmax()
             current_node = current_node.children[idx]
 
-        reward = torch.tensor(
-            scores[tuple(sorted(current_node.selected_idxs))], device=device
-        )
+        reward = torch.tensor(scores[tuple(sorted(current_node.selected_idxs))], device=device)
         current_node.backprop(reward, action_vectors, node_dict, terminal=True)
 
         fv = current_node.feature_vector
@@ -257,17 +249,23 @@ def rlsum_value_oful_episode(
 
         sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
         _, selected_sents = sent_predicted_vals.topk(n_sents_per_summary)
-        theta_predictions[n_updates] = torch.tensor(
-            scores[tuple(sorted(selected_sents.tolist()))], device=device
-        )
+        theta_predictions[n_updates] = torch.tensor(scores[tuple(sorted(selected_sents.tolist()))], device=device)
 
     return theta_hat, max_score, theta_predictions, regrets
 
 
 class RLSumOFULWarmupProcess:
     def __call__(self, iterable):
-        (state, valid_sentences, scores,) = iterable
-        return rlsum_oful_warmup(state, valid_sentences, scores,)
+        (
+            state,
+            valid_sentences,
+            scores,
+        ) = iterable
+        return rlsum_oful_warmup(
+            state,
+            valid_sentences,
+            scores,
+        )
 
 
 def rlsum_oful_warmup(state, valid_sentences, scores, n_warmup_summs=3):
@@ -277,21 +275,19 @@ def rlsum_oful_warmup(state, valid_sentences, scores, n_warmup_summs=3):
     selected_actions = []
     n_sents = valid_sentences.sum().cpu().item()
 
-    all_bases = np.array(
-        list(itertools.product(list(range(n_sents)), list(range(n_sents))))
-    )
+    all_bases = np.array(list(itertools.product(list(range(n_sents)), list(range(n_sents)))))
 
     sampled_bases = np.random.choice(
-        range(n_sents ** 2), n_warmup_summs, replace=False,
+        range(n_sents ** 2),
+        n_warmup_summs,
+        replace=False,
     )
     sampled_bases = all_bases[sampled_bases]
 
     for base_idxs in sampled_bases:
         target_state = copy.deepcopy(state)
         target_state.summary_idxs = base_idxs.tolist()
-        target_scores = torch.tensor(
-            scores[base_idxs[0], base_idxs[1], :50], device=valid_sentences.device
-        )
+        target_scores = torch.tensor(scores[base_idxs[0], base_idxs[1], :50], device=valid_sentences.device)
         targets.append((target_state, target_scores))
 
     return targets

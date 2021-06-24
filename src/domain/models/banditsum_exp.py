@@ -49,7 +49,11 @@ class BanditSumMCSExperiment(pl.LightningModule):
         self.alpha_oful = hparams.alpha_oful
 
         self.__build_model(hparams.hidden_dim, dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
         self.raw_run_done = False
 
         self.mcs_log_path = "/project/def-adurand/magod/rl_summ/mcs_exp"
@@ -77,15 +81,11 @@ class BanditSumMCSExperiment(pl.LightningModule):
         valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
         orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
+        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(*orig_shape[:3], -1)
         contents = contents * valid_tokens.unsqueeze(-1)
         contents = contents.sum(-2)
         word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        word_level_encodings[valid_sentences] = contents[valid_sentences] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
@@ -98,9 +98,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         if subset in ["train", "val", "test"]:
             return [self.reward_builder.init_scorer(id, subset) for id in ids]
         else:
-            raise ValueError(
-                f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
-            )
+            raise ValueError(f'Bad subset : {subset}. Should be one of ["train", "val", "test].')
 
     def mcs_exp(self, scorers, ids):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
@@ -140,9 +138,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         return output_dict
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, mcts_rewards, max_scores = self.forward(
-            batch, subset="train"
-        )
+        greedy_rewards, loss, mcts_rewards, max_scores = self.forward(batch, subset="train")
 
         return self.get_step_output(
             loss=loss.to(self.device),
@@ -198,9 +194,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         else:
             tqdm_keys = ["rouge_mean"]
             combined_outputs["progress_bar"] = {
-                k: v
-                for k, v in log_dict.items()
-                if any([t_k in k for t_k in tqdm_keys])
+                k: v for k, v in log_dict.items() if any([t_k in k for t_k in tqdm_keys])
             }
 
         return combined_outputs
@@ -225,9 +219,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=3, factor=0.1, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=3, factor=0.1, verbose=True)
 
         return optimizer
 
@@ -235,9 +227,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=False,
@@ -247,9 +237,7 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=False,
         )
@@ -258,16 +246,18 @@ class BanditSumMCSExperiment(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=False,
         )
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BanditSumMCSExperiment(dataset, reward, config,)
+        return BanditSumMCSExperiment(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
@@ -299,11 +289,7 @@ class RLSummModel(torch.nn.Module):
     def sentence_level_encoding(self, contents):
         sent_contents, (doc_contents, _) = self.sl_encoder(contents)
         doc_contents = doc_contents.view(2, 2, *doc_contents.shape[-2:])
-        doc_contents = (
-            torch.cat([d_i for d_i in doc_contents], dim=-1)
-            .mean(0, keepdim=True)
-            .permute(1, 0, 2)
-        )
+        doc_contents = torch.cat([d_i for d_i in doc_contents], dim=-1).mean(0, keepdim=True).permute(1, 0, 2)
 
         return sent_contents, doc_contents
 
@@ -320,12 +306,8 @@ class RLSummModel(torch.nn.Module):
         n_samples = len(sampled_summs[0])
 
         summ_contents = self.get_sents_from_summs(sent_contents, sampled_summs)
-        doc_contents = torch.repeat_interleave(doc_contents, n_samples, dim=0).squeeze(
-            1
-        )
-        predicted_scores = self.decoder(
-            torch.cat([doc_contents, summ_contents], dim=-1)
-        )
+        doc_contents = torch.repeat_interleave(doc_contents, n_samples, dim=0).squeeze(1)
+        predicted_scores = self.decoder(torch.cat([doc_contents, summ_contents], dim=-1))
 
         return predicted_scores
 
@@ -343,10 +325,7 @@ def collect_sims(scorer, id):
 
     n_sents = min(scorer.scores.shape[0], 50)
     combs = list(combinations(range(n_sents), 3))
-    results = [
-        collect_sim(scorer, tau, combs, n_sents)
-        for tau in np.linspace(0.0, 1.0, num=101)
-    ]
+    results = [collect_sim(scorer, tau, combs, n_sents) for tau in np.linspace(0.0, 1.0, num=101)]
 
     for f, entropy, top3, f_sims in results:
         if f:
@@ -376,15 +355,11 @@ def collect_sim(scorer, tau, combs, n_sents, n_samples=1000):
     if np.isnan(distro).any() or np.isnan(comb_probas).any():
         return None, None, None, None
 
-    f = np.sum(
-        [proba * scorer(i, j, k) for (i, j, k), proba in zip(combs, comb_probas)]
-    )
+    f = np.sum([proba * scorer(i, j, k) for (i, j, k), proba in zip(combs, comb_probas)])
     ent = entr(comb_probas).sum()
     top3 = np.partition(distro, -3)[-3:].sum()
 
-    sampled_combs = np.random.choice(
-        len(combs), size=n_samples, replace=True, p=comb_probas
-    )
+    sampled_combs = np.random.choice(len(combs), size=n_samples, replace=True, p=comb_probas)
     f_sims = [scorer(combs[comb]) for comb in sampled_combs]
     f_sims = np.cumsum(f_sims) / np.arange(start=1, stop=n_samples + 1)
 

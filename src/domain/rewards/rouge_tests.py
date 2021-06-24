@@ -20,9 +20,7 @@ rouge = Rouge()
 
 def RougeTest_rouge(ref, hyp, max_num_of_bytes=-1):
     ref = [_.lower() for _ in ref]
-    ref = [
-        " ".join(ref)
-    ]  # join for managing the cases where we have different number of sentence.
+    ref = [" ".join(ref)]  # join for managing the cases where we have different number of sentence.
     hyp = [_.lower().replace(".", " .") for _ in hyp]
     hyp = [" ".join(hyp)]
 
@@ -65,7 +63,11 @@ if __name__ == "__main__":
         sets=subsets,
     )
     subset = dataset.get_splits()["test"]
-    collator = TextDataCollator(dataset.fields, None, "test",)
+    collator = TextDataCollator(
+        dataset.fields,
+        None,
+        "test",
+    )
     rouge_python = RougePythonReward()
     scores_python = []
 
@@ -81,9 +83,7 @@ if __name__ == "__main__":
         raw_contents, contents, raw_abstracts, abstracts, ids = batch
 
         scores_python.append(
-            rouge_python.get_scores(
-                [list(range(3)) for _ in range(len(ids))], raw_contents, raw_abstracts
-            )
+            rouge_python.get_scores([list(range(3)) for _ in range(len(ids))], raw_contents, raw_abstracts)
         )
         # scores_pearl = rouge_pearl(
         #     [[" ".join(l3)]], [[[" ".join(r)] for r in raw_abstracts]]

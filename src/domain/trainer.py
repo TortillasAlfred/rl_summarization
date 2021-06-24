@@ -46,18 +46,14 @@ class PytorchLightningTrainer(Trainer):
 
         weights_save_path = "/".join([weights_save_path, name])
         checkpoint_callback = ModelCheckpoint(
-            filepath="/".join(
-                [weights_save_path, "{epoch}-{val_greedy_rouge_mean:.5f}"]
-            ),
+            filepath="/".join([weights_save_path, "{epoch}-{val_greedy_rouge_mean:.5f}"]),
             save_top_k=3,
             verbose=True,
             monitor="val_greedy_rouge_mean",
             mode="max",
             prefix="",
         )
-        logger = TestTubeLogger(
-            save_dir=default_save_path, name=name, create_git_tag=True
-        )
+        logger = TestTubeLogger(save_dir=default_save_path, name=name, create_git_tag=True)
 
         if hasattr(config, "test_tube_slurm_cmd_path"):
             self.launch_script_path = config.test_tube_slurm_cmd_path

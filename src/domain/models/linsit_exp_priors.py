@@ -41,21 +41,31 @@ class LinSITExpPriors:
             drop_last=False,
         )
 
-    def linsit_exp_priors(
-        self, sent_contents, greedy_priors, all_prior_choices, scorers, ids, c_puct, tau
-    ):
+    def linsit_exp_priors(self, sent_contents, greedy_priors, all_prior_choices, scorers, ids, c_puct, tau):
         results = self.pool.map(
-            LinSITExpPriorsProcess(
-                n_samples=self.n_mcts_samples, c_puct=c_puct, tau=tau
+            LinSITExpPriorsProcess(n_samples=self.n_mcts_samples, c_puct=c_puct, tau=tau),
+            zip(
+                sent_contents,
+                greedy_priors,
+                all_prior_choices,
+                scorers,
+                ids,
             ),
-            zip(sent_contents, greedy_priors, all_prior_choices, scorers, ids,),
         )
 
         return [r for res in results for r in res]
 
     def process_all(self):
         for batch_idx, batch in enumerate(tqdm(self.dataloader)):
-            (_, contents, _, _, ids, scorers, n_grams_dense,) = batch
+            (
+                _,
+                contents,
+                _,
+                _,
+                ids,
+                scorers,
+                n_grams_dense,
+            ) = batch
             batch_size = len(contents)
 
             n_grams_dense = [torch.from_numpy(_) for _ in n_grams_dense]
@@ -134,13 +144,15 @@ class LinSITExpPriors:
                 else:
                     # Get median
                     selected_sents = np.argsort(s)[len(s) // 2]
-                selected_sents = torch.from_numpy(
-                    scorer.summary_from_idx(selected_sents)
-                )
+                selected_sents = torch.from_numpy(scorer.summary_from_idx(selected_sents))
                 greedy_priors[batch_idx][sample_idx][selected_sents] = 1 / 3
 
         return greedy_priors, all_prior_choices
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinSITExpPriors(dataset, reward, config,)
+        return LinSITExpPriors(
+            dataset,
+            reward,
+            config,
+        )

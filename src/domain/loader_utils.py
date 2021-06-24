@@ -20,14 +20,10 @@ class TextDataCollator:
         batch = {name: f.process([d[name] for d in data]) for name, f in self.fields}
 
         if self.reward_builder:
-            batch["scorers"] = get_reward_scorers(
-                self.reward_builder, batch["id"], self.subset
-            )
+            batch["scorers"] = get_reward_scorers(self.reward_builder, batch["id"], self.subset)
 
         if self.n_grams_loader:
-            batch["ngrams_dense"] = [
-                self.n_grams_loader(id, self.subset) for id in batch["id"]
-            ]
+            batch["ngrams_dense"] = [self.n_grams_loader(id, self.subset) for id in batch["id"]]
 
         return list(batch.values())
 
@@ -38,9 +34,7 @@ def get_reward_scorers(reward_builder, ids, subset):
     elif subset in ["val", "test"]:
         return RougePythonReward()
     else:
-        raise ValueError(
-            f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
-        )
+        raise ValueError(f'Bad subset : {subset}. Should be one of ["train", "val", "test].')
 
 
 class NGRAMSLoader:
@@ -54,9 +48,7 @@ class NGRAMSLoader:
             else:
                 reading_path = self.base_path + ".tar"
             with tarfile.open(reading_path) as tar:
-                logging.info(
-                    f"PCA vectors not yet extracted to {self.base_path} folder. Doing it now."
-                )
+                logging.info(f"PCA vectors not yet extracted to {self.base_path} folder. Doing it now.")
                 tar.extractall(base_path)
 
     def __call__(self, id, subset):
@@ -72,28 +64,20 @@ class NGRAMSSaver:
     def __call__(self, doc_contents, id):
         if not os.path.isfile(os.path.join(self.base_path, self.subset, f"{id}.npy")):
             n_grams_dense = get_ngrams_dense(doc_contents, self.pad_idx)
-            np.save(
-                os.path.join(self.base_path, self.subset, f"{id}.npy"), n_grams_dense
-            )
+            np.save(os.path.join(self.base_path, self.subset, f"{id}.npy"), n_grams_dense)
 
 
 def get_ngrams_dense(doc_contents, pad_idx, n=2):
     sents = doc_contents
-    n_grams_per_sent = [
-        list(get_ngrams([w for w in sent if w != pad_idx], n=n)) for sent in sents
-    ]
+    n_grams_per_sent = [list(get_ngrams([w for w in sent if w != pad_idx], n=n)) for sent in sents]
 
     n_grams_per_sent = [l for l in n_grams_per_sent if len(l) > 0]
     n_grams_dict = OrderedDict()
     all_ngrams = set([ngram for sent in n_grams_per_sent for ngram in sent])
     for n_gram in all_ngrams:
         n_grams_dict[n_gram] = len(n_grams_dict)
-    sent_n_grams = [
-        Counter([n_grams_dict[ngram] for ngram in sent]) for sent in n_grams_per_sent
-    ]
-    ngrams_sparse = dok_matrix(
-        (len(n_grams_per_sent), len(all_ngrams)), dtype=np.float64
-    )
+    sent_n_grams = [Counter([n_grams_dict[ngram] for ngram in sent]) for sent in n_grams_per_sent]
+    ngrams_sparse = dok_matrix((len(n_grams_per_sent), len(all_ngrams)), dtype=np.float64)
     for sent_i, n_grams in enumerate(sent_n_grams):
         count_sent = sum(n_grams.values())
         for n_gram_i, count_i in n_grams.items():

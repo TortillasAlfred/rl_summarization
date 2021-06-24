@@ -4,7 +4,9 @@ import numpy as np
 
 class LinSITExpProcess:
     def __init__(
-        self, n_samples, c_pucts,
+        self,
+        n_samples,
+        c_pucts,
     ):
         self.n_samples = n_samples
         self.c_pucts = c_pucts
@@ -12,7 +14,14 @@ class LinSITExpProcess:
     def __call__(self, iterable):
         (sent_contents, priors, scorer, id) = iterable
         results = [
-            linsit_exp(sent_contents, priors, scorer, id, c_puct, self.n_samples,)
+            linsit_exp(
+                sent_contents,
+                priors,
+                scorer,
+                id,
+                c_puct,
+                self.n_samples,
+            )
             for c_puct in self.c_pucts
         ]
 
@@ -20,12 +29,21 @@ class LinSITExpProcess:
 
 
 def linsit_exp(
-    sent_contents, priors, scorer, id, c_puct, n_samples,
+    sent_contents,
+    priors,
+    scorer,
+    id,
+    c_puct,
+    n_samples,
 ):
     priors = priors[: sent_contents.shape[0]]
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        sent_contents, priors, scorer, n_samples, c_puct,
+        sent_contents,
+        priors,
+        scorer,
+        n_samples,
+        c_puct,
     )
 
     key = (c_puct, int(sent_contents.shape[0]), max_rouge, id)
@@ -76,7 +94,11 @@ def linsit_exp_prior(
     priors /= priors.sum()
 
     max_rouge, theta_hat_predictions = linsit_exp_episode(
-        sent_contents, priors, scorer, n_samples, c_puct,
+        sent_contents,
+        priors,
+        scorer,
+        n_samples,
+        c_puct,
     )
 
     best_idxs = np.argpartition(priors, -3)[-3:]
@@ -101,9 +123,7 @@ def linsit_exp_prior(
 def linsit_exp_episode(action_vectors, priors, scorer, n_samples, c_puct):
     action_dim = action_vectors.shape[-1]
 
-    n_visits = torch.zeros(
-        (action_vectors.shape[0]), dtype=int, device=action_vectors.device
-    )
+    n_visits = torch.zeros((action_vectors.shape[0]), dtype=int, device=action_vectors.device)
     theta_predictions = torch.zeros((n_samples,))
     max_score_mean = scorer.scores.max()
 
@@ -115,17 +135,10 @@ def linsit_exp_episode(action_vectors, priors, scorer, n_samples, c_puct):
     theta_hat = A_inv.mm(b)
     sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
     for n_updates in range(n_samples):
-        p_t_a = (
-            sent_predicted_vals
-            + c_puct
-            * priors
-            * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
-        )
+        p_t_a = sent_predicted_vals + c_puct * priors * (action_vectors.matmul(A_inv) * action_vectors).sum(-1).sqrt()
         threshold = p_t_a.topk(3)[0][-1]
         elligible_idxs = torch.where(p_t_a >= threshold)[0]
-        sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(
-            3
-        )
+        sampled_idxs = torch.ones_like(elligible_idxs, dtype=torch.float32).multinomial(3)
         idxs = elligible_idxs[sampled_idxs]
         reward = torch.tensor(scorer(tuple(sorted(idxs.tolist()))))
 
@@ -140,8 +153,6 @@ def linsit_exp_episode(action_vectors, priors, scorer, n_samples, c_puct):
 
         sent_predicted_vals = action_vectors.mm(theta_hat).squeeze()
         _, selected_sents = sent_predicted_vals.topk(3)
-        theta_predictions[n_updates] = torch.tensor(
-            scorer(tuple(sorted(selected_sents.tolist())))
-        )
+        theta_predictions[n_updates] = torch.tensor(scorer(tuple(sorted(selected_sents.tolist()))))
 
     return float(max_score_mean), theta_predictions.cpu().numpy()

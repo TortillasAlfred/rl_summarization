@@ -23,9 +23,7 @@ def main(options):
         dev=False,
         vectors_cache="/scratch/magod/embeddings/",
         sets=[options.dataset],
-    ).fpaths[options.dataset][
-        options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE
-    ]
+    ).fpaths[options.dataset][options.run_index * SLICE_SIZE : (options.run_index + 1) * SLICE_SIZE]
 
     reward = RougeReward(n_jobs=-1)
     save_dir = os.path.join(options.target_dir, options.dataset)
@@ -54,15 +52,9 @@ def main(options):
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument("run_index", type=int)
-    argument_parser.add_argument(
-        "--data_path", type=str, default="./data/cnn_dailymail"
-    )
+    argument_parser.add_argument("--data_path", type=str, default="./data/cnn_dailymail")
     argument_parser.add_argument("--dataset", type=str, default="train")
-    argument_parser.add_argument(
-        "--vectors_cache", type=str, default="./data/embeddings"
-    )
-    argument_parser.add_argument(
-        "--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/"
-    )
+    argument_parser.add_argument("--vectors_cache", type=str, default="./data/embeddings")
+    argument_parser.add_argument("--target_dir", type=str, default="./data/cnn_dailymail/rouge_npy/")
     options = argument_parser.parse_args()
     main(options)

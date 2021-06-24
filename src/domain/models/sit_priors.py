@@ -38,7 +38,10 @@ class SITPriorsModel(pl.LightningModule):
         self.batches_per_epoch = ceil(len(self.splits["train"]) / self.train_batch_size)
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+        )
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -64,15 +67,11 @@ class SITPriorsModel(pl.LightningModule):
         valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
         orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
+        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(*orig_shape[:3], -1)
         contents = contents * valid_tokens.unsqueeze(-1)
         contents = contents.sum(-2)
         word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        word_level_encodings[valid_sentences] = contents[valid_sentences] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
@@ -101,15 +100,11 @@ class SITPriorsModel(pl.LightningModule):
 
             batch_float = batch_idx / self.batches_per_epoch
             ucb_results = self.pool.map(
-                UCBPriorsProcess(
-                    self.ucb_sampling, self.c_puct, self.prior_version, batch_float
-                ),
+                UCBPriorsProcess(self.ucb_sampling, self.c_puct, self.prior_version, batch_float),
                 zip(scorers, action_vals.detach().cpu().numpy()),
             )
 
-            ucb_targets = torch.tensor(
-                [r[0] for r in ucb_results], device=action_vals.device
-            )
+            ucb_targets = torch.tensor([r[0] for r in ucb_results], device=action_vals.device)
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
             loss = (ucb_targets - action_vals) ** 2
@@ -117,16 +112,12 @@ class SITPriorsModel(pl.LightningModule):
 
             return greedy_rewards, loss, ucb_deltas
         else:
-            greedy_rewards = scorers.get_scores(
-                greedy_idxs, raw_contents, raw_abstracts
-            )
+            greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, ucb_deltas = self.forward(
-            batch, subset="train", batch_idx=batch_idx
-        )
+        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train", batch_idx=batch_idx)
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
@@ -190,9 +181,7 @@ class SITPriorsModel(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.1, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=10, factor=0.1, verbose=True)
 
         return optimizer
 
@@ -200,9 +189,7 @@ class SITPriorsModel(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -225,9 +212,7 @@ class SITPriorsModel(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -236,12 +221,18 @@ class SITPriorsModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return SITPriorsModel(dataset, reward, config,)
+        return SITPriorsModel(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(
-        self, hidden_dim, decoder_dim,
+        self,
+        hidden_dim,
+        decoder_dim,
     ):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(

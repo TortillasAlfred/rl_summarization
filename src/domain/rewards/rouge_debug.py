@@ -20,9 +20,7 @@ def get_outlier(fpath, rouge_npy_path, subset):
     article_len = len(article["article"])
 
     if article_len > 3:
-        scores = RougeRewardScorer(
-            os.path.join(rouge_npy_path, subset, f'{article["id"]}.npy')
-        ).scores
+        scores = RougeRewardScorer(os.path.join(rouge_npy_path, subset, f'{article["id"]}.npy')).scores
         if scores.shape[0] != article_len:
             return fpath
 
@@ -60,6 +58,4 @@ if __name__ == "__main__":
         with open(f"bad_files_{subset}.pck", "wb") as f:
             pickle.dump(bad_formatted_files, f)
 
-        logging.info(
-            f"{len(bad_formatted_files)} bad files found for subset '{subset}'"
-        )
+        logging.info(f"{len(bad_formatted_files)} bad files found for subset '{subset}'")

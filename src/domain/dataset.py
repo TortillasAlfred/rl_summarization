@@ -20,9 +20,7 @@ from torchtext.data import (
 
 class SummarizationDataset(Dataset):
     def __init__(self, subsets, fields, vectors, vectors_cache, filter_pred=None):
-        self.subsets = {
-            key: Dataset(subset, fields, filter_pred) for key, subset in subsets
-        }
+        self.subsets = {key: Dataset(subset, fields, filter_pred) for key, subset in subsets}
         self._build_vocabs(vectors, vectors_cache)
 
     def _build_vocabs(self):
@@ -52,9 +50,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         self.path = path
         self._build_reading_fields()
         subsets, self.fpaths = self._load_all(sets, dev, begin_idx, end_idx)
-        super(CnnDailyMailDataset, self).__init__(
-            subsets, self.fields, vectors, vectors_cache, filter_pred
-        )
+        super(CnnDailyMailDataset, self).__init__(subsets, self.fields, vectors, vectors_cache, filter_pred)
 
     def _build_reading_fields(self):
         self.raw_content = RawField()
@@ -75,9 +71,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
     def _load_all(self, sets, dev, begin_idx, end_idx):
         if "train" in sets and sets.index("train") != 0:
-            raise ValueError(
-                "If loading the training dataset, it must be first in the sets list."
-            )
+            raise ValueError("If loading the training dataset, it must be first in the sets list.")
 
         loaded_sets = []
         paths = {}
@@ -87,9 +81,7 @@ class CnnDailyMailDataset(SummarizationDataset):
             loaded_sets.append((split, articles))
             paths[split] = fpaths
 
-        self.fields = [
-            field for field_list in self.fields.values() for field in field_list
-        ]
+        self.fields = [field for field_list in self.fields.values() for field in field_list]
 
         return loaded_sets, paths
 
@@ -99,9 +91,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
         if not os.path.isdir(reading_path):
             with tarfile.open(reading_path + ".tar") as tar:
-                logging.info(
-                    f"Split {split} is not yet extracted to {reading_path}. Doing it now."
-                )
+                logging.info(f"Split {split} is not yet extracted to {reading_path}. Doing it now.")
                 tar.extractall(finished_path)
 
         all_articles = []
@@ -109,7 +99,7 @@ class CnnDailyMailDataset(SummarizationDataset):
         all_files = os.listdir(reading_path)
 
         if dev:
-            all_files = all_files[:25000] #Customizable
+            all_files = all_files[:25000]  # Customizable
         elif begin_idx is not None and end_idx is not None:
             all_files = all_files[begin_idx:end_idx]
 
@@ -126,12 +116,8 @@ class CnnDailyMailDataset(SummarizationDataset):
         logging.info("Building vocab from the whole dataset.")
 
         self.content.build_vocab(
-            [
-                field
-                for subset in self.subsets.values() 
-                for field in [subset.content, subset.abstract]
-            ],
-            vectors=vectors, #vectors = glove.6B.100d is Stanford's GloVe 100d word embeddings (pretrained model)
+            [field for subset in self.subsets.values() for field in [subset.content, subset.abstract]],
+            vectors=vectors,  # vectors = glove.6B.100d is Stanford's GloVe 100d word embeddings (pretrained model)
             vectors_cache=vectors_cache,
         )
 
@@ -156,9 +142,7 @@ class CnnDailyMailDataset(SummarizationDataset):
 
 class TextDataset(torch.utils.data.Dataset):
     def __init__(self, dataset):
-        self.examples = [
-            self.__process_example(x, dataset.fields) for x in dataset.examples
-        ]
+        self.examples = [self.__process_example(x, dataset.fields) for x in dataset.examples]
 
     def __process_example(self, x, fields):
         return {name: f.preprocess(getattr(x, name)) for name, f in fields.items()}
@@ -191,9 +175,7 @@ if __name__ == "__main__":
 
     logging.info("Begin")
 
-    dataset = CnnDailyMailDataset(
-        "./data/cnn_dailymail", "glove.6B.100d", dev=True, sets=["train"]
-    )
+    dataset = CnnDailyMailDataset("./data/cnn_dailymail", "glove.6B.100d", dev=True, sets=["train"])
 
     train_set = dataset.get_splits()["train"]
 

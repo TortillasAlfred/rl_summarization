@@ -35,17 +35,16 @@ class BinaryModel(pl.LightningModule):
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.tensor_device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.idxs_repart = torch.zeros(
-            50, dtype=torch.float32, device=self.tensor_device
-        )
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
         self.test_size = len(self.splits["test"])
-        self.targets_repart = torch.zeros(
-            50, dtype=torch.float64, device=self.tensor_device
-        )
+        self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.tensor_device)
         self.train_size = len(self.splits["train"])
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+        )
 
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -71,15 +70,11 @@ class BinaryModel(pl.LightningModule):
         valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
         orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
+        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(*orig_shape[:3], -1)
         contents = contents * valid_tokens.unsqueeze(-1)
         contents = contents.sum(-2)
         word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        word_level_encodings[valid_sentences] = contents[valid_sentences] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
@@ -120,9 +115,7 @@ class BinaryModel(pl.LightningModule):
 
             return greedy_rewards, loss
         else:
-            greedy_rewards = scorers.get_scores(
-                greedy_idxs, raw_contents, raw_abstracts
-            )
+            greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             if subset == "test":
                 idxs_repart = torch.zeros_like(action_vals)
@@ -209,9 +202,7 @@ class BinaryModel(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.2, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=10, factor=0.2, verbose=True)
 
         return optimizer
 
@@ -219,9 +210,7 @@ class BinaryModel(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -244,9 +233,7 @@ class BinaryModel(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -255,12 +242,18 @@ class BinaryModel(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BinaryModel(dataset, reward, config,)
+        return BinaryModel(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(
-        self, hidden_dim, decoder_dim,
+        self,
+        hidden_dim,
+        decoder_dim,
     ):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(

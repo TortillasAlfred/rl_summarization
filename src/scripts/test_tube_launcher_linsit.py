@@ -6,15 +6,14 @@ from test_tube import SlurmCluster, HyperOptArgumentParser
 
 def optimize_on_cluster(hparams):
     cluster = SlurmCluster(
-        hyperparam_optimizer=hparams, log_path=hparams.slurm_log_path,
+        hyperparam_optimizer=hparams,
+        log_path=hparams.slurm_log_path,
     )
 
     cluster.script_name = "-um src.scripts.test_tube_launcher_linsit"
 
     # email for cluster coms
-    cluster.notify_job_status(
-        email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True
-    )
+    cluster.notify_job_status(email="mathieu.godbout.3@ulaval.ca", on_done=True, on_fail=True)
 
     # configure cluster
     cluster.per_experiment_nb_cpus = 8
@@ -31,13 +30,9 @@ def optimize_on_cluster(hparams):
     )
     cluster.add_command("tar -xf $SLURM_TMPDIR/linsit_dataset.tar -C $SLURM_TMPDIR/")
     cluster.add_command("source ~/venvs/default/bin/activate")
-    cluster.add_slurm_cmd(
-        cmd="account", value="def-adurand", comment="CCDB account for running"
-    )
+    cluster.add_slurm_cmd(cmd="account", value="def-adurand", comment="CCDB account for running")
 
-    cluster.optimize_parallel_cluster_gpu(
-        main, nb_trials=10, job_name="rl_summarization"
-    )
+    cluster.optimize_parallel_cluster_gpu(main, nb_trials=10, job_name="rl_summarization")
 
 
 if __name__ == "__main__":
@@ -46,11 +41,12 @@ if __name__ == "__main__":
 
     fine_tuned_items = {}
     fine_tuned_items["ucb_sampling"] = dict(
-        default="linear", type=str, tunable=True, options=["fix", "linear"],
+        default="linear",
+        type=str,
+        tunable=True,
+        options=["fix", "linear"],
     )
-    fine_tuned_items["seed"] = dict(
-        default=1, type=int, tunable=True, options=list(range(5))
-    )
+    fine_tuned_items["seed"] = dict(default=1, type=int, tunable=True, options=list(range(5)))
 
     for config, value in base_configs.items():
         if config not in fine_tuned_items:
@@ -62,9 +58,7 @@ if __name__ == "__main__":
                     default=value,
                 )
             else:
-                argument_parser.add_argument(
-                    "--{}".format(config), type=type(value), default=value
-                )
+                argument_parser.add_argument("--{}".format(config), type=type(value), default=value)
 
     for name, kwargs in fine_tuned_items.items():
         argument_parser.opt_list(f"--{name}", **kwargs)

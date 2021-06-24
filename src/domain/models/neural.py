@@ -13,7 +13,7 @@ def gelu(x):
 
 
 class PositionwiseFeedForward(nn.Module):
-    """ A two-layer Feed-Forward-Network with residual layer norm.
+    """A two-layer Feed-Forward-Network with residual layer norm.
 
     Args:
         d_model (int): the size of input for the first-layer of the FFN.

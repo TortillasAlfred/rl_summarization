@@ -60,7 +60,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         self.alpha_oful = hparams.alpha_oful
 
         self.__build_model(hparams.hidden_dim, dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
         self.raw_run_done = False
 
         self.mcts_log_path = "/project/def-adurand/magod/rl_summ/mcts_exp_priors/"
@@ -85,15 +89,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         valid_sentences = sentences_len > 0
         contents = self.embeddings(contents)
         orig_shape = contents.shape
-        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(
-            *orig_shape[:3], -1
-        )
+        contents = self.wl_encoder(contents.view(-1, *orig_shape[2:]))[0].reshape(*orig_shape[:3], -1)
         contents = contents * valid_tokens.unsqueeze(-1)
         contents = contents.sum(-2)
         word_level_encodings = torch.zeros_like(contents)
-        word_level_encodings[valid_sentences] = contents[
-            valid_sentences
-        ] / sentences_len[valid_sentences].unsqueeze(-1)
+        word_level_encodings[valid_sentences] = contents[valid_sentences] / sentences_len[valid_sentences].unsqueeze(-1)
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
@@ -106,9 +106,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         if subset in ["train", "val", "test"]:
             return [self.reward_builder.init_scorer(id, subset) for id in ids]
         else:
-            raise ValueError(
-                f'Bad subset : {subset}. Should be one of ["train", "val", "test].'
-            )
+            raise ValueError(f'Bad subset : {subset}. Should be one of ["train", "val", "test].')
 
     def mcts_exp(self, scorers, ids, c_pucts):
         return Parallel(n_jobs=-1, verbose=1, backend="loky")(
@@ -157,9 +155,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         return output_dict
 
     def training_step(self, batch, batch_idx):
-        greedy_rewards, loss, mcts_rewards, max_scores = self.forward(
-            batch, subset="train"
-        )
+        greedy_rewards, loss, mcts_rewards, max_scores = self.forward(batch, subset="train")
 
         return self.get_step_output(
             loss=loss.to(self.device),
@@ -210,9 +206,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         if self.batch_idx >= self.warmup_batches:
             self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
 
-        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
-            1
-        ]["lr"]
+        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[1]["lr"]
 
         return output_dict
 
@@ -224,9 +218,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         for key, q_vals in zip(keys, q_vals_hats):
             d[key] = q_vals
 
-        with open(
-            os.path.join(self.mcts_log_path, f"results_{batch_idx}.pck"), "wb"
-        ) as f:
+        with open(os.path.join(self.mcts_log_path, f"results_{batch_idx}.pck"), "wb") as f:
             pickle.dump(d, f)
 
     def test_step_end(self, outputs):
@@ -246,9 +238,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         else:
             tqdm_keys = ["rouge_mean"]
             combined_outputs["progress_bar"] = {
-                k: v
-                for k, v in log_dict.items()
-                if any([t_k in k for t_k in tqdm_keys])
+                k: v for k, v in log_dict.items() if any([t_k in k for t_k in tqdm_keys])
             }
 
         return combined_outputs
@@ -287,9 +277,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=3, factor=0.1, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=3, factor=0.1, verbose=True)
 
         return optimizer
 
@@ -297,9 +285,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             shuffle=True,
             drop_last=True,
@@ -310,9 +296,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=self.num_workers,
@@ -322,9 +306,7 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.test_batch_size,
             drop_last=True,
             num_workers=self.num_workers,
@@ -332,7 +314,11 @@ class RLSumMCTSEXPPriors(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return RLSumMCTSEXPPriors(dataset, reward, config,)
+        return RLSumMCTSEXPPriors(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
@@ -364,11 +350,7 @@ class RLSummModel(torch.nn.Module):
     def sentence_level_encoding(self, contents):
         sent_contents, (doc_contents, _) = self.sl_encoder(contents)
         doc_contents = doc_contents.view(2, 2, *doc_contents.shape[-2:])
-        doc_contents = (
-            torch.cat([d_i for d_i in doc_contents], dim=-1)
-            .mean(0, keepdim=True)
-            .permute(1, 0, 2)
-        )
+        doc_contents = torch.cat([d_i for d_i in doc_contents], dim=-1).mean(0, keepdim=True).permute(1, 0, 2)
 
         return sent_contents, doc_contents
 
@@ -385,12 +367,8 @@ class RLSummModel(torch.nn.Module):
         n_samples = len(sampled_summs[0])
 
         summ_contents = self.get_sents_from_summs(sent_contents, sampled_summs)
-        doc_contents = torch.repeat_interleave(doc_contents, n_samples, dim=0).squeeze(
-            1
-        )
-        predicted_scores = self.decoder(
-            torch.cat([doc_contents, summ_contents], dim=-1)
-        )
+        doc_contents = torch.repeat_interleave(doc_contents, n_samples, dim=0).squeeze(1)
+        predicted_scores = self.decoder(torch.cat([doc_contents, summ_contents], dim=-1))
 
         return predicted_scores
 
@@ -409,10 +387,7 @@ def collect_sims(scorer, id, c_pucts, n_samples):
     n_sents = min(scorer.scores.shape[0], 50)
     max_rouge = scorer.scores.mean(-1).max()
 
-    results = [
-        do_one_sample(scorer, c_pucts, n_sents, prior_choice)
-        for prior_choice in ["best", "med", "worst"]
-    ]
+    results = [do_one_sample(scorer, c_pucts, n_sents, prior_choice) for prior_choice in ["best", "med", "worst"]]
 
     for i, res in enumerate(results):
         for c_puct, prior_choice, r in res:
@@ -444,12 +419,7 @@ def do_one_sample(scorer, c_pucts, n_sents, prior_choice):
         selected_sents = np.array(np.unravel_index(s_pos.argmin(), s_pos.shape))
     else:
         # Get median
-        selected_sents = np.array(
-            [
-                a[0]
-                for a in np.nonzero(s == np.percentile(s, 50, interpolation="nearest"))
-            ]
-        )
+        selected_sents = np.array([a[0] for a in np.nonzero(s == np.percentile(s, 50, interpolation="nearest"))])
 
     grdy = np.ones((3,)) / 3
     greedy = np.zeros((n_sents,))
@@ -459,10 +429,7 @@ def do_one_sample(scorer, c_pucts, n_sents, prior_choice):
         (
             c_puct,
             prior_choice,
-            [
-                collect_sim(scorer, c_puct, n_sents, greedy, tau)
-                for tau in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
-            ],
+            [collect_sim(scorer, c_puct, n_sents, greedy, tau) for tau in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]],
         )
         for c_puct in c_pucts
     ]
@@ -495,9 +462,9 @@ def collect_sim(scorer, c_puct, n_sents, greedy, tau, n_samples=250):
         elligible_idxs = np.argwhere(ucb >= threshold)[:, 0]
         sampled_idxs = np.random.choice(elligible_idxs, 3, replace=False)
         summ_score = scorer.scores[tuple(sampled_idxs)].mean()
-        q_vals[sampled_idxs] = (
-            summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]
-        ) / (n_visits[sampled_idxs] + 1)
+        q_vals[sampled_idxs] = (summ_score + q_vals[sampled_idxs] * n_visits[sampled_idxs]) / (
+            n_visits[sampled_idxs] + 1
+        )
         n_visits[sampled_idxs] += 1
 
         threshold = np.partition(q_vals, -3)[-3]

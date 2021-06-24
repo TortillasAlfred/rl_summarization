@@ -67,9 +67,7 @@ class RougeRewardBuilder:
             else:
                 reading_path = self.base_path + ".tar"
             with tarfile.open(reading_path) as tar:
-                logging.info(
-                    f"Rewards not yet extracted to {self.base_path} folder. Doing it now."
-                )
+                logging.info(f"Rewards not yet extracted to {self.base_path} folder. Doing it now.")
                 tar.extractall(base_path)
 
     def init_scorer(self, article_id, subset):
@@ -90,9 +88,7 @@ class RougeRewardScorer:
         self.n_sents = LEN_TO_N[self.scores.shape[0]]
 
     def __call__(self, summary_idxs):
-        if len(summary_idxs) == 3 and all(
-            [s_idx < self.n_sents for s_idx in summary_idxs]
-        ):
+        if len(summary_idxs) == 3 and all([s_idx < self.n_sents for s_idx in summary_idxs]):
             summary_idxs = tuple(sorted(summary_idxs))
             idx = index_getter(*summary_idxs)
             return self.scores[idx]

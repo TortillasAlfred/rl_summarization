@@ -33,7 +33,11 @@ class LinearHypothesisTests(pl.LightningModule):
         self.batch_idx = 0
 
         self.__build_model(dataset)
-        self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim, self.dropout,)
+        self.model = RLSummModel(
+            hparams.hidden_dim,
+            hparams.decoder_dim,
+            self.dropout,
+        )
 
         self.results = []
         self.config_args = {
@@ -62,9 +66,7 @@ class LinearHypothesisTests(pl.LightningModule):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
-        for doc_contents, raw_doc_contents, doc_scorer in zip(
-            contents.tolist(), raw_contents, scorers
-        ):
+        for doc_contents, raw_doc_contents, doc_scorer in zip(contents.tolist(), raw_contents, scorers):
             for config in list(product(*[v for k, v in self.config_args.items()])):
                 normalize, use_torchtext, n, add_bias, pca_dim, unif_nom = config
 
@@ -142,9 +144,7 @@ class LinearHypothesisTests(pl.LightningModule):
 
         self.lr_scheduler.step(output_dict["log"]["val_greedy_rouge_mean"])
 
-        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[
-            1
-        ]["lr"]
+        output_dict["log"]["learning_rate"] = self.trainer.optimizers[0].param_groups[1]["lr"]
 
         return output_dict
 
@@ -165,9 +165,7 @@ class LinearHypothesisTests(pl.LightningModule):
         else:
             tqdm_keys = ["rouge_mean"]
             combined_outputs["progress_bar"] = {
-                k: v
-                for k, v in log_dict.items()
-                if any([t_k in k for t_k in tqdm_keys])
+                k: v for k, v in log_dict.items() if any([t_k in k for t_k in tqdm_keys])
             }
 
         return combined_outputs
@@ -177,9 +175,7 @@ class LinearHypothesisTests(pl.LightningModule):
         mean_res = np.array([float(r[1]) for r in self.results if len(r[1]) > 0])
 
         print("TEST RESULTS")
-        print(
-            f"Percen times theta norm < 1 : {(theta_norms <= 1).sum() / len(self.results) * 100} %s"
-        )
+        print(f"Percen times theta norm < 1 : {(theta_norms <= 1).sum() / len(self.results) * 100} %s")
         print(f"Mean residual : {np.mean(mean_res)} ± {np.std(mean_res)}")
 
     def configure_optimizers(self):
@@ -195,16 +191,16 @@ class LinearHypothesisTests(pl.LightningModule):
                     "params": self.model.decoder.parameters(),
                     "lr": self.learning_rate * 0.1,
                 },
-                {"params": self.model.pretraining_decoder.parameters(),},
+                {
+                    "params": self.model.pretraining_decoder.parameters(),
+                },
             ],
             lr=self.learning_rate,
             betas=[0, 0.999],
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=10, factor=0.1, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=10, factor=0.1, verbose=True)
 
         return optimizer
 
@@ -212,9 +208,7 @@ class LinearHypothesisTests(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -237,9 +231,7 @@ class LinearHypothesisTests(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.fields, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.fields, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -248,7 +240,11 @@ class LinearHypothesisTests(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return LinearHypothesisTests(dataset, reward, config,)
+        return LinearHypothesisTests(
+            dataset,
+            reward,
+            config,
+        )
 
 
 class RLSummModel(torch.nn.Module):
@@ -286,9 +282,7 @@ class RLSummModel(torch.nn.Module):
 
         for sents_doc, sampled_sents in zip(sent_contents, sampled_summs):
             for summ in sampled_sents:
-                all_sents.append(
-                    torch.stack([sents_doc[sent_id] for sent_id in summ]).sum(0)
-                )
+                all_sents.append(torch.stack([sents_doc[sent_id] for sent_id in summ]).sum(0))
 
         return torch.stack(all_sents)
 

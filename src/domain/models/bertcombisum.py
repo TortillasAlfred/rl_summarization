@@ -39,13 +39,9 @@ class BertCombiSum(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.idxs_repart = torch.zeros(
-            50, dtype=torch.float32, device=self.tensor_device
-        )
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
         self.test_size = len(self.splits["test"])
-        self.targets_repart = torch.zeros(
-            50, dtype=torch.float64, device=self.tensor_device
-        )
+        self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.tensor_device)
         self.train_size = len(self.splits["train"])
         self.my_core_model = Summarizer(self.tensor_device, self.hparams)
         if hparams.n_jobs_for_mcts == -1:
@@ -90,9 +86,7 @@ class BertCombiSum(pl.LightningModule):
                 list(zip(sentence_gap, scorers)),
             )
 
-            ucb_targets = torch.tensor(
-                [r[0] for r in ucb_results], device=valid_sentences.device
-            )
+            ucb_targets = torch.tensor([r[0] for r in ucb_results], device=valid_sentences.device)
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
             # Padding if max len_doc < 50 sentences
@@ -125,9 +119,7 @@ class BertCombiSum(pl.LightningModule):
 
             return greedy_rewards, loss, ucb_deltas
         else:
-            greedy_rewards = scorers.get_scores(
-                greedy_idxs, raw_contents, raw_abstracts
-            )
+            greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             # if subset == "test":
             #     idxs_repart = torch.zeros(contents_extracted.size(0), 50).to(
@@ -213,9 +205,7 @@ class BertCombiSum(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(
-            optimizer, mode="max", patience=5, factor=0.2, verbose=True
-        )
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=5, factor=0.2, verbose=True)
 
         return optimizer
 
@@ -223,9 +213,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="train"
-            ),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -250,9 +238,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="test"
-            ),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,

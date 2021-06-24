@@ -29,9 +29,7 @@ def main(_config, cluster=None):
 
 
 if __name__ == "__main__":
-    base_configs = yaml.load(
-        open("./configs/mcts_exp_priors.yaml"), Loader=yaml.FullLoader
-    )
+    base_configs = yaml.load(open("./configs/mcts_exp_priors.yaml"), Loader=yaml.FullLoader)
     argument_parser = HyperOptArgumentParser()
     for config, value in base_configs.items():
         if type(value) is bool:
@@ -42,8 +40,6 @@ if __name__ == "__main__":
                 default=value,
             )
         else:
-            argument_parser.add_argument(
-                "--{}".format(config), type=type(value), default=value
-            )
+            argument_parser.add_argument("--{}".format(config), type=type(value), default=value)
     options = argument_parser.parse_args()
     main(options)
