@@ -326,4 +326,3 @@ class RLSummModel(torch.nn.Module):
 
     def forward(self, x):
         pass
-

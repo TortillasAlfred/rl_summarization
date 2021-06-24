@@ -57,10 +57,10 @@ class BertCombiSum(pl.LightningModule):
         self.pool = mp.Pool(processes=self.n_processes)
 
     def __my_document_level_encoding(self, contents):
-        '''
+        """
         input:
             contents : list of output berttokenizer
-        '''
+        """
         sent_scores, mask_cls = self.my_core_model(contents)
         return sent_scores, mask_cls
 
@@ -68,16 +68,23 @@ class BertCombiSum(pl.LightningModule):
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
         batch_size = len(contents)
 
-        contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
+        contents_extracted, valid_sentences = self.__my_document_level_encoding(
+            contents
+        )
 
         _, greedy_idxs = torch.topk(
-            contents_extracted, self.n_sents_per_summary, sorted=False)
+            contents_extracted, self.n_sents_per_summary, sorted=False
+        )
 
         if subset == "train":
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
-            greedy_rewards = torch.tensor(greedy_rewards)  if isinstance(greedy_rewards[0], list) else torch.tensor([greedy_rewards])
+            greedy_rewards = (
+                torch.tensor(greedy_rewards)
+                if isinstance(greedy_rewards[0], list)
+                else torch.tensor([greedy_rewards])
+            )
 
             ucb_results = self.pool.map(
                 UCBProcess(self.ucb_sampling, self.c_puct), scorers,
@@ -88,14 +95,26 @@ class BertCombiSum(pl.LightningModule):
             )
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
-            #Padding if max len_doc < 50 sentences
-            pad_ = torch.zeros((ucb_targets.size(0), ucb_targets.size(1) - valid_sentences.size(1)), dtype=torch.bool).to(ucb_targets.device)
-            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(ucb_targets.device)
+            # Padding if max len_doc < 50 sentences
+            pad_ = torch.zeros(
+                (ucb_targets.size(0), ucb_targets.size(1) - valid_sentences.size(1)),
+                dtype=torch.bool,
+            ).to(ucb_targets.device)
+            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(
+                ucb_targets.device
+            )
 
             target_distro = 10 ** (-10 * (1 - ucb_targets)) * valid_sentences
-            pad_ = torch.zeros((target_distro.size(0), target_distro.size(1) - contents_extracted.size(1))).to(target_distro.device)
-            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(target_distro.device)
-            
+            pad_ = torch.zeros(
+                (
+                    target_distro.size(0),
+                    target_distro.size(1) - contents_extracted.size(1),
+                )
+            ).to(target_distro.device)
+            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(
+                target_distro.device
+            )
+
             # Softmax
             loss = self.criterion(contents_extracted, target_distro)
             loss[~valid_sentences] = 0.0
@@ -116,7 +135,11 @@ class BertCombiSum(pl.LightningModule):
 
                 self.idxs_repart += idxs_repart.sum(0)
 
-            return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim>1 else torch.tensor([greedy_rewards])
+            return (
+                torch.from_numpy(greedy_rewards)
+                if greedy_rewards.ndim > 1
+                else torch.tensor([greedy_rewards])
+            )
 
     def training_step(self, batch, batch_idx):
         start = time.time()
@@ -182,11 +205,7 @@ class BertCombiSum(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
-            [
-                {"params": self.my_core_model.parameters(),
-                 "lr": self.learning_rate
-                },
-            ],
+            [{"params": self.my_core_model.parameters(), "lr": self.learning_rate},],
             lr=self.learning_rate,
             betas=[0, 0.999],
             weight_decay=self.weight_decay,
@@ -217,7 +236,8 @@ class BertCombiSum(pl.LightningModule):
         return DataLoader(
             dataset,
             collate_fn=TextDataCollator(
-                self.colname_2_field_objs, self.reward_builder, subset="val"),
+                self.colname_2_field_objs, self.reward_builder, subset="val"
+            ),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,

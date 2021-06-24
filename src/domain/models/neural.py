@@ -5,7 +5,11 @@ import torch.nn as nn
 
 
 def gelu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    return (
+        0.5
+        * x
+        * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    )
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -83,20 +87,25 @@ class MultiHeadedAttention(nn.Module):
         super(MultiHeadedAttention, self).__init__()
         self.head_count = head_count
 
-        self.linear_keys = nn.Linear(model_dim,
-                                     head_count * self.dim_per_head)
-        self.linear_values = nn.Linear(model_dim,
-                                       head_count * self.dim_per_head)
-        self.linear_query = nn.Linear(model_dim,
-                                      head_count * self.dim_per_head)
+        self.linear_keys = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_values = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_query = nn.Linear(model_dim, head_count * self.dim_per_head)
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
         self.use_final_linear = use_final_linear
-        if (self.use_final_linear):
+        if self.use_final_linear:
             self.final_linear = nn.Linear(model_dim, model_dim)
 
-    def forward(self, key, value, query, mask=None,
-                layer_cache=None, type=None, predefined_graph_1=None):
+    def forward(
+        self,
+        key,
+        value,
+        query,
+        mask=None,
+        layer_cache=None,
+        type=None,
+        predefined_graph_1=None,
+    ):
         """
         Compute the context vector and the attention vectors.
 
@@ -124,20 +133,24 @@ class MultiHeadedAttention(nn.Module):
 
         def shape(x):
             """  projection """
-            return x.view(batch_size, -1, head_count, dim_per_head) \
-                .transpose(1, 2)
+            return x.view(batch_size, -1, head_count, dim_per_head).transpose(1, 2)
 
         def unshape(x):
             """  compute context """
-            return x.transpose(1, 2).contiguous() \
+            return (
+                x.transpose(1, 2)
+                .contiguous()
                 .view(batch_size, -1, head_count * dim_per_head)
+            )
 
         # 1) Project key, value, and query.
         if layer_cache is not None:
             if type == "self":
-                query, key, value = self.linear_query(query), \
-                                    self.linear_keys(query), \
-                                    self.linear_values(query)
+                query, key, value = (
+                    self.linear_query(query),
+                    self.linear_keys(query),
+                    self.linear_values(query),
+                )
 
                 key = shape(key)
                 value = shape(value)
@@ -146,30 +159,30 @@ class MultiHeadedAttention(nn.Module):
                     device = key.device
                     if layer_cache["self_keys"] is not None:
                         key = torch.cat(
-                            (layer_cache["self_keys"].to(device), key),
-                            dim=2)
+                            (layer_cache["self_keys"].to(device), key), dim=2
+                        )
                     if layer_cache["self_values"] is not None:
                         value = torch.cat(
-                            (layer_cache["self_values"].to(device), value),
-                            dim=2)
+                            (layer_cache["self_values"].to(device), value), dim=2
+                        )
                     layer_cache["self_keys"] = key
                     layer_cache["self_values"] = value
             elif type == "context":
                 query = self.linear_query(query)
                 if layer_cache is not None:
                     if layer_cache["memory_keys"] is None:
-                        key, value = self.linear_keys(key), \
-                                     self.linear_values(value)
+                        key, value = self.linear_keys(key), self.linear_values(value)
                         key = shape(key)
                         value = shape(value)
                     else:
-                        key, value = layer_cache["memory_keys"], \
-                                     layer_cache["memory_values"]
+                        key, value = (
+                            layer_cache["memory_keys"],
+                            layer_cache["memory_values"],
+                        )
                     layer_cache["memory_keys"] = key
                     layer_cache["memory_values"] = value
                 else:
-                    key, value = self.linear_keys(key), \
-                                 self.linear_values(value)
+                    key, value = self.linear_keys(key), self.linear_values(value)
                     key = shape(key)
                     value = shape(value)
         else:
@@ -196,14 +209,14 @@ class MultiHeadedAttention(nn.Module):
 
         attn = self.softmax(scores)
 
-        if (not predefined_graph_1 is None):
+        if not predefined_graph_1 is None:
             attn_masked = attn[:, -1] * predefined_graph_1
             attn_masked = attn_masked / (torch.sum(attn_masked, 2).unsqueeze(2) + 1e-9)
 
             attn = torch.cat([attn[:, :-1], attn_masked.unsqueeze(1)], 1)
 
         drop_attn = self.dropout(attn)
-        if (self.use_final_linear):
+        if self.use_final_linear:
             context = unshape(torch.matmul(drop_attn, value))
             output = self.final_linear(context)
             return output

@@ -95,4 +95,3 @@ if __name__ == "__main__":
         #     print(diff, scores_python, scores_numpy, ids)
 
     print(np.vstack(scores_python).mean(0))
-

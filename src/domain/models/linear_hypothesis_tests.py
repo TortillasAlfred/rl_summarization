@@ -312,4 +312,3 @@ def run_lstsq(ngrams, scores):
     theta, res, rank, s = np.linalg.lstsq(all_summs_reps, all_summs_scores, rcond=-1)
 
     return np.linalg.norm(theta), res / len(all_summs)
-
