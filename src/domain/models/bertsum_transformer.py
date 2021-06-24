@@ -6,7 +6,7 @@ from os.path import join
 from transformers import BertModel
 
 from .encoder import TransformerInterEncoder
-from ..dataset_bert import MAX_LEN_DOCUMENT
+from ..dataset_bert import MAX_NB_TOKENS_PER_DOCUMENT as MAX_LEN_DOCUMENT
 import numpy as np
 
 D_FFN = 2048
