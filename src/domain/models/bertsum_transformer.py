@@ -76,9 +76,13 @@ class Summarizer(nn.Module):
         mask_cls = mask_cls.to(self.device)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
 
-        mark_cls_ = (mask_cls[:, :, None].float().to(self.device))  # mark_cls_ shape (2,24,1)
+        mark_cls_ = (
+            mask_cls[:, :, None].float().to(self.device)
+        )  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
-        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
+        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(
+            -1
+        )  # sents_vec(2, 54, 768) mask_cls(1, 54)
         regularize = mask_cls.float().masked_fill(mask_cls == False, -np.inf)
         sent_scores += regularize
         return sent_scores, mask_cls

@@ -4,7 +4,12 @@ import torch
 import torch.nn as nn
 
 
-def gelu(x): return (0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3)))))
+def gelu(x):
+    return (
+        0.5
+        * x
+        * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    )
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -132,7 +137,11 @@ class MultiHeadedAttention(nn.Module):
 
         def unshape(x):
             """  compute context """
-            return (x.transpose(1, 2).contiguous().view(batch_size, -1, head_count * dim_per_head))
+            return (
+                x.transpose(1, 2)
+                .contiguous()
+                .view(batch_size, -1, head_count * dim_per_head)
+            )
 
         # 1) Project key, value, and query.
         if layer_cache is not None:
