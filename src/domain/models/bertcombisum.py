@@ -68,7 +68,7 @@ class BertCombiSum(pl.LightningModule):
         # revert greedy_idx into origin index (before truncate)
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
-            sentence_gap_ = torch.tensor(sentence_gap_).to(self.tensor_device)
+            sentence_gap_ = torch.tensor(sentence_gap_, device=self.tensor_device)
             greedy_idx += torch.index_select(sentence_gap_, 0, greedy_idx)
 
         if subset == "train":
