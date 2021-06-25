@@ -45,9 +45,7 @@ class CnnDailyMailDatasetBert:
         val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
         return load_dataset(
-            "json",
-            data_files={"train": train_files, "test": test_files, "val": val_files},
-            cache_dir=cache_dir,
+            "json", data_files={"train": train_files, "test": test_files, "val": val_files}, cache_dir=cache_dir
         )
 
     def encode_document(self, document, tokenizer):
@@ -74,17 +72,9 @@ class CnnDailyMailDatasetBert:
         current_sentence = 0
         for seg, sentence in enumerate(document[:SEN_PER_DOC]):
             output = tokenizer(
-                sentence,
-                add_special_tokens=True,
-                max_length=MAX_LEN_SENTENCE,
-                truncation=True,
-                return_tensors="pt",
+                sentence, add_special_tokens=True, max_length=MAX_LEN_SENTENCE, truncation=True, return_tensors="pt"
             )
-            ids, types, mark = (
-                output["input_ids"][0],
-                output["token_type_ids"][0],
-                output["attention_mask"][0],
-            )
+            ids, types, mark = (output["input_ids"][0], output["token_type_ids"][0], output["attention_mask"][0])
             if len(ids) < MIN_LEN_SENTENCE + 2:
                 current_sentence += 1
                 continue
@@ -136,7 +126,7 @@ class CnnDailyMailDatasetBert:
         if not self.config.bert_cache:  # Used if there's no internet connection
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         else:
-            tokenizer = BertTokenizerFast.from_pretrained(self.config.bert_cache,  local_files_only=True)
+            tokenizer = BertTokenizerFast.from_pretrained(self.config.bert_cache, local_files_only=True)
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
         start = time.process_time()
@@ -259,11 +249,7 @@ class DatasetBertWrapper(CnnDailyMailDatasetBert):
         for subset_, document_tuples in self.dataset.items():
             examples = []
             for properties in zip(
-                document_tuples[0],
-                document_tuples[1],
-                document_tuples[2],
-                document_tuples[3],
-                document_tuples[4],
+                document_tuples[0], document_tuples[1], document_tuples[2], document_tuples[3], document_tuples[4]
             ):
                 examples.append(Example.fromlist(properties, self.fields))
             subsets[subset_] = torchtextDataset(examples, self.fields)
