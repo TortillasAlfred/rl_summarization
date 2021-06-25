@@ -10,6 +10,7 @@ from ..dataset_bert import MAX_NB_TOKENS_PER_DOCUMENT as MAX_LEN_DOCUMENT
 import numpy as np
 
 D_FFN = 2048
+D_MODEL_BERT = 768
 HEAD = 8
 DROPOUT = 0.1
 NUM_TLAYER = 2
@@ -20,11 +21,10 @@ class Summarizer(nn.Module):
     def __init__(self, device, config):
         super(Summarizer, self).__init__()
         self.device = device
-        if config.bert_cache:
-            bert_cache_dir = join(getcwd(), "bert_cache/bertmodel_save_pretrained")
-            self.bert = BertModel.from_pretrained(bert_cache_dir, local_files_only=True)
-        else:
+        if not config.bert_cache:
             self.bert = BertModel.from_pretrained("bert-base-uncased")
+        else:
+            self.bert = BertModel.from_pretrained(config.bert_cache, local_files_only=True)
         self.bert.to(self.device)
 
         if MAX_LEN_DOCUMENT > DEFAULT_BERT_MAX_LEN:
@@ -34,7 +34,7 @@ class Summarizer(nn.Module):
             pos_embeddings.weight.data = bert_weight_dup[:MAX_LEN_DOCUMENT]
             self.bert.embeddings.position_embeddings = pos_embeddings
 
-        self.encoder = TransformerInterEncoder(768, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
+        self.encoder = TransformerInterEncoder(D_MODEL_BERT, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
         self.position_ids = torch.arange(MAX_LEN_DOCUMENT, device=self.device)
         self.to(self.device)
 

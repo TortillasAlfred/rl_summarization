@@ -16,8 +16,6 @@ MIN_LEN_SENTENCE = 6
 MAX_NB_TOKENS_PER_DOCUMENT = 512
 PAD = 0
 
-bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
-
 
 class CnnDailyMailDatasetBert:
     def __init__(self, config):
@@ -135,11 +133,10 @@ class CnnDailyMailDatasetBert:
         Returns:
             dict: dataset once tokenized
         """
-        if self.config.bert_cache:  # Used if there's no internet connection
-            bert_cache_dir = join(getcwd(), "bert_cache/tokenizer_save_pretrained")
-            tokenizer = BertTokenizerFast.from_pretrained(bert_cache_dir, local_files_only=True)
-        else:
+        if not self.config.bert_cache:  # Used if there's no internet connection
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        else:
+            tokenizer = BertTokenizerFast.from_pretrained(self.config.bert_cache,  local_files_only=True)
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
         start = time.process_time()
