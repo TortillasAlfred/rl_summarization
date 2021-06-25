@@ -33,7 +33,7 @@ class Summarizer(nn.Module):
             self.bert.embeddings.position_embeddings = pos_embeddings
 
         self.encoder = TransformerInterEncoder(768, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
-        self.position_ids = torch.arange(MAX_LEN_DOCUMENT).to(self.device)
+        self.position_ids = torch.arange(MAX_LEN_DOCUMENT, device=self.device)
         self.to(self.device)
 
     def load_cp(self, pt):
