@@ -86,6 +86,9 @@ class TransformerInterEncoder(nn.Module):
         x = F.relu(x)
         x = self.w1(x)
 
+        # Rescale
+        x = (x - x.mean())/x.std()
+        
         # sent_scores = self.sigmoid(x)
         sent_scores = x.squeeze(-1) * mask.float()
 

@@ -13,6 +13,7 @@ D_FFN = 2048
 HEAD = 8
 DROPOUT = 0.1
 NUM_TLAYER = 2
+DEFAULT_BERT_MAX_LEN = 512
 
 
 class Summarizer(nn.Module):
@@ -21,11 +22,12 @@ class Summarizer(nn.Module):
         self.device = device
         if config.bert_cache:
             bert_cache_dir = join(getcwd(), "bert_cache/bertmodel_save_pretrained")
-            self.bert = BertModel.from_pretrained(bert_cache_dir, local_files_only=True).to(self.device)
+            self.bert = BertModel.from_pretrained(bert_cache_dir, local_files_only=True)
         else:
-            self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
+            self.bert = BertModel.from_pretrained("bert-base-uncased")
+        self.bert.to(self.device)
 
-        if MAX_LEN_DOCUMENT > 512:
+        if MAX_LEN_DOCUMENT > DEFAULT_BERT_MAX_LEN:
             pos_embeddings = nn.Embedding(MAX_LEN_DOCUMENT, self.bert.config.hidden_size)
             bert_weight = self.bert.embeddings.position_embeddings.weight.data
             bert_weight_dup = torch.cat((bert_weight,) * int(MAX_LEN_DOCUMENT // 512 + 1))
@@ -47,9 +49,6 @@ class Summarizer(nn.Module):
             contents["mark"],
             contents["mark_clss"],
         )
-        x = x.to(self.device)
-        segs = segs.to(self.device)
-        mask = mask.to(self.device)
 
         len_seq = contents["token_ids"].size(-1)
         top_vec = self.bert(x, mask, segs, position_ids=self.position_ids[:len_seq]).last_hidden_state
