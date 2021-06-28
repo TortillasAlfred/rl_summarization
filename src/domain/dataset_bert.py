@@ -118,7 +118,7 @@ class CnnDailyMailDatasetBert:
         Returns:
             list: return a list of tokenized documents
         """
-        return Parallel(n_jobs=4)(delayed(encode_document)(document, tokenizer) for document in dataset[set_][part_])
+        return Parallel(n_jobs=-1)(delayed(encode_document)(document, tokenizer) for document in dataset[set_][part_])
         # return [encode_document(document, tokenizer) for document in dataset[set_][part_]]
 
     def tokenized_dataset(self, dataset):
