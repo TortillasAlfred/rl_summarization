@@ -139,7 +139,7 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
     threshold = np.partition(q_vals, -3)[-3]
     elligible_idxs = np.argwhere(q_vals >= threshold)[:, 0]
     best_idxs = np.random.choice(elligible_idxs, 3, replace=False)
-    best_score = scorer(tuple(best_idxs))
+    best_score = scorer(tuple(best_idxs)).mean()
     ucb_delta = max_score - best_score
 
     # MinMax scaling
