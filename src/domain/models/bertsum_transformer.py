@@ -25,7 +25,7 @@ class Summarizer(nn.Module):
             self.bert = BertModel.from_pretrained("bert-base-uncased")
         else:
             self.bert = BertModel.from_pretrained(config.bert_cache, local_files_only=True)
-        self.bert.to(self.device)
+        self.bert = self.bert.to(self.device)
 
         if MAX_LEN_DOCUMENT > DEFAULT_BERT_MAX_LEN:
             pos_embeddings = nn.Embedding(MAX_LEN_DOCUMENT, self.bert.config.hidden_size)
