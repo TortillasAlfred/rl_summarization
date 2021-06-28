@@ -17,7 +17,7 @@ from .bertsum_transformer import Summarizer
 class BertCombiSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
-        self.tensor_device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
 
         self.hparams = hparams
         self.colname_2_field_objs = dataset.fields
