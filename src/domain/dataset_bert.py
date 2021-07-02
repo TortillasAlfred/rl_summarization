@@ -1,5 +1,6 @@
 import time
 import torch
+import pickle
 
 from os import listdir, getcwd
 from os.path import isfile, join
@@ -15,6 +16,7 @@ SEN_PER_DOC = 50  # SEN_PER_DOC > 50 will raise an error because of RougeRewardS
 MAX_LEN_SENTENCE = 80
 MIN_LEN_SENTENCE = 6
 MAX_NB_TOKENS_PER_DOCUMENT = 512
+MIN_NUM_SEN_PER_DOCUMENT = 5 # Must be higher than 3. Otherwise, it'll cause an error
 PAD = 0
 
 
@@ -76,13 +78,27 @@ def encode_document(document, tokenizer):
 
 class CnnDailyMailDatasetBert:
     def __init__(self, config):
-        self.loaded_data = self._load_dataset(
-            join(config.data_path, "finished_files", "train"),
-            join(config.data_path, "finished_files", "test"),
-            join(config.data_path, "finished_files", "val"),
-        )
         self.config = config
-        self.dataset = self.tokenized_dataset(self.loaded_data)
+
+        if config.store_data_tokenized:
+            self.loaded_data = self._load_dataset(join(config.data_path, 'finished_files', 'train'),
+                                              join(config.data_path, 'finished_files', 'test'),
+                                              join(config.data_path, 'finished_files', 'val'))
+            self.dataset = self.tokenized_dataset(self.loaded_data)
+            print("Storing data...")
+            file=open("data/data_tokenized","wb+")
+            pickle.dump(self.dataset, file)
+            print("Storing Completed")
+        elif config.load_data_tokenized:
+            print("Loading data...")
+            file=open("data/data_tokenized","rb")
+            self.dataset=pickle.load(file)
+            print("Loading Completed")
+        else:
+            self.loaded_data = self._load_dataset(join(config.data_path, 'finished_files', 'train'),
+                                              join(config.data_path, 'finished_files', 'test'),
+                                              join(config.data_path, 'finished_files', 'val'))
+            self.dataset = self.tokenized_dataset(self.loaded_data)
 
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"):
         """Utility method use to load the data
@@ -118,8 +134,8 @@ class CnnDailyMailDatasetBert:
         Returns:
             list: return a list of tokenized documents
         """
-        return Parallel(n_jobs=-1)(delayed(encode_document)(document, tokenizer) for document in dataset[set_][part_])
-        # return [encode_document(document, tokenizer) for document in dataset[set_][part_]]
+        return Parallel(n_jobs=-1)(delayed(encode_document)(document, tokenizer) for document in dataset[set_][part_] if len(document) > MIN_NUM_SEN_PER_DOCUMENT)
+        # return [encode_document(document, tokenizer) for document in dataset[set_][part_] if len(document) > MIN_NUM_SEN_PER_DOCUMENT]
 
     def tokenized_dataset(self, dataset):
         """Method that tokenizes each document in the train, test and validation dataset
@@ -133,7 +149,7 @@ class CnnDailyMailDatasetBert:
         if not self.config.bert_cache:  # Used if there's no internet connection
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         else:
-            tokenizer = BertTokenizerFast.from_pretrained(self.config.bert_cache, local_files_only=True)
+            tokenizer = BertTokenizerFast.from_pretrained(join(self.config.bert_cache, "tokenizer_save_pretrained", local_files_only=True)
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
         start = time.process_time()
