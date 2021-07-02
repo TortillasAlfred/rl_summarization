@@ -145,7 +145,4 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
     # MinMax scaling
     q_vals = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min())
 
-    returned_q_vals = np.zeros(50, dtype=np.float32)
-    returned_q_vals[:n_sents_new] = q_vals
-
-    return (returned_q_vals, ucb_delta)
+    return (q_vals, ucb_delta)

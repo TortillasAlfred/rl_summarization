@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 import torch.multiprocessing as mp
 
 from torch.utils.data import DataLoader
@@ -41,7 +42,6 @@ class BertCombiSum(pl.LightningModule):
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
         self.test_size = len(self.splits["test"])
-        self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.tensor_device)
         self.train_size = len(self.splits["train"])
         self.my_core_model = Summarizer(self.tensor_device, self.hparams)
         if hparams.n_jobs_for_mcts == -1:
@@ -64,7 +64,9 @@ class BertCombiSum(pl.LightningModule):
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
 
-        _, greedy_idxs = torch.topk(contents_extracted, self.n_sents_per_summary, sorted=False)
+        masked_predictions = contents_extracted + valid_sentences.float().log()  # Adds 0 if sentence is valid else -inf
+        _, greedy_idxs = torch.topk(masked_predictions, self.n_sents_per_summary, sorted=False)
+
         # revert greedy_idx into origin index (before truncate)
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
@@ -82,33 +84,16 @@ class BertCombiSum(pl.LightningModule):
                 list(zip(sentence_gap, scorers)),
             )
 
-            ucb_targets = torch.tensor([r[0] for r in ucb_results], device=valid_sentences.device)
+            ucb_targets = pad_sequence(
+                [torch.tensor(r[0], device=valid_sentences.device) for r in ucb_results], batch_first=True
+            )
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
-            # Padding if max len_doc < 50 sentences
-            pad_ = torch.zeros(
-                (ucb_targets.size(0), ucb_targets.size(1) - valid_sentences.size(1)),
-                dtype=torch.bool,
-                device=ucb_targets.device,
-            )
-            valid_sentences = torch.cat((valid_sentences, pad_), dim=-1).to(device=ucb_targets.device)
+            target_distro = 10 ** (-10 * (1 - ucb_targets))
 
-            target_distro = 10 ** (-10 * (1 - ucb_targets)) * valid_sentences
-            pad_ = torch.zeros(
-                (
-                    target_distro.size(0),
-                    target_distro.size(1) - contents_extracted.size(1),
-                ),
-                device=target_distro.device,
-            )
-            contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(device=target_distro.device)
-
-            loss = self.criterion(contents_extracted, target_distro)
-            loss[~valid_sentences] = 0.0
+            loss = self.criterion(contents_extracted, target_distro) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
-
-            self.targets_repart += target_distro.sum(0)
 
             return greedy_rewards, loss, ucb_deltas
         else:
@@ -138,12 +123,6 @@ class BertCombiSum(pl.LightningModule):
             self.log(key, val, prog_bar="greedy" in key)
 
         return loss
-
-    def training_epoch_end(self, outputs):
-        for i, idx_repart in enumerate(self.targets_repart / self.train_size):
-            self.log(f"targets_idx_{i}", idx_repart)
-
-        self.targets_repart.zero_()
 
     def validation_step(self, batch, batch_idx):
         greedy_rewards = self.forward(batch, subset="val")
