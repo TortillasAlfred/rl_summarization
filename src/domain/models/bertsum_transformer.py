@@ -24,7 +24,9 @@ class Summarizer(nn.Module):
         if not config.bert_cache:
             self.bert = BertModel.from_pretrained("bert-base-uncased")
         else:
-            self.bert = BertModel.from_pretrained(join(config.bert_cache, "bertmodel_save_pretrained", local_files_only=True)
+            self.bert = BertModel.from_pretrained(
+                join(config.bert_cache, "bertmodel_save_pretrained", local_files_only=True)
+            )
         self.bert = self.bert.to(self.device)
 
         if MAX_LEN_DOCUMENT > DEFAULT_BERT_MAX_LEN:
