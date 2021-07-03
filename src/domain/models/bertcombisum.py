@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from src.domain.ucb import BertUCBProcess
-from src.domain.loader_utils import TextDataCollator
+from src.domain.loader_utils import BertTextDataCollator
 from .bertsum_transformer import Summarizer
 
 
@@ -69,7 +69,10 @@ class BertCombiSum(pl.LightningModule):
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
             sentence_gap_ = torch.tensor(sentence_gap_, device=self.tensor_device)
-            greedy_idx += torch.index_select(sentence_gap_, 0, greedy_idx)
+            greedy_idx = torch.clip(greedy_idx, 0, len(sentence_gap_) - 1)
+            greedy_idx[0] += sentence_gap_[greedy_idx[0]]
+            greedy_idx[1] += sentence_gap_[greedy_idx[1]]
+            greedy_idx[2] += sentence_gap_[greedy_idx[2]]
 
         if subset == "train":
             greedy_rewards = []
@@ -78,8 +81,7 @@ class BertCombiSum(pl.LightningModule):
             greedy_rewards = torch.tensor(greedy_rewards)
 
             ucb_results = self.pool.map(
-                BertUCBProcess(self.ucb_sampling, self.c_puct),
-                list(zip(sentence_gap, scorers)),
+                BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
             )
 
             ucb_targets = torch.tensor([r[0] for r in ucb_results], device=valid_sentences.device)
@@ -95,11 +97,7 @@ class BertCombiSum(pl.LightningModule):
 
             target_distro = 10 ** (-10 * (1 - ucb_targets)) * valid_sentences
             pad_ = torch.zeros(
-                (
-                    target_distro.size(0),
-                    target_distro.size(1) - contents_extracted.size(1),
-                ),
-                device=target_distro.device,
+                (target_distro.size(0), target_distro.size(1) - contents_extracted.size(1)), device=target_distro.device
             )
             contents_extracted = torch.cat((contents_extracted, pad_), dim=-1).to(device=target_distro.device)
 
@@ -200,7 +198,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
+            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -212,7 +210,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="val"),
+            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -223,7 +221,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
+            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
