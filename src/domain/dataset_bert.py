@@ -12,15 +12,11 @@ from transformers import BertTokenizerFast
 from torchtext.data import Dataset as torchtextDataset, Example, Field, RawField
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-SEN_PER_DOC = 50  # SEN_PER_DOC > 50 will raise an error because of RougeRewardScorer default max n_sents =50
-MAX_LEN_SENTENCE = 80
-MIN_LEN_SENTENCE = 6
-MAX_NB_TOKENS_PER_DOCUMENT = 512
-MIN_NUM_SEN_PER_DOCUMENT = 5  # Must be higher than 3. Otherwise, it'll cause an error
+MIN_NUM_SEN_PER_DOCUMENT = 3  # Must be higher than 3. Otherwise, it'll cause an error
 PAD = 0
 
 
-def encode_document(document, tokenizer):
+def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
     """Utility function used to preprocess and tokenize the data
 
     Args:
@@ -46,15 +42,15 @@ def encode_document(document, tokenizer):
         "sentence_gap": [],
     }
     current_sentence = 0
-    for seg, sentence in enumerate(document[:SEN_PER_DOC]):
+    for seg, sentence in enumerate(document[:max_sents_per_doc]):
         output = tokenizer(
-            sentence, add_special_tokens=True, max_length=MAX_LEN_SENTENCE, truncation=True, return_tensors="pt"
+            sentence, add_special_tokens=True, max_length=max_len_sent, truncation=True, return_tensors="pt"
         )
         ids, types, mark = (output["input_ids"][0], output["token_type_ids"][0], output["attention_mask"][0])
-        if len(ids) < MIN_LEN_SENTENCE + 2:
+        if len(ids) < min_len_sent + 2:
             current_sentence += 1
             continue
-        if len(result_["token_ids"]) + len(ids.tolist()) > MAX_NB_TOKENS_PER_DOCUMENT:
+        if len(result_["token_ids"]) + len(ids.tolist()) > max_tokens_per_doc:
             break
         result_["token_ids"].extend(ids.tolist())
         result_["token_type_ids"].extend(types.tolist())
@@ -68,11 +64,12 @@ def encode_document(document, tokenizer):
     result_["mark_clss"].pop()
 
     # padding
-    pad_ = MAX_NB_TOKENS_PER_DOCUMENT - len(result_["token_ids"])
+    pad_ = max_tokens_per_doc - len(result_["token_ids"])
     result_["token_ids"].extend([PAD] * pad_)
     result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
     result_["mark"].extend([0] * pad_)
     result_["segs"].extend([1 - (seg % 2)] * pad_)
+
     return result_
 
 
@@ -139,7 +136,14 @@ class CnnDailyMailDatasetBert:
             list: return a list of tokenized documents
         """
         return Parallel(n_jobs=-1)(
-            delayed(encode_document)(document, tokenizer)
+            delayed(encode_document)(
+                document,
+                tokenizer,
+                self.config.max_sents_per_doc,
+                self.config.max_len_sent,
+                self.config.min_len_sent,
+                self.config.max_tokens_per_doc,
+            )
             for document in dataset[set_][part_]
             if len(document) > MIN_NUM_SEN_PER_DOCUMENT
         )
