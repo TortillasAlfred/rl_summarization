@@ -35,7 +35,7 @@ load_data_tokenized: True #Pickle/Load the tokenized data
 store_data_tokenized: False #Pickle/Store the tokenized data
 max_sents_per_doc: 50
 max_len_sent: 80
-min_len_sent: 5
+min_len_sent: 0
 max_tokens_per_doc: 512
 
 ###################
