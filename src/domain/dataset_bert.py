@@ -13,65 +13,7 @@ from transformers import BertTokenizerFast
 from torchtext.data import Dataset as torchtextDataset, Example, Field, RawField
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-MIN_NUM_SEN_PER_DOCUMENT = 3  # Must be higher than 3. Otherwise, it'll cause an error
 PAD = 0
-
-
-def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
-    """Utility function used to preprocess and tokenize the data
-
-    Args:
-        document (list): list of sentences to preprocess and tokenize
-        tokenizer (BertTokenizerFast): object method used to preprocess and tokenize
-
-    Return:
-        dict: dictionary with keys `input_ids`, `token_type_ids` and `attention_mask`
-    """
-
-    # return nothing if `document` is empty
-    if not document:
-        return
-
-    # concat sentences into document
-    result_ = {
-        "token_ids": [],
-        "token_type_ids": [],
-        "mark": [],
-        "segs": [],
-        "clss": [0],
-        "mark_clss": [True],
-        "sentence_gap": [],
-    }
-    current_sentence = 0
-    for seg, sentence in enumerate(document[:max_sents_per_doc]):
-        output = tokenizer(
-            sentence, add_special_tokens=True, max_length=max_len_sent, truncation=True, return_tensors="pt"
-        )
-        ids, types, mark = (output["input_ids"][0], output["token_type_ids"][0], output["attention_mask"][0])
-        if len(ids) < min_len_sent + 2:
-            current_sentence += 1
-            continue
-        if len(result_["token_ids"]) + len(ids.tolist()) > max_tokens_per_doc:
-            break
-        result_["token_ids"].extend(ids.tolist())
-        result_["token_type_ids"].extend(types.tolist())
-        result_["mark"].extend(mark.tolist())
-        result_["segs"].extend([seg % 2] * len(ids))
-        result_["clss"].append(len(result_["segs"]))
-        result_["mark_clss"].append(True)
-        result_["sentence_gap"].append(current_sentence)
-
-    result_["clss"].pop()
-    result_["mark_clss"].pop()
-
-    # padding
-    pad_ = max_tokens_per_doc - len(result_["token_ids"])
-    result_["token_ids"].extend([PAD] * pad_)
-    result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
-    result_["mark"].extend([0] * pad_)
-    result_["segs"].extend([1 - (seg % 2)] * pad_)
-
-    return result_
 
 
 class CnnDailyMailDatasetBert:
@@ -200,6 +142,63 @@ class CnnDailyMailDatasetBert:
                 dataset["val"]["abstract"],
             ),
         }
+
+
+def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
+    """Utility function used to preprocess and tokenize the data
+
+    Args:
+        document (list): list of sentences to preprocess and tokenize
+        tokenizer (BertTokenizerFast): object method used to preprocess and tokenize
+
+    Return:
+        dict: dictionary with keys `input_ids`, `token_type_ids` and `attention_mask`
+    """
+
+    # return nothing if `document` is empty
+    if not document:
+        return
+
+    # concat sentences into document
+    result_ = {
+        "token_ids": [],
+        "token_type_ids": [],
+        "mark": [],
+        "segs": [],
+        "clss": [0],
+        "mark_clss": [True],
+        "sentence_gap": [],
+    }
+    current_sentence = 0
+    for seg, sentence in enumerate(document[:max_sents_per_doc]):
+        output = tokenizer(
+            sentence, add_special_tokens=True, max_length=max_len_sent, truncation=True, return_tensors="pt"
+        )
+        ids, types, mark = (output["input_ids"][0], output["token_type_ids"][0], output["attention_mask"][0])
+        if len(ids) < min_len_sent + 2:
+            current_sentence += 1
+            continue
+        if len(result_["token_ids"]) + len(ids.tolist()) > max_tokens_per_doc:
+            break
+        result_["token_ids"].extend(ids.tolist())
+        result_["token_type_ids"].extend(types.tolist())
+        result_["mark"].extend(mark.tolist())
+        result_["segs"].extend([seg % 2] * len(ids))
+        result_["clss"].append(len(result_["segs"]))
+        result_["mark_clss"].append(True)
+        result_["sentence_gap"].append(current_sentence)
+
+    result_["clss"].pop()
+    result_["mark_clss"].pop()
+
+    # padding
+    pad_ = max_tokens_per_doc - len(result_["token_ids"])
+    result_["token_ids"].extend([PAD] * pad_)
+    result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
+    result_["mark"].extend([0] * pad_)
+    result_["segs"].extend([1 - (seg % 2)] * pad_)
+
+    return result_
 
 
 class IdField(Field):
