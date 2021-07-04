@@ -115,12 +115,12 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
     if priors is None:
         priors = np.ones((n_sents_new,)) / n_sents_new
 
-    n_visits = np.zeros(n_sents_new, dtype=int)
-    q_vals = np.zeros(n_sents_new, dtype=np.float32)
+    n_visits = np.zeros(n_sents_new, dtype=int) * 1e-8
+    q_vals = np.zeros(n_sents_new, dtype=np.float32) * 1e-8
 
     for n in range(1, n_samples + 1):
         ucb = q_vals + c_puct * priors * np.sqrt(2 * np.log(n) / n_visits)
-        ucb = np.nan_to_num(ucb, nan=np.inf)
+        ucb = np.nan_to_num(ucb, nan=1e8)
         threshold = np.partition(ucb, -3)[-3]
         elligible_idxs = np.argwhere(ucb >= threshold)
         elligible_idxs = elligible_idxs[:, 0]
@@ -143,6 +143,6 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
     ucb_delta = max_score - best_score
 
     # MinMax scaling
-    q_vals = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min())
+    q_vals = (q_vals - q_vals.min()) / (q_vals.max() + 1e-8 - q_vals.min())
 
     return (q_vals, ucb_delta)

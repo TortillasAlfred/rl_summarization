@@ -87,5 +87,6 @@ class TransformerInterEncoder(nn.Module):
         x = self.w1(x)
 
         sent_scores = x.squeeze(-1) * mask.float()
+        sent_scores = sent_scores.masked_fill(mask.float() == 0, 1e-8)
 
         return sent_scores
