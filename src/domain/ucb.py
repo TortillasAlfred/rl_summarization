@@ -142,7 +142,10 @@ def ucb_bert(scorer, c_puct, n_samples, n_sents, sentence_gap, priors=None):
     best_score = scorer(tuple(best_idxs)).mean()
     ucb_delta = max_score - best_score
 
-    # MinMax scaling
-    q_vals = (q_vals - q_vals.min()) / (q_vals.max() + 1e-8 - q_vals.min())
+    # Return 0.5 everywhere if no sent is better (e.g. only 3 sents in doc)
+    if q_vals.max() - q_vals.min() < 1e-4:
+        q_vals = np.ones_like(q_vals) * 0.5
+    else:  # MinMax scaling
+        q_vals = (q_vals - q_vals.min()) / (q_vals.max() - q_vals.min())
 
     return (q_vals, ucb_delta)
