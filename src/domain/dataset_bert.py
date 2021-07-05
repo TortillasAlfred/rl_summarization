@@ -159,7 +159,7 @@ class CnnDailyMailDatasetBert:
 
 
 def is_valid_example(example):
-    return len(example["article"]) > 3 and len(example["abstract"]) > 0
+    return len(example["article"]) >= 3 and len(example["abstract"]) > 0
 
 
 def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
