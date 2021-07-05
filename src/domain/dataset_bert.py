@@ -88,7 +88,6 @@ class CnnDailyMailDatasetBert:
                 self.config.max_tokens_per_doc,
             )
             for document in dataset[set_][part_]
-            if len(document) > MIN_NUM_SEN_PER_DOCUMENT
         )
         # return [encode_document(document, tokenizer) for document in dataset[set_][part_] if len(document) > MIN_NUM_SEN_PER_DOCUMENT]
 
@@ -105,7 +104,8 @@ class CnnDailyMailDatasetBert:
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         else:
             tokenizer = BertTokenizerFast.from_pretrained(
-                join(self.config.bert_cache, "tokenizer_save_pretrained", local_files_only=True)
+                join(self.config.bert_cache, "tokenizer_save_pretrained"), 
+                local_files_only=True
             )
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
@@ -191,12 +191,13 @@ def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_le
     result_["clss"].pop()
     result_["mark_clss"].pop()
 
-    # padding
-    pad_ = max_tokens_per_doc - len(result_["token_ids"])
-    result_["token_ids"].extend([PAD] * pad_)
-    result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
-    result_["mark"].extend([0] * pad_)
-    result_["segs"].extend([1 - (seg % 2)] * pad_)
+    # padding if document has at least a sentence
+    if len(result_["token_ids"])>0:
+        pad_ = max_tokens_per_doc - len(result_["token_ids"])
+        result_["token_ids"].extend([PAD] * pad_)
+        result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
+        result_["mark"].extend([0] * pad_)
+        result_["segs"].extend([1 - (seg % 2)] * pad_)
 
     return result_
 

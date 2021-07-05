@@ -70,8 +70,6 @@ class BertCombiSum(pl.LightningModule):
         # revert greedy_idx into origin index (before truncate)
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
-            sentence_gap_ = torch.tensor(sentence_gap_, device=self.tensor_device)
-            greedy_idx = torch.clip(greedy_idx, 0, len(sentence_gap_) - 1)
             greedy_idx[0] += sentence_gap_[greedy_idx[0]]
             greedy_idx[1] += sentence_gap_[greedy_idx[1]]
             greedy_idx[2] += sentence_gap_[greedy_idx[2]]

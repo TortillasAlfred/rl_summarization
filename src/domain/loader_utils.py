@@ -20,7 +20,7 @@ class BertTextDataCollator:
 
     def __call__(self, data):
         data_filtered = [
-            x for x in data if x["content"] is not None and sum(x["content"]["mark_clss"]) >= MIN_NUM_SEN_PER_DOCUMENT
+            x for x in data if x["raw_content"] is not None and len(x["raw_content"]) >= MIN_NUM_SEN_PER_DOCUMENT
         ]
 
         batch = {}

@@ -25,7 +25,8 @@ class Summarizer(nn.Module):
             self.bert = BertModel.from_pretrained("bert-base-uncased")
         else:
             self.bert = BertModel.from_pretrained(
-                join(config.bert_cache, "bertmodel_save_pretrained", local_files_only=True)
+                join(config.bert_cache, "bertmodel_save_pretrained"), 
+                local_files_only=True
             )
         self.bert = self.bert.to(self.device)
 
@@ -72,4 +73,6 @@ class Summarizer(nn.Module):
         mark_cls_ = mask_cls[:, :, None].float().to(self.device)  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
         sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
+        regularize = mask_cls.float().masked_fill(mask_cls == False, -10e8)
+        sent_scores += regularize
         return sent_scores, mask_cls
