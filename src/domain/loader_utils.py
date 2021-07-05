@@ -1,5 +1,4 @@
 from src.domain.rewards.rouge_python import RougePythonReward
-from src.domain.dataset_bert import MIN_NUM_SEN_PER_DOCUMENT
 
 import os
 import tarfile
@@ -9,34 +8,6 @@ import numpy as np
 from collections import OrderedDict, Counter
 from scipy.sparse import dok_matrix
 from sklearn.decomposition import TruncatedSVD
-
-
-class BertTextDataCollator:
-    def __init__(self, fields, reward_builder, subset, n_grams_loader=None):
-        self.fields = fields
-        self.reward_builder = reward_builder
-        self.subset = subset
-        self.n_grams_loader = n_grams_loader
-
-    def __call__(self, data):
-        data_filtered = [
-            x for x in data if x["raw_content"] is not None and len(x["raw_content"]) >= MIN_NUM_SEN_PER_DOCUMENT
-        ]
-
-        batch = {}
-        for name, f in self.fields:
-            data_for_current_field = []
-            for d in data_filtered:
-                data_for_current_field.append(d[name])
-            batch[name] = f.process(data_for_current_field)
-
-        if self.reward_builder:
-            batch["scorers"] = get_reward_scorers(self.reward_builder, batch["id"], self.subset)
-
-        if self.n_grams_loader:
-            batch["ngrams_dense"] = [self.n_grams_loader(id, self.subset) for id in batch["id"]]
-
-        return list(batch.values())
 
 
 class TextDataCollator:

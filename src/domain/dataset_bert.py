@@ -44,6 +44,17 @@ class CnnDailyMailDatasetBert:
             )
             self.dataset = self.tokenized_dataset(self.loaded_data)
 
+        self.sanity_check()
+
+    def sanity_check(self):
+        for name, subset in self.dataset.items():
+            field_lengths = [len(field) for field in subset]
+
+            if len(set(field_lengths)) > 1:
+                raise ValueError(
+                    f"All fields for the subset {name} should of equal length. Found lengths {field_lengths}"
+                )
+
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"):
         """Utility method use to load the data
 
@@ -61,9 +72,13 @@ class CnnDailyMailDatasetBert:
         test_files = [join(test_dir, f) for f in listdir(test_dir) if isfile(join(test_dir, f))]
         val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
-        return load_dataset(
+        loaded_data = load_dataset(
             "json", data_files={"train": train_files, "test": test_files, "val": val_files}, cache_dir=cache_dir
         )
+
+        loaded_data = loaded_data.filter(is_valid_example)
+
+        return loaded_data
 
     def get_values(self, set_, part_, dataset, tokenizer):
         """Utility method used inside `tokenized_dataset`
@@ -104,8 +119,7 @@ class CnnDailyMailDatasetBert:
             tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         else:
             tokenizer = BertTokenizerFast.from_pretrained(
-                join(self.config.bert_cache, "tokenizer_save_pretrained"), 
-                local_files_only=True
+                join(self.config.bert_cache, "tokenizer_save_pretrained"), local_files_only=True
             )
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
@@ -142,6 +156,10 @@ class CnnDailyMailDatasetBert:
                 dataset["val"]["abstract"],
             ),
         }
+
+
+def is_valid_example(example):
+    return len(example["article"]) > 3 and len(example["abstract"]) > 0
 
 
 def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
@@ -192,12 +210,11 @@ def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_le
     result_["mark_clss"].pop()
 
     # padding if document has at least a sentence
-    if len(result_["token_ids"])>0:
-        pad_ = max_tokens_per_doc - len(result_["token_ids"])
-        result_["token_ids"].extend([PAD] * pad_)
-        result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
-        result_["mark"].extend([0] * pad_)
-        result_["segs"].extend([1 - (seg % 2)] * pad_)
+    pad_ = max_tokens_per_doc - len(result_["token_ids"])
+    result_["token_ids"].extend([PAD] * pad_)
+    result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
+    result_["mark"].extend([0] * pad_)
+    result_["segs"].extend([1 - (seg % 2)] * pad_)
 
     return result_
 

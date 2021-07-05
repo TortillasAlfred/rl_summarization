@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from src.domain.ucb import BertUCBProcess
-from src.domain.loader_utils import BertTextDataCollator
+from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
 
@@ -179,7 +179,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
-            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="train"),
             batch_size=self.train_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -191,7 +191,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
-            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="val"),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="val"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -202,7 +202,7 @@ class BertCombiSum(pl.LightningModule):
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
-            collate_fn=BertTextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
+            collate_fn=TextDataCollator(self.colname_2_field_objs, self.reward_builder, subset="test"),
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
