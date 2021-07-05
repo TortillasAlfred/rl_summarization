@@ -6,7 +6,6 @@ from os.path import join
 from transformers import BertModel
 
 from .encoder import TransformerInterEncoder
-from ..dataset_bert import MAX_NB_TOKENS_PER_DOCUMENT as MAX_LEN_DOCUMENT
 import numpy as np
 
 D_FFN = 2048
@@ -25,20 +24,20 @@ class Summarizer(nn.Module):
             self.bert = BertModel.from_pretrained("bert-base-uncased")
         else:
             self.bert = BertModel.from_pretrained(
-                join(config.bert_cache, "bertmodel_save_pretrained"), 
-                local_files_only=True
+                join(config.bert_cache, "bertmodel_save_pretrained"), local_files_only=True
             )
         self.bert = self.bert.to(self.device)
 
-        if MAX_LEN_DOCUMENT > DEFAULT_BERT_MAX_LEN:
-            pos_embeddings = nn.Embedding(MAX_LEN_DOCUMENT, self.bert.config.hidden_size)
+        tokens_per_doc = config.max_tokens_per_doc
+        if tokens_per_doc > DEFAULT_BERT_MAX_LEN:
+            pos_embeddings = nn.Embedding(tokens_per_doc, self.bert.config.hidden_size)
             bert_weight = self.bert.embeddings.position_embeddings.weight.data
-            bert_weight_dup = torch.cat((bert_weight,) * int(MAX_LEN_DOCUMENT // 512 + 1))
-            pos_embeddings.weight.data = bert_weight_dup[:MAX_LEN_DOCUMENT]
+            bert_weight_dup = torch.cat((bert_weight,) * int(tokens_per_doc // 512 + 1))
+            pos_embeddings.weight.data = bert_weight_dup[:tokens_per_doc]
             self.bert.embeddings.position_embeddings = pos_embeddings
 
         self.encoder = TransformerInterEncoder(D_MODEL_BERT, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
-        self.position_ids = torch.arange(MAX_LEN_DOCUMENT, device=self.device)
+        self.position_ids = torch.arange(tokens_per_doc, device=self.device)
         self.to(self.device)
 
     def load_cp(self, pt):
