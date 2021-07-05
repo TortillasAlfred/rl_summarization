@@ -128,7 +128,7 @@ class CnnDailyMailDatasetBert:
                 dataset["train"]["abstract"],
             ),
             "test": (
-                dataset["train"]["id"],
+                dataset["test"]["id"],
                 test_articles,
                 test_abstracts,
                 dataset["test"]["article"],
