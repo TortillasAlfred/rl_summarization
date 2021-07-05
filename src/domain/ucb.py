@@ -29,12 +29,12 @@ class BertUCBProcess:
     def __call__(self, bench_mark):
         sentence_gap, scorer = bench_mark[0], bench_mark[1]
 
-        n_sents = min(scorer.n_sents, 50)
+        n_sents = len(sentence_gap)
 
         if self.ucb_sampling == "fix":
             n_samples = 100
         elif self.ucb_sampling == "linear":
-            n_samples = 2 * n_sents + 50
+            n_samples = 4 * n_sents + 25
         else:
             raise NotImplementedError(f"{self.ucb_sampling} is not a valid UCB sampling method.")
 
