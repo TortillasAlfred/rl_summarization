@@ -38,7 +38,13 @@ class Summarizer(nn.Module):
 
         # Choosing encoder type
         if config.encoder == "Transformer":
-            self.encoder = TransformerInterEncoder(config, d_model=D_MODEL_BERT, d_ff=D_FFN, dropout=DROPOUT)
+            self.encoder = TransformerInterEncoder(
+                d_model=D_MODEL_BERT,
+                d_ff=D_FFN,
+                heads=config.num_head,
+                dropout=DROPOUT,
+                num_inter_layers=config.num_inter_sentence_transformers,
+            )
         elif config.encoder == "MLPClassifier":
             self.encoder = MLPClassifier(config, input_size=D_MODEL_BERT)
         self.to(self.device)
