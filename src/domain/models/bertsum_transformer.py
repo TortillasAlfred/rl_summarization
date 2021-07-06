@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from os.path import join
 from transformers import BertModel
 
-from .encoder import TransformerInterEncoder
+from .encoder import TransformerInterEncoder, MLPClassifier
 
 D_FFN = 2048
 D_MODEL_BERT = 768
@@ -14,24 +14,6 @@ HEAD = 8
 DROPOUT = 0.1
 NUM_TLAYER = 2
 DEFAULT_BERT_MAX_LEN = 512
-
-
-class Classifier(nn.Module):
-    def __init__(self, hidden_size=768, output_size=3):
-        super(Classifier, self).__init__()
-        self.linear1 = nn.Linear(hidden_size, 64)
-        self.act1 = F.relu
-        self.linear2 = nn.Linear(64, 64)
-        self.act2 = F.relu
-        self.linear3 = nn.Linear(64, 1)
-
-    def forward(self, x, mask_cls):
-        x = self.act1(self.linear1(x))
-        x = self.act2(self.linear2(x))
-        x = self.linear3(x).squeeze(-1)
-
-        sent_scores = x * mask_cls.float()
-        return sent_scores
 
 
 class Summarizer(nn.Module):
@@ -61,8 +43,8 @@ class Summarizer(nn.Module):
             self.encoder = TransformerInterEncoder(
                 d_model=D_MODEL_BERT, d_ff=D_FFN, heads=HEAD, dropout=DROPOUT, num_inter_layers=NUM_TLAYER
             )
-        elif config.encoder == "Classifier":
-            self.encoder = Classifier(hidden_size=768)
+        elif config.encoder == "MLPClassifier":
+            self.encoder = MLPClassifier(config, input_size=D_MODEL_BERT)
         self.to(self.device)
 
     def load_cp(self, pt):

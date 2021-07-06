@@ -34,6 +34,36 @@ class PositionalEncoding(nn.Module):
         return self.pe[:, : emb.size(1)]
 
 
+class MLPClassifier(nn.Module):
+    def __init__(self, config, input_size=768, hidden_size=64):
+        super(MLPClassifier, self).__init__()
+        model_size = config.MLPClassifier_size
+
+        if model_size == "small":
+            # Simple linear model
+            self.model = nn.Linear(input_size, 1)
+        elif model_size == "med":
+            # One hidden linear with ReLU activation
+            self.model = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1))
+        elif model_size == "large":
+            # Two hidden layers with ReLU activations
+            self.model = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, 1),
+            )
+        else:
+            raise NotImplementedError(f"No MLPClassifier model found for size {model_size}")
+
+    def forward(self, x, mask_cls):
+        x = self.model(x)
+
+        sent_scores = x * mask_cls.float()
+        return sent_scores
+
+
 class TransformerEncoderLayer(nn.Module):
     def __init__(self, d_model, heads, d_ff, dropout):
         super(TransformerEncoderLayer, self).__init__()
