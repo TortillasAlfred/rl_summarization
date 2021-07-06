@@ -42,7 +42,7 @@ class MLPClassifier(nn.Module):
         if model_size == "small":
             # Simple linear model
             self.model = nn.Linear(input_size, 1)
-        elif model_size == "medium":
+        elif model_size == "med":
             # One hidden linear with ReLU activation
             self.model = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1))
         elif model_size == "large":
