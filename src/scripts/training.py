@@ -56,7 +56,7 @@ def set_config_from_index(args):
 
     if classifier == "MLPClassifier":
         args.encoder = classifier
-        args.MLPClassifier_size = size
+        args.encoder_size = size
     elif classifier == "Transformer":
         args.encoder = classifier
         if size == "small":

@@ -35,9 +35,9 @@ class PositionalEncoding(nn.Module):
 
 
 class MLPClassifier(nn.Module):
-    def __init__(self, config, input_size=768, hidden_size=64):
+    def __init__(self, config, input_size=768, hidden_size=128):
         super(MLPClassifier, self).__init__()
-        model_size = config.MLPClassifier_size
+        model_size = config.encoder_size
 
         if model_size == "small":
             # Simple linear model
@@ -86,19 +86,28 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerInterEncoder(nn.Module):
-    def __init__(self, d_model=768, d_ff=1024, heads=8, dropout=0.1, num_inter_layers=0, **kargs):
+    # (Num_inter_layers, num_heads)
+    CONFIGS = {"small": (1, 3), "med": (2, 4), "large": (3, 5)}
+
+    def __init__(self, config, d_model=768, d_ff=1024, dropout=0.1, hidden_size=128):
         super(TransformerInterEncoder, self).__init__()
+
+        model_size = config.encoder_size
+
+        if model_size not in TransformerInterEncoder.CONFIGS:
+            raise NotImplementedError(f"No TransformerInterEncoder model found for size {model_size}")
+
+        self.num_inter_layers, self.num_heads = TransformerInterEncoder.CONFIGS[model_size]
+
         self.d_model = d_model
-        self.num_inter_layers = num_inter_layers
         self.pos_emb = PositionalEncoding(dropout, d_model)
         self.transformer_inter = nn.ModuleList(
-            [TransformerEncoderLayer(d_model, heads, d_ff, dropout) for _ in range(num_inter_layers)]
+            [TransformerEncoderLayer(d_model, self.num_heads, d_ff, dropout) for _ in range(self.num_inter_layers)]
         )
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-        self.w0 = nn.Linear(d_model, 64, bias=True)
-        self.w1 = nn.Linear(64, 1, bias=True)
-        self.sigmoid = nn.Sigmoid()
+        self.w0 = nn.Linear(d_model, hidden_size, bias=True)
+        self.w1 = nn.Linear(hidden_size, 1, bias=True)
 
     def forward(self, top_vecs, mask):
         """See :obj:`EncoderBase.forward()`"""

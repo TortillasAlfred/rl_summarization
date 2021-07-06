@@ -8,9 +8,9 @@ slurm_log_path: "/project/def-adurand/magod/rl_summ/slurm_outputs/"
 ##################
 ### MODEL ARGS ###
 ##################
-model: "bertcombisum" # One of ['bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+model: "bertcombisum" # One of ['bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']"
 encoder: "MLPClassifier" # One of ['Transformer', 'MLPClassifier']
-MLPClassifier_size: "small" # One of ["small", "medium", "large"]
+encoder_size: "small" # One of ["small", "med", "large"]
 num_inter_sentence_transformer: 2
 num_head: 4
 num_workers: 0
@@ -19,7 +19,7 @@ test_batch_size: 24
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
-learning_rate: 0.00005
+learning_rate: 0.00001
 epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 4
@@ -51,6 +51,7 @@ reward: "rouge" # One of ['rouge']
 #################
 c_puct: 10.0
 ucb_sampling: "linear" # One of ["fix", "linear"]
+rescale_targets: True
 
 ####################
 ### TRAINER ARGS ###
