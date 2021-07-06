@@ -1,6 +1,4 @@
 from src.domain.dataset import CnnDailyMailDataset
-
-# from src.domain.dataset_bert import DatasetBertWrapper
 from src.domain.dataset_bert import DatasetBertWrapper
 
 

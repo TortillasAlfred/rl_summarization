@@ -27,7 +27,7 @@ def main(_config, cluster=None):
     model = ModelFactory.get_model(dataset, reward, _config)
 
     trainer.fit(model)
-    trainer.test(model)
+    trainer.test()
 
     logging.info("Done")
 

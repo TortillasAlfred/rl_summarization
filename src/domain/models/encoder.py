@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .neural import MultiHeadedAttention, PositionwiseFeedForward
 
@@ -55,7 +56,7 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerInterEncoder(nn.Module):
-    def __init__(self, d_model, d_ff, heads, dropout, num_inter_layers=0):
+    def __init__(self, d_model=768, d_ff=1024, heads=8, dropout=0.1, num_inter_layers=0, **kargs):
         super(TransformerInterEncoder, self).__init__()
         self.d_model = d_model
         self.num_inter_layers = num_inter_layers
@@ -65,7 +66,8 @@ class TransformerInterEncoder(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-        self.wo = nn.Linear(d_model, 1, bias=True)
+        self.w0 = nn.Linear(d_model, 64, bias=True)
+        self.w1 = nn.Linear(64, 1, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, top_vecs, mask):
@@ -80,7 +82,10 @@ class TransformerInterEncoder(nn.Module):
             x = self.transformer_inter[i](i, x, x, ~mask)  # all_sents * max_tokens * dim
 
         x = self.layer_norm(x)
-        sent_scores = self.sigmoid(self.wo(x))
-        sent_scores = sent_scores.squeeze(-1) * mask.float()
+        x = self.w0(x)
+        x = F.relu(x)
+        x = self.w1(x)
+
+        sent_scores = x.squeeze(-1) * mask.float()
 
         return sent_scores

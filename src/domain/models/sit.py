@@ -35,7 +35,7 @@ class SITModel(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.tensor_device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
         self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
         self.test_size = len(self.splits["test"])
         self.targets_repart = torch.zeros(50, dtype=torch.float64, device=self.tensor_device)

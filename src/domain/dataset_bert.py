@@ -1,30 +1,59 @@
 import time
 import torch
+import pickle
+import numpy as np
 
-from os import listdir
+from os import listdir, getcwd
 from os.path import isfile, join
 from torch._C import dtype
 from torch.utils.data import Dataset
+from joblib import Parallel, delayed
 from datasets import load_dataset
 from transformers import BertTokenizerFast
 from torchtext.data import Dataset as torchtextDataset, Example, Field, RawField
+from nltk.tokenize import sent_tokenize, word_tokenize
 
-MAX_LEN_DOCUMENT = 512
-UNK = 100
-SEP = 102
 PAD = 0
-CLS = 101
-MASK = 103
 
 
 class CnnDailyMailDatasetBert:
-    def __init__(self, data_path):
-        self.loaded_data = self._load_dataset(
-            join(data_path, "finished_files", "train"),
-            join(data_path, "finished_files", "test"),
-            join(data_path, "finished_files", "val"),
-        )
-        self.dataset = self.tokenized_dataset(self.loaded_data)
+    def __init__(self, config):
+        self.config = config
+
+        if config.store_data_tokenized:
+            self.loaded_data = self._load_dataset(
+                join(config.data_path, "finished_files", "train"),
+                join(config.data_path, "finished_files", "test"),
+                join(config.data_path, "finished_files", "val"),
+            )
+            self.dataset = self.tokenized_dataset(self.loaded_data)
+            print("Storing data...")
+            file = open("data/data_tokenized", "wb+")
+            pickle.dump(self.dataset, file)
+            print("Storing Completed")
+        elif config.load_data_tokenized:
+            print("Loading data...")
+            file = open("data/data_tokenized", "rb")
+            self.dataset = pickle.load(file)
+            print("Loading Completed")
+        else:
+            self.loaded_data = self._load_dataset(
+                join(config.data_path, "finished_files", "train"),
+                join(config.data_path, "finished_files", "test"),
+                join(config.data_path, "finished_files", "val"),
+            )
+            self.dataset = self.tokenized_dataset(self.loaded_data)
+
+        self.sanity_check()
+
+    def sanity_check(self):
+        for name, subset in self.dataset.items():
+            field_lengths = [len(field) for field in subset]
+
+            if len(set(field_lengths)) > 1:
+                raise ValueError(
+                    f"All fields for the subset {name} should of equal length. Found lengths {field_lengths}"
+                )
 
     def _load_dataset(self, train_dir, test_dir, val_dir, cache_dir="./cache_dir"):
         """Utility method use to load the data
@@ -43,61 +72,13 @@ class CnnDailyMailDatasetBert:
         test_files = [join(test_dir, f) for f in listdir(test_dir) if isfile(join(test_dir, f))]
         val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
-        return load_dataset(
-            "json",
-            data_files={"train": train_files, "test": test_files, "val": val_files},
-            cache_dir=cache_dir,
+        loaded_data = load_dataset(
+            "json", data_files={"train": train_files, "test": test_files, "val": val_files}, cache_dir=cache_dir
         )
 
-    def encode_document(self, document, tokenizer):
-        """Utility method used to preprocess and tokenize the data
+        loaded_data = loaded_data.filter(is_valid_example)
 
-        Args:
-            document (list): list of sentences to preprocess and tokenize
-            tokenizer (BertTokenizerFast): object method used to preprocess and tokenize
-
-        Return:
-            dict: dictionary with keys `input_ids`, `token_type_ids` and `attention_mask`
-        """
-
-        # concat sentences into document
-        result_ = {
-            "token_ids": [],
-            "token_type_ids": [],
-            "mark": [],
-            "segs": [],
-            "clss": [0],
-            "mark_clss": [True],
-        }
-        seg = 1
-        for sentence in document:
-            seg = 1 - seg
-            output = tokenizer(sentence, add_special_tokens=True, return_tensors="pt")
-            ids, types, mark = (
-                output["input_ids"][0],
-                output["token_type_ids"][0],
-                output["attention_mask"][0],
-            )
-            if len(result_["token_ids"]) + len(ids.tolist()) > MAX_LEN_DOCUMENT:
-                break
-            result_["token_ids"].extend(ids.tolist())
-            result_["token_type_ids"].extend(types.tolist())
-            result_["mark"].extend(mark.tolist())
-            result_["segs"].extend([seg] * len(ids))
-            result_["clss"].append(len(result_["segs"]))
-            result_["mark_clss"].append(True)
-
-        result_["clss"].pop()
-        result_["mark_clss"].pop()
-
-        # padding
-        pad_ = MAX_LEN_DOCUMENT - len(result_["token_ids"])
-        result_["token_ids"].extend([PAD] * pad_)
-        result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
-        result_["mark"].extend([0] * pad_)
-        result_["segs"].extend([1 - seg] * pad_)
-
-        return result_
+        return loaded_data
 
     def get_values(self, set_, part_, dataset, tokenizer):
         """Utility method used inside `tokenized_dataset`
@@ -112,7 +93,17 @@ class CnnDailyMailDatasetBert:
         Returns:
             list: return a list of tokenized documents
         """
-        return [self.encode_document(document, tokenizer) for document in dataset[set_][part_]]
+        return Parallel(n_jobs=-1)(
+            delayed(encode_document)(
+                document,
+                tokenizer,
+                self.config.max_sents_per_doc,
+                self.config.max_len_sent,
+                self.config.min_len_sent,
+                self.config.max_tokens_per_doc,
+            )
+            for document in dataset[set_][part_]
+        )
 
     def tokenized_dataset(self, dataset):
         """Method that tokenizes each document in the train, test and validation dataset
@@ -123,7 +114,12 @@ class CnnDailyMailDatasetBert:
         Returns:
             dict: dataset once tokenized
         """
-        tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        if not self.config.bert_cache:  # Used if there's no internet connection
+            tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+        else:
+            tokenizer = BertTokenizerFast.from_pretrained(
+                join(self.config.bert_cache, "tokenizer_save_pretrained"), local_files_only=True
+            )
 
         print("\n" + "=" * 10, "Start Tokenizing", "=" * 10)
         start = time.process_time()
@@ -145,7 +141,7 @@ class CnnDailyMailDatasetBert:
                 dataset["train"]["abstract"],
             ),
             "test": (
-                dataset["train"]["id"],
+                dataset["test"]["id"],
                 test_articles,
                 test_abstracts,
                 dataset["test"]["article"],
@@ -159,6 +155,67 @@ class CnnDailyMailDatasetBert:
                 dataset["val"]["abstract"],
             ),
         }
+
+
+def is_valid_example(example):
+    return len(example["article"]) >= 3 and len(example["abstract"]) > 0
+
+
+def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
+    """Utility function used to preprocess and tokenize the data
+
+    Args:
+        document (list): list of sentences to preprocess and tokenize
+        tokenizer (BertTokenizerFast): object method used to preprocess and tokenize
+
+    Return:
+        dict: dictionary with keys `input_ids`, `token_type_ids` and `attention_mask`
+    """
+
+    # return nothing if `document` is empty
+    if not document:
+        return
+
+    # concat sentences into document
+    result_ = {
+        "token_ids": [],
+        "token_type_ids": [],
+        "mark": [],
+        "segs": [],
+        "clss": [0],
+        "mark_clss": [True],
+        "sentence_gap": [],
+    }
+    current_sentence = 0
+    for seg, sentence in enumerate(document[:max_sents_per_doc]):
+        output = tokenizer(
+            sentence, add_special_tokens=True, max_length=max_len_sent, truncation=True, return_tensors="pt"
+        )
+        ids, types, mark = (output["input_ids"][0], output["token_type_ids"][0], output["attention_mask"][0])
+        if len(ids) < min_len_sent + 2:
+            current_sentence += 1
+            continue
+        if len(result_["token_ids"]) + len(ids.tolist()) > max_tokens_per_doc:
+            break
+        result_["token_ids"].extend(ids.tolist())
+        result_["token_type_ids"].extend(types.tolist())
+        result_["mark"].extend(mark.tolist())
+        result_["segs"].extend([seg % 2] * len(ids))
+        result_["clss"].append(len(result_["segs"]))
+        result_["mark_clss"].append(True)
+        result_["sentence_gap"].append(current_sentence)
+
+    result_["clss"].pop()
+    result_["mark_clss"].pop()
+
+    # padding if document has at least a sentence
+    pad_ = max_tokens_per_doc - len(result_["token_ids"])
+    result_["token_ids"].extend([PAD] * pad_)
+    result_["token_type_ids"].extend([result_["token_type_ids"][-1]] * pad_)
+    result_["mark"].extend([0] * pad_)
+    result_["segs"].extend([1 - (seg % 2)] * pad_)
+
+    return result_
 
 
 class IdField(Field):
@@ -192,6 +249,8 @@ class DataField(Field):
 
         for field_ in batch[0]:
             try:
+                if field_ == "sentence_gap":
+                    continue
                 # stack to tensor for: token_ids, token_type_ids, mark, segs
                 result[field_] = torch.Tensor(result[field_]).long()
                 if field_ in ["mark", "mark_clss"]:
@@ -226,8 +285,8 @@ class TextDatasetBert(Dataset):
 class DatasetBertWrapper(CnnDailyMailDatasetBert):
     """Wrapper used to reformat the data generated by CnnDailyMailDatasetBert"""
 
-    def __init__(self, data_path):
-        super().__init__(data_path)
+    def __init__(self, config):
+        super().__init__(config)
         self.fields = [
             ("id", IdField()),
             ("content", DataField()),
@@ -244,11 +303,7 @@ class DatasetBertWrapper(CnnDailyMailDatasetBert):
         for subset_, document_tuples in self.dataset.items():
             examples = []
             for properties in zip(
-                document_tuples[0],
-                document_tuples[1],
-                document_tuples[2],
-                document_tuples[3],
-                document_tuples[4],
+                document_tuples[0], document_tuples[1], document_tuples[2], document_tuples[3], document_tuples[4]
             ):
                 examples.append(Example.fromlist(properties, self.fields))
             subsets[subset_] = torchtextDataset(examples, self.fields)
@@ -264,4 +319,4 @@ class DatasetBertWrapper(CnnDailyMailDatasetBert):
         Args:
             config: configuration to fill different parameters and hyperparameters
         """
-        return DatasetBertWrapper(config.data_path)
+        return DatasetBertWrapper(config)

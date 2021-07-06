@@ -1,12 +1,13 @@
 from src.domain.rewards.rouge_python import RougePythonReward
 
-from collections import OrderedDict, Counter
-from scipy.sparse import dok_matrix
-from sklearn.decomposition import TruncatedSVD
-import numpy as np
 import os
 import tarfile
 import logging
+import numpy as np
+
+from collections import OrderedDict, Counter
+from scipy.sparse import dok_matrix
+from sklearn.decomposition import TruncatedSVD
 
 
 class TextDataCollator:

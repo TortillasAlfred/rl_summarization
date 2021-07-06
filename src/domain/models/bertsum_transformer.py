@@ -1,26 +1,68 @@
 import torch
 import torch.nn as nn
+import numpy as np
+import torch.nn.functional as F
 
+from os.path import join
 from transformers import BertModel
+
 from .encoder import TransformerInterEncoder
 
-D_MODEL_BERT = 768
 D_FFN = 2048
+D_MODEL_BERT = 768
 HEAD = 8
 DROPOUT = 0.1
 NUM_TLAYER = 2
-MAX_LEN_DOCUMENT = 2500
+DEFAULT_BERT_MAX_LEN = 512
+
+
+class Classifier(nn.Module):
+    def __init__(self, hidden_size=768, output_size=3):
+        super(Classifier, self).__init__()
+        self.linear1 = nn.Linear(hidden_size, 64)
+        self.act1 = F.relu
+        self.linear2 = nn.Linear(64, 64)
+        self.act2 = F.relu
+        self.linear3 = nn.Linear(64, 1)
+
+    def forward(self, x, mask_cls):
+        x = self.act1(self.linear1(x))
+        x = self.act2(self.linear2(x))
+        x = self.linear3(x).squeeze(-1)
+
+        sent_scores = x * mask_cls.float()
+        return sent_scores
 
 
 class Summarizer(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device, config):
         super(Summarizer, self).__init__()
         self.device = device
-        self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
-        self.encoder = TransformerInterEncoder(D_MODEL_BERT, D_FFN, HEAD, DROPOUT, NUM_TLAYER)
+        if not config.bert_cache:
+            self.bert = BertModel.from_pretrained("bert-base-uncased")
+        else:
+            self.bert = BertModel.from_pretrained(
+                join(config.bert_cache, "bertmodel_save_pretrained"), local_files_only=True
+            )
+        self.bert = self.bert.to(self.device)
 
-        self.position_ids = torch.arange(MAX_LEN_DOCUMENT).to(self.device)
+        tokens_per_doc = config.max_tokens_per_doc
+        if tokens_per_doc > DEFAULT_BERT_MAX_LEN:
+            pos_embeddings = nn.Embedding(tokens_per_doc, self.bert.config.hidden_size)
+            bert_weight = self.bert.embeddings.position_embeddings.weight.data
+            bert_weight_dup = torch.cat((bert_weight,) * int(tokens_per_doc // 512 + 1))
+            pos_embeddings.weight.data = bert_weight_dup[:tokens_per_doc]
+            self.bert.embeddings.position_embeddings = pos_embeddings
 
+        self.position_ids = torch.arange(tokens_per_doc, device=self.device)
+
+        # Choosing encoder type
+        if config.encoder == "Transformer":
+            self.encoder = TransformerInterEncoder(
+                d_model=D_MODEL_BERT, d_ff=D_FFN, heads=HEAD, dropout=DROPOUT, num_inter_layers=NUM_TLAYER
+            )
+        elif config.encoder == "Classifier":
+            self.encoder = Classifier(hidden_size=768)
         self.to(self.device)
 
     def load_cp(self, pt):
@@ -34,6 +76,7 @@ class Summarizer(nn.Module):
             contents["mark"],
             contents["mark_clss"],
         )
+
         len_seq = contents["token_ids"].size(-1)
         top_vec = self.bert(x, mask, segs, position_ids=self.position_ids[:len_seq]).last_hidden_state
 
@@ -54,4 +97,5 @@ class Summarizer(nn.Module):
         mark_cls_ = mask_cls[:, :, None].float().to(self.device)  # mark_cls_ shape (2,24,1)
         sents_vec = sents_vec * mark_cls_
         sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)  # sents_vec(2, 54, 768) mask_cls(1, 54)
+
         return sent_scores, mask_cls
