@@ -40,6 +40,12 @@ def set_random_seed(seed):
     random.seed(seed)
 
 
+def get_name_from_config(config):
+    keys = ["encoder", "encoder_size", "ucb_sampling", "rescale_targets", "seed"]
+
+    return "--".join([f"{key}={getattr(config, key)}" for key in keys])
+
+
 def nansum(v, *args, inplace=False, **kwargs):
     if not inplace:
         v = v.clone()

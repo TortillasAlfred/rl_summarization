@@ -1,3 +1,5 @@
+from .utils import get_name_from_config
+
 import logging
 import os
 
@@ -34,15 +36,11 @@ class PytorchLightningTrainer(Trainer):
         val_check_interval,
         default_save_path,
         weights_save_path,
-        model,
         max_epochs,
         config,
         cluster=None,
     ):
-        if hasattr(config, "hpc_exp_number"):
-            name = f"{model}_{config.hpc_exp_number}"
-        else:
-            name = model
+        name = get_name_from_config(config)
 
         weights_save_path = "/".join([weights_save_path, name])
         checkpoint_callback = ModelCheckpoint(
@@ -86,7 +84,6 @@ class PytorchLightningTrainer(Trainer):
             config.val_check_interval,
             config.default_save_path,
             config.weights_save_path,
-            config.model,
             config.max_epochs,
             config,
         )
