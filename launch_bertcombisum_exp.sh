@@ -11,9 +11,7 @@
 #SBATCH --signal=SIGUSR1@90                                                    # Killing signal 90 seconds before job end
 
 echo "TRAIN RL SUMMARIZATION"
-echo "### IMPORTANT: Create /output, /results and /weights directories ###"
-
-mkdir /project/def-adurand/jegauth/rl_summ/output/
+echo "### IMPORTANT: Create /output directory manually before running the process ###"
 
 # Load the full dataset in $SLURM_TMPDIR/
 cp /home/jegauth/main/data.zip $SLURM_TMPDIR/

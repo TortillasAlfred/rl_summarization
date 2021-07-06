@@ -56,7 +56,7 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerInterEncoder(nn.Module):
-    def __init__(self, d_model, d_ff, heads, dropout, num_inter_layers=0):
+    def __init__(self, d_model=768, d_ff=1024, heads=8, dropout=0.1, num_inter_layers=0, **kargs):
         super(TransformerInterEncoder, self).__init__()
         self.d_model = d_model
         self.num_inter_layers = num_inter_layers
