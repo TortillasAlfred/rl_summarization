@@ -11,8 +11,6 @@ slurm_log_path: "/project/def-adurand/magod/rl_summ/slurm_outputs/"
 model: "bertcombisum" # One of ['bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']"
 encoder: "MLPClassifier" # One of ['Transformer', 'MLPClassifier']
 encoder_size: "small" # One of ["small", "med", "large"]
-num_inter_sentence_transformer: 2
-num_head: 4
 num_workers: 0
 train_batch_size: 12
 test_batch_size: 24
@@ -32,7 +30,8 @@ data_path: "$SLURM_TMPDIR/data" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
 embeddings_location: "/project/def-adurand/magod/embeddings/"
 sets: "train-val-test" # If present, 'train' must be first
-bert_cache: "" # If no internet connection, save pretrained parameters
+bert_cache:
+  "" # If no internet connection, save pretrained parameters
   # for BertTokenizerFast and BertModel in bert_cache path
 load_data_tokenized: False #Pickle/Load the tokenized data
 store_data_tokenized: False #Pickle/Store the tokenized data
