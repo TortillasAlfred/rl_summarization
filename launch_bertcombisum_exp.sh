@@ -12,7 +12,7 @@
 cd /home/jegauth/main/rl_summarization
 ./../scripts/unzip_dataset.sh
 
-source /home/jegauth/main/DS_env/activate/
+source /home/jegauth/main/DS_env/bin/activate
 
 module load StdEnv/2020 gcc/9.3.0 arrow/2.0.0
 module load python/3.8.2 scipy-stack

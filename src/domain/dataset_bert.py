@@ -68,9 +68,9 @@ class CnnDailyMailDatasetBert:
             DatasetDict: return the dataset loaded from train_dir, test_dir and val_dir
         """
 
-        train_files = [join(train_dir, f) for f in listdir(train_dir)[:10000] if isfile(join(train_dir, f))]
-        test_files = [join(test_dir, f) for f in listdir(test_dir)[:1000] if isfile(join(test_dir, f))]
-        val_files = [join(val_dir, f) for f in listdir(val_dir)[:1000] if isfile(join(val_dir, f))]
+        train_files = [join(train_dir, f) for f in listdir(train_dir) if isfile(join(train_dir, f))]
+        test_files = [join(test_dir, f) for f in listdir(test_dir) if isfile(join(test_dir, f))]
+        val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
         loaded_data = load_dataset(
             "json", data_files={"train": train_files, "test": test_files, "val": val_files}, cache_dir=cache_dir
