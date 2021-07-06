@@ -50,6 +50,7 @@ reward: "rouge" # One of ['rouge']
 #################
 c_puct: 10.0
 ucb_sampling: "linear" # One of ["fix", "linear"]
+rescale_targets: True
 
 ####################
 ### TRAINER ARGS ###

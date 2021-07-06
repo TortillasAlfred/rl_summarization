@@ -28,6 +28,7 @@ class BertCombiSum(pl.LightningModule):
         self.reward_builder = reward
         self.n_epochs_done = 0
 
+        self.rescale_targets = hparams.rescale_targets
         self.train_batch_size = hparams.train_batch_size
         self.num_workers = hparams.num_workers
         self.test_batch_size = hparams.test_batch_size
@@ -89,7 +90,10 @@ class BertCombiSum(pl.LightningModule):
             )
             ucb_deltas = torch.tensor([r[1] for r in ucb_results])
 
-            target_distro = 10 ** (-10 * (1 - ucb_targets))
+            if self.rescale_targets:
+                target_distro = 10 ** (-10 * (1 - ucb_targets))
+            else:
+                target_distro = ucb_targets
 
             loss = self.criterion(contents_extracted, target_distro) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
