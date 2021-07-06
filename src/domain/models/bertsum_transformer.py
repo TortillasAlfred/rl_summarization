@@ -24,7 +24,6 @@ class Summarizer(nn.Module):
             self.bert = BertModel.from_pretrained(
                 join(config.bert_cache, "bertmodel_save_pretrained"), local_files_only=True
             )
-        self.bert = self.bert.to(self.device)
 
         tokens_per_doc = config.max_tokens_per_doc
         if tokens_per_doc > DEFAULT_BERT_MAX_LEN:
@@ -45,7 +44,6 @@ class Summarizer(nn.Module):
             )
         elif config.encoder == "MLPClassifier":
             self.encoder = MLPClassifier(config, input_size=D_MODEL_BERT)
-        self.to(self.device)
 
     def load_cp(self, pt):
         self.load_state_dict(pt["model"], strict=True)
