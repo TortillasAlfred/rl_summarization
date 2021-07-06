@@ -175,7 +175,7 @@ class BertCombiSum(pl.LightningModule):
             weight_decay=self.weight_decay,
         )
 
-        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=5, factor=0.2, verbose=True)
+        self.lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=10, factor=0.2, verbose=True)
 
         return optimizer
 
