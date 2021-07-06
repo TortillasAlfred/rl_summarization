@@ -7,8 +7,8 @@
 #SBATCH --time=3-00:00                                                         # time (DD-HH:MM)
 #SBATCH --mail-user=jeremie.gauthier.1@ulaval.ca                               # Where to email
 #SBATCH --mail-type=FAIL                                                       # Email when a job fails
-#SBATCH --output=/project/def-adurand/jegauth/rl_summ/output/%A.out            # Default write output on scratch, to jobID.out file
-#SBATCH --array=0-19            					       # Launch an array of 20 jobs
+#SBATCH --output=/project/def-adurand/jegauth/rl_summ/output/%A_%a.out         # Default write output on scratch, to jobID_arrayID.out file
+#SBATCH --array=0-119            					                           # Launch an array of 120 jobs
 #SBATCH --signal=SIGUSR1@90                                                    # Killing signal 90 seconds before job end
 
 echo "TRAIN RL SUMMARIZATION"
