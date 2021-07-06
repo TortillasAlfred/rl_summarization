@@ -35,9 +35,9 @@ class PositionalEncoding(nn.Module):
 
 
 class MLPClassifier(nn.Module):
-    def __init__(self, config, input_size=768, hidden_size=64):
+    def __init__(self, config, input_size=768, hidden_size=128):
         super(MLPClassifier, self).__init__()
-        model_size = config.MLPClassifier_size
+        model_size = config.encoder_size
 
         if model_size == "small":
             # Simple linear model
