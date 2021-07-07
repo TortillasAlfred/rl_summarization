@@ -8,9 +8,7 @@ from itertools import product
 
 import yaml
 import logging
-import argparse
 from test_tube import HyperOptArgumentParser
-import os
 
 
 def main(_config, cluster=None):

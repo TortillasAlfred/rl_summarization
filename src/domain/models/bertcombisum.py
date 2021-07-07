@@ -1,7 +1,6 @@
 import os
 import time
 import torch
-import torch.nn as nn
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
