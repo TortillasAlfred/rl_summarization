@@ -58,7 +58,7 @@ class MLPClassifier(nn.Module):
             raise NotImplementedError(f"No MLPClassifier model found for size {model_size}")
 
     def forward(self, x, mask_cls):
-        x = self.model(x)
+        x = self.model(x).squeeze()
 
         sent_scores = x * mask_cls.float()
         return sent_scores
