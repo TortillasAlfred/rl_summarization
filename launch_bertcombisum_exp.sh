@@ -30,4 +30,4 @@ module load StdEnv/2020 gcc/9.3.0 arrow/2.0.0
 module load python/3.8.2 scipy-stack
 
 # Run the program
-/home/jegauth/main/DS_env/bin/python3 -m src.scripts.training --data_path $SLURM_TMPDIR/data --cache_dir $SLURM_TMPDIR/cache_dir --default_save_path /project/def-adurand/jegauth/rl_summ/results --weights_save_path /project/def-adurand/jegauth/rl_summ/weights --job_index $SLURM_ARRAY_TASK_ID
+/home/jegauth/main/DS_env/bin/python3 -m src.scripts.training --data_path $SLURM_TMPDIR/data --cache_dir $SLURM_TMPDIR/cache_dir --bert_cache /home/jegauth/main/rl_summarization/bert_cache --default_save_path /project/def-adurand/jegauth/rl_summ/results --weights_save_path /project/def-adurand/jegauth/rl_summ/weights --job_index $SLURM_ARRAY_TASK_ID
