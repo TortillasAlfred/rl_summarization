@@ -3,6 +3,7 @@ import sys
 import time
 import numpy as np
 import torch
+import os
 import random
 
 from datetime import datetime
@@ -44,6 +45,12 @@ def get_name_from_config(config):
     keys = ["encoder", "encoder_size", "ucb_sampling", "rescale_targets", "seed"]
 
     return "--".join([f"{key}={getattr(config, key)}" for key in keys])
+
+
+def collect_environment_variables(config):
+    for name, val in vars(config).items():
+        if isinstance(val, str):
+            setattr(config, name, os.path.expandvars(val))
 
 
 def nansum(v, *args, inplace=False, **kwargs):

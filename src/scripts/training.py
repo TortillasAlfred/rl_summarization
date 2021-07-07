@@ -1,4 +1,4 @@
-from src.domain.utils import configure_logging, set_random_seed
+from src.domain.utils import configure_logging, set_random_seed, collect_environment_variables
 from src.factories.dataset import DatasetFactory
 from src.factories.model import ModelFactory
 from src.factories.reward import RewardFactory
@@ -15,10 +15,8 @@ import os
 
 def main(_config, cluster=None):
     configure_logging()
+    collect_environment_variables(_config)
     set_random_seed(_config.seed)
-
-    if "$SLURM_TMPDIR" in _config.data_path:
-        _config.data_path = _config.data_path.replace("$SLURM_TMPDIR", os.environ["SLURM_TMPDIR"])
 
     logging.info("Beginning Training script with following config :")
     logging.info(_config)
