@@ -33,7 +33,7 @@ sets: "train-val-test" # If present, 'train' must be first
 bert_cache:
   "" # If no internet connection, save pretrained parameters
   # for BertTokenizerFast and BertModel in bert_cache path
-cache_dir: "$./cache_dir"
+cache_dir: "./cache_dir"
 load_data_tokenized: False #Pickle/Load the tokenized data
 store_data_tokenized: False #Pickle/Store the tokenized data
 max_sents_per_doc: 50
