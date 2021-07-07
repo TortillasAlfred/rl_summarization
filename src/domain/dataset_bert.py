@@ -73,9 +73,9 @@ class CnnDailyMailDatasetBert:
         val_files = [join(val_dir, f) for f in listdir(val_dir) if isfile(join(val_dir, f))]
 
         loaded_data = load_dataset(
-            "json", 
+            "json",
             data_files={"train": train_files, "test": test_files, "val": val_files},
-            cache_dir=self.config.cache_dir
+            cache_dir=self.config.cache_dir,
         )
 
         loaded_data = loaded_data.filter(is_valid_example)
