@@ -15,6 +15,8 @@ from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
 
+# TODO: Je te suggère de partir de BertCombiSum. La vaste
+# majorité du code sera identique.
 class BertCombiSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
@@ -28,6 +30,7 @@ class BertCombiSum(pl.LightningModule):
         self.reward_builder = reward
         self.n_epochs_done = 0
 
+        # TODO: retirer tout ce qui est lié à ucb
         self.train_batch_size = hparams.train_batch_size
         self.num_workers = hparams.num_workers
         self.test_batch_size = hparams.test_batch_size
@@ -80,6 +83,15 @@ class BertCombiSum(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
+            # TODO: Enlever tout le code jusqu'à target_distro.
+            # Pour les cibles, on veut un tenseur de taille identique à
+            # contents_extracted et valid_sentences.
+            # Toutes les cibles sont à zéro sauf les indexs correspondant aux
+            # phrases des meilleurs résumés de chaque document.
+            #
+            # Voir mes commentaires dans analyze_preprocessing.py pour un peu plus
+            # de détails sur comment obtenir rapidement les meilleures phrases pour
+            # un document en particulier.
             ucb_results = self.pool.map(
                 BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
             )
@@ -91,10 +103,15 @@ class BertCombiSum(pl.LightningModule):
 
             target_distro = 10 ** (-10 * (1 - ucb_targets))
 
+            # Ce code est correct comme il est. Pas d'ajustement à faire
             loss = self.criterion(contents_extracted, target_distro) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
 
+            # TODO: remplacer tout ce qui est lié à ucb_deltas par 'suboptimality'.
+            # Ici, suboptimality sera la différence moyenne entre le meilleur résumé
+            # extractif disponible pour un document (scorer.scores.max().mean()) et
+            # le meilleur résumé disponible au modèle.
             return greedy_rewards, loss, ucb_deltas
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
@@ -109,9 +126,11 @@ class BertCombiSum(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         start = time.time()
+        # TODO: remplacer ucb_deltas par suboptimality
         greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
         end = time.time()
 
+        # TODO: Mettre à jour les valeurs loggées ici pour avoir suboptimality au lieu de ucb_deltas
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
             "ucb_deltas": ucb_deltas.mean(),

@@ -196,12 +196,21 @@ class WrappedCnnDailyMailDatasetBert(CnnDailyMailDatasetBert):
         all_true_maxs = []
 
         for article_id, article_details in zip(self.dataset["train"][0], self.dataset["train"][1]):
+            # TODO: Ici se trouve le code qui te sera utile pour les cibles binaires.
+            #
+            # Le scorer de chaque document correspond ici à rouge_builder.init_scorer(article_id, "train")
+            # Tu peux accéder à la matrice de scores avec scorer.scores
+            # Tu pourras retrouver les 3 meilleures phrases avec l'appel suivant
+            # best_avail_idxs = available_summs[available_scores.argmax()]
             scores = rouge_builder.init_scorer(article_id, "train").scores
             available_sents = np.arange(0, len(article_details["clss"])) + np.array(article_details["sentence_gap"])
             available_summs = combinations(available_sents, 3)
             corresponding_idxs = list(map(lambda idxs: index_getter(*idxs), available_summs))
             available_scores = scores[corresponding_idxs]
 
+            # TODO: On veut aussi logger la sous-optimalité pour un sanity check
+            # suboptimality = np.mean(scores.max() - available_scores.max()) devrait
+            # faire exactement ça.
             all_deltas.append(np.mean(scores.max() - available_scores.max()))
             all_true_maxs.append(np.mean(scores.max()))
 
