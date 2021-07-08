@@ -14,7 +14,8 @@ from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
-
+# TODO: Lire les commentaires ici aussi. Ils indiquent quelles modifications
+# seront nécessaires à partir de BertCombiSum pour créer BertBanditSum.
 class BertCombiSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
@@ -28,6 +29,8 @@ class BertCombiSum(pl.LightningModule):
         self.reward_builder = reward
         self.n_epochs_done = 0
 
+        # TODO: Retirer les params qui sont liés exclusivement à BertCombiSum comme c_puct, ucb_sampling, criterion,
+        # n_processes, pool
         self.train_batch_size = hparams.train_batch_size
         self.num_workers = hparams.num_workers
         self.test_batch_size = hparams.test_batch_size
@@ -75,6 +78,7 @@ class BertCombiSum(pl.LightningModule):
             greedy_idx[2] += sentence_gap_[greedy_idx[2]]
 
         if subset == "train":
+            # TODO: Le seul code à changer pour avoir BanditSum au lieu de CombiSum est ici
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
@@ -108,6 +112,7 @@ class BertCombiSum(pl.LightningModule):
             return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
 
     def training_step(self, batch, batch_idx):
+        # TODO: Effacer ce qui concerne ucb_deltas et insérer le logging de generated_rewards
         start = time.time()
         greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
         end = time.time()
