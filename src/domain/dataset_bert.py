@@ -78,7 +78,7 @@ class CnnDailyMailDatasetBert:
             cache_dir=self.config.cache_dir,
         )
 
-        loaded_data = loaded_data.filter(is_valid_example)
+        loaded_data = loaded_data.filter(lambda ex: is_valid_example(ex, self.config.min_len_sent))
 
         return loaded_data
 
@@ -159,8 +159,11 @@ class CnnDailyMailDatasetBert:
         }
 
 
-def is_valid_example(example):
-    return len(example["article"]) >= 3 and len(example["abstract"]) > 0
+def is_valid_example(example, min_len_sent):
+    return (
+        len([sent for sent in example["article"] if len(word_tokenize(sent)) >= min_len_sent]) >= 3
+        and len(example["abstract"]) > 0
+    )
 
 
 def encode_document(document, tokenizer, max_sents_per_doc, max_len_sent, min_len_sent, max_tokens_per_doc):
