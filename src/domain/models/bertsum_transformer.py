@@ -36,6 +36,7 @@ class Summarizer(nn.Module):
         # Choosing encoder type
         if config.encoder == "Transformer":
             self.encoder = TransformerInterEncoder(
+                config,
                 d_model=D_MODEL_BERT,
                 d_ff=D_FFN,
                 dropout=DROPOUT,
