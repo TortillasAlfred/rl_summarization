@@ -8,19 +8,15 @@ from torch.distributions.categorical import Categorical
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
-# TODO: Créer un fichier bertbanditsum.py, on ne veut pas perdre le contenu de ce fichier
 class BanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
-        # TODO: Devrait basically être remplacé par ce qui est dans BertCombiSum
-        # Il faut seulement s'assurer de garder self.epsilon et self.n_repeat_per_sample,
-        # qui sont des hparams propres à BanditSum
         super(BanditSum, self).__init__()
         self.hparams = hparams
         self.fields = dataset.fields
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
 
-        self.embedding_dim = dataset.embedding_dim
+        self.embedding_dim = 100 #dataset.embedding_dim
         self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
         self.n_epochs_done = 0
@@ -41,7 +37,6 @@ class BanditSum(pl.LightningModule):
         self.model = RLSummModel(hparams.hidden_dim, hparams.decoder_dim)
 
     def __build_model(self, dataset):
-        # TODO: Delete
         self.embeddings = torch.nn.Embedding.from_pretrained(
             dataset.vocab.vectors, freeze=False, padding_idx=self.pad_idx
         )
@@ -54,7 +49,6 @@ class BanditSum(pl.LightningModule):
         )
 
     def word_level_encoding(self, contents):
-        # TODO: Delete
         valid_tokens = ~(contents == self.pad_idx)
         sentences_len = valid_tokens.sum(dim=-1)
         valid_sentences = sentences_len > 0
@@ -68,7 +62,6 @@ class BanditSum(pl.LightningModule):
         return word_level_encodings, valid_sentences
 
     def __extract_features(self, contents):
-        # TODO: Delete
         contents, valid_sentences = self.word_level_encoding(contents)
         sent_contents = self.model.sentence_level_encoding(contents)
         affinities = self.model.produce_affinities(sent_contents)
@@ -77,18 +70,6 @@ class BanditSum(pl.LightningModule):
         return affinities, valid_sentences
 
     def select_idxs(self, affinities, valid_sentences):
-        # TODO: Rouler Banditsum et noter la forme de affinities et valid_sentences.
-        # C'est le contrat que tu devrais respecter en changeant l'encodeur par
-        # BERT au lieu des LSTMs.
-        #
-        # Si affinites et valid_sentences sont toujours de taille 50 par défaut, ce
-        # n'est pas grave que BERT retourne un nombre flexible de phrases par doc
-        # comme il fait dans BertCombiSum. Tant que affinities et valid_sentences
-        # sont de la même shape, on est OK.
-        #
-        # IMPORTANT: CETTE MÉTHODE NE DEVRAIT PAS ÊTRE TOUCHÉE. C'EST UNE MÉTHODE
-        # UN PEU CONTRE-INTUITIVE MAIS TRÈS EFFICACE DE PARRALLÉLISER BANDITSUM
-        # ET C'EST 100 % INDÉPENDANT DE L'ENCODEUR UTILISÉ
         n_docs = affinities.shape[0]
 
         affinities = affinities.repeat_interleave(self.n_repeats_per_sample, 0)
@@ -131,19 +112,13 @@ class BanditSum(pl.LightningModule):
         raw_contents, contents, raw_abstracts, abstracts, ids, scorers = batch
         batch_size = len(contents)
 
-        # TODO: Delete
         self.wl_encoder.flatten_parameters()
         self.model.sl_encoder.flatten_parameters()
 
-        # TODO: Remplacer par le code de prédiction via BERT et un encodeur
-        # présent dans BertCombiSum
         action_vals, valid_sentences = self.__extract_features(contents)
         _, greedy_idxs = torch.topk(action_vals, self.n_sents_per_summary, sorted=False)
 
         if subset == "train":
-            # Toute cette section ne devrait pas être touchée.
-            # Elle marche très bien avec les LSTMs et les modifs de BERT
-            # n'ont pas d'impact ici.
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
@@ -158,28 +133,17 @@ class BanditSum(pl.LightningModule):
 
             greedy_rewards = greedy_rewards.repeat_interleave(self.n_repeats_per_sample, 1)
 
-            # Cette ligne a l'air bizarre, mais elle doit être restée comme ça
-            # PTI: on doit détacher le vecteur de rewards pcq il agit seulement à titre
-            # de "weighting" dans REINFORCE. Voir le livre de Sutton et surtout le policy gradient
-            # theorem. Si tu veux en savoir plus, je suis toujours content d'en parler.
             rewards = ((greedy_rewards - generated_rewards)).clone().detach().to(device=selected_logits.device)
-            loss = rewards * selected_logits
+            loss = rewards.mean(-1) * selected_logits
             loss = loss.mean()
 
-            # PTI:
-            # generated_rewards = la moyenne de ROUGE en PIGEANT de la distribution prédite
-            # greedy_rewards = la moyenne de ROUGE en SÉLECTIONNANT LES 3 MEILLEURS IDX de la distro prédite
-            # loss = pas aussi directement interprétable qu'habituellement. Indique seulement dans quelle direction
-            # le gradient pointe.
             return generated_rewards, loss, greedy_rewards
         else:
-            # TODO: Prendre la version de BertCombiSum
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             return torch.from_numpy(greedy_rewards)
 
     def training_step(self, batch, batch_idx):
-        #
         start = time.time()
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
         end = time.time()
@@ -232,7 +196,6 @@ class BanditSum(pl.LightningModule):
             self.log(name, val)
 
     def configure_optimizers(self):
-        # TODO: Remplacer par la version que tu as dans BertCombiSum
         optimizer = torch.optim.Adam(
             [
                 {
@@ -253,7 +216,6 @@ class BanditSum(pl.LightningModule):
         return optimizer
 
     def train_dataloader(self):
-        # TODO: Remplacer par la version que tu as dans BertCombiSum
         dataset = self.splits["train"]
         return DataLoader(
             dataset,
@@ -266,7 +228,6 @@ class BanditSum(pl.LightningModule):
         )
 
     def val_dataloader(self):
-        # TODO: Remplacer par la version que tu as dans BertCombiSum
         dataset = self.splits["val"]
         return DataLoader(
             dataset,
@@ -278,7 +239,6 @@ class BanditSum(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        # TODO: Remplacer par la version que tu as dans BertCombiSum
         dataset = self.splits["test"]
         return DataLoader(
             dataset,
@@ -298,7 +258,6 @@ class BanditSum(pl.LightningModule):
         )
 
 
-# TODO: Delete
 class RLSummModel(torch.nn.Module):
     def __init__(self, hidden_dim, decoder_dim):
         super().__init__()

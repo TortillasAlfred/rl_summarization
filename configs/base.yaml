@@ -3,20 +3,20 @@
 #####################
 seed: 42 # Random seed
 dev: False
-slurm_log_path: "/project/def-adurand/magod/rl_summ/slurm_outputs/"
+slurm_log_path: "/slurm_outputs/"
 
 ##################
 ### MODEL ARGS ###
 ##################
-model: "bertcombisum" # One of ['bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+model: "bertbinarysum" # One of ['bertbanditsum','bertbinarysum','bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
 encoder: "Classifier" # One of ['Transformer', 'Classifier']
 num_workers: 0
-train_batch_size: 12
-test_batch_size: 24
+train_batch_size: 8
+test_batch_size: 8
 hidden_dim: 200
 decoder_dim: 100
 n_repeats_per_sample: 16
-learning_rate: 0.00005
+learning_rate: 0.000025
 epsilon: 0.1
 n_sents_per_summary: 3
 n_jobs_for_mcts: 4
@@ -25,11 +25,11 @@ n_jobs_for_mcts: 4
 ### DATASET ARGS ###
 ####################
 dataset: "cnn_dailymail_bert" # One of ['cnn_dailymail, cnn_dailymail_bert']
-data_path: "$SLURM_TMPDIR/data" # Argument to the Dataset object
+data_path: "./dev" # Argument to the Dataset object
 embeddings: "glove.6B.100d"
-embeddings_location: "/project/def-adurand/magod/embeddings/"
+embeddings_location: "./embeddings"
 sets: "train-val-test" # If present, 'train' must be first
-bert_cache: "/home/jegauth/main/rl_summarization/bert_cache/" # If no internet connection, save pretrained parameters
+bert_cache: "" # If no internet connection, save pretrained parameters
   # for BertTokenizerFast and BertModel in bert_cache path
 load_data_tokenized: False #Pickle/Load the tokenized data
 store_data_tokenized: False #Pickle/Store the tokenized data
@@ -37,6 +37,7 @@ max_sents_per_doc: 50
 max_len_sent: 80
 min_len_sent: 0
 max_tokens_per_doc: 512
+embedding_dim: 100
 
 ###################
 ### REWARD ARGS ###
@@ -58,9 +59,9 @@ gpus: 1
 overfit_pct: 0.0
 fast_dev_run: False
 distributed_backend: "dp" # one of ['dp', 'ddp', 'ddp2']
-val_check_interval: 0.1
-default_save_path: "/project/def-adurand/jegauth/rl_summ/results"
-weights_save_path: "/project/def-adurand/jegauth/rl_summ/weights"
+val_check_interval: 1.0
+default_save_path: "./results/"
+weights_save_path: "./weights"
 max_epochs: 20
 weight_decay: 0.000001
 dropout: 0.0

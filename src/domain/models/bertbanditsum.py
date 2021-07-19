@@ -1,31 +1,27 @@
-import os
+from src.domain.loader_utils import TextDataCollator
+
 import time
 import torch
-import torch.nn as nn
 import pytorch_lightning as pl
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-import torch.multiprocessing as mp
-
 from torch.utils.data import DataLoader
+from torch.distributions.categorical import Categorical
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
-from src.domain.ucb import BertUCBProcess
-from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
 
-class BertCombiSum(pl.LightningModule):
+class BertBanditSum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
+
         self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
 
         self.hparams = hparams
         self.colname_2_field_objs = dataset.fields
+        self.pad_idx = dataset.pad_idx
+        self.reward_builder = reward
 
         self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
-        self.reward_builder = reward
         self.n_epochs_done = 0
 
         self.train_batch_size = hparams.train_batch_size
@@ -33,22 +29,13 @@ class BertCombiSum(pl.LightningModule):
         self.test_batch_size = hparams.test_batch_size
         self.hidden_dim = hparams.hidden_dim
         self.decoder_dim = hparams.decoder_dim
+        self.n_repeats_per_sample = hparams.n_repeats_per_sample
         self.learning_rate = hparams.learning_rate
+        self.epsilon = hparams.epsilon
         self.n_sents_per_summary = hparams.n_sents_per_summary
-        self.c_puct = hparams.c_puct
-        self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
-        self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
-        self.test_size = len(self.splits["test"])
-        self.train_size = len(self.splits["train"])
         self.my_core_model = Summarizer(self.tensor_device, self.hparams)
-        if hparams.n_jobs_for_mcts == -1:
-            self.n_processes = os.cpu_count()
-        else:
-            self.n_processes = hparams.n_jobs_for_mcts
-        self.pool = mp.Pool(processes=self.n_processes)
 
     def __my_document_level_encoding(self, contents):
         """
@@ -58,45 +45,84 @@ class BertCombiSum(pl.LightningModule):
         sent_scores, mask_cls = self.my_core_model(contents)
         return sent_scores, mask_cls
 
-    def forward(self, batch, subset):  # (data_batch, "train" or "test")
+
+    def select_idxs(self, affinities, valid_sentences):
+        n_docs = affinities.shape[0]
+
+        affinities = affinities.repeat_interleave(self.n_repeats_per_sample, 0)
+        valid_sentences = valid_sentences.repeat_interleave(self.n_repeats_per_sample, 0)
+
+        all_idxs = torch.zeros(
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
+            dtype=torch.int,
+            device=affinities.device,
+        )
+        all_logits = torch.zeros(
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
+            dtype=torch.float,
+            device=affinities.device,
+        )
+
+        uniform_distro = torch.ones_like(affinities) * valid_sentences
+        for step in range(self.n_sents_per_summary):
+            step_affinities = affinities * valid_sentences
+            step_affinities = step_affinities / step_affinities.sum(-1, keepdim=True)
+
+            step_unif = uniform_distro * valid_sentences
+            step_unif = step_unif / step_unif.sum(-1, keepdim=True)
+
+            step_probas = self.epsilon * step_unif + (1 - self.epsilon) * step_affinities
+
+            #I added this lines to prevent probability turning into 0
+            step_probas = step_probas * step_probas.ge(0)
+
+            c = Categorical(step_probas)
+
+            idxs = c.sample()
+            logits = c.logits.gather(1, idxs.unsqueeze(1))
+
+            valid_sentences = valid_sentences.scatter(1, idxs.unsqueeze(1), 0)
+
+            all_idxs[:, :, step] = idxs.view(n_docs, self.n_repeats_per_sample)
+            all_logits[:, :, step] = logits.view(n_docs, self.n_repeats_per_sample)
+
+        return all_idxs, all_logits.sum(-1)
+
+    def forward(self, batch, subset):
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
-        batch_size = len(ids)
+        batch_size = len(contents)
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
-
         masked_predictions = contents_extracted + valid_sentences.float().log()  # Adds 0 if sentence is valid else -inf
         _, greedy_idxs = torch.topk(masked_predictions, self.n_sents_per_summary, sorted=False)
 
-        # revert greedy_idx into origin index (before truncate)
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
             greedy_idx[0] += sentence_gap_[greedy_idx[0]]
             greedy_idx[1] += sentence_gap_[greedy_idx[1]]
             greedy_idx[2] += sentence_gap_[greedy_idx[2]]
 
+
         if subset == "train":
-            # TODO: The only code to change to have BanditSum instead of CombiSum is here
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
-            greedy_rewards = torch.tensor(greedy_rewards)
+            greedy_rewards = torch.tensor(greedy_rewards).unsqueeze(1)
 
-            ucb_results = self.pool.map(
-                BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
-            )
+            selected_idxs, selected_logits = self.select_idxs(contents_extracted, valid_sentences)
+            generated_rewards = []
+            for scorer, batch_idxs in zip(scorers, selected_idxs):
+                    generated_rewards.append(torch.tensor([scorer(sent_idxs.tolist()) for sent_idxs in batch_idxs]))
 
-            ucb_targets = pad_sequence(
-                [torch.tensor(r[0], device=valid_sentences.device) for r in ucb_results], batch_first=True
-            )
-            ucb_deltas = torch.tensor([r[1] for r in ucb_results])
+            generated_rewards = torch.stack(generated_rewards)
 
-            target_distro = 10 ** (-10 * (1 - ucb_targets))
+            greedy_rewards = greedy_rewards.repeat_interleave(self.n_repeats_per_sample, 1)
 
-            loss = self.criterion(contents_extracted, target_distro) * valid_sentences
-            loss = loss.sum(-1) / valid_sentences.sum(-1)
+            rewards = ((greedy_rewards - generated_rewards)).clone().detach().to(device=selected_logits.device)
+            loss = rewards.mean(-1) * selected_logits
             loss = loss.mean()
 
-            return greedy_rewards, loss, ucb_deltas
+            return generated_rewards, loss, greedy_rewards
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
@@ -110,12 +136,12 @@ class BertCombiSum(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         start = time.time()
-        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
         end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
-            "ucb_deltas": ucb_deltas.mean(),
+            "generated_rouge_mean": generated_rewards.mean(),
             "loss": loss.detach(),
             "batch_time": end - start,
         }
@@ -159,10 +185,6 @@ class BertCombiSum(pl.LightningModule):
 
         for name, val in reward_dict.items():
             self.log(name, val)
-
-    def test_epoch_end(self, outputs):
-        for i, idx_repart in enumerate(self.idxs_repart / self.test_size):
-            self.log(f"idx_{i}", idx_repart)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -212,4 +234,9 @@ class BertCombiSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertCombiSum(dataset, reward, config)
+        return BertBanditSum(
+            dataset,
+            reward,
+            config,
+        )
+

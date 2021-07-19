@@ -1,4 +1,5 @@
 from src.domain.models.bertcombisum import BertCombiSum
+from src.domain.models.bertbanditsum import BertBanditSum
 from src.domain.models.banditsum import *
 from src.domain.models.banditsum_exp import *
 from src.domain.models.rlsum_mcts_exp import *
@@ -16,6 +17,7 @@ from src.domain.models.binary import *
 
 class ModelFactory:
     BERTCOMBISUM = "bertcombisum"
+    BERTBANDITSUM = "bertbanditsum"
     BANDITSUM = "banditsum"
     RLSUM_MCTS = "rlsum_mcts"
     RLSUM_MCTS_PURE = "rlsum_mcts_pure"
@@ -38,6 +40,8 @@ class ModelFactory:
 
         if model == cls.BERTCOMBISUM:
             return BertCombiSum.from_config(dataset, reward, config)
+        elif model == cls.BERTBANDITSUM:
+            return BertBanditSum.from_config(dataset, reward, config)
         elif model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
         elif model == cls.BANDITUM_MCS_EXP:
