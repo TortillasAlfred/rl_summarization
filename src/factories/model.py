@@ -1,3 +1,5 @@
+from src.domain.models.binary import *
+from src.domain.models.bertbinarysum import BertBinaryModel
 from src.domain.models.bertcombisum import BertCombiSum
 from src.domain.models.banditsum import *
 from src.domain.models.banditsum_exp import *
@@ -11,10 +13,11 @@ from src.domain.models.ngrams_calc import *
 from src.domain.models.sit import *
 from src.domain.models.sit_priors import *
 from src.domain.models.linsit import *
-from src.domain.models.binary import *
 
 
 class ModelFactory:
+    BINARY = "binary"
+    BERTBINARYSUM = "bertbinarysum"
     BERTCOMBISUM = "bertcombisum"
     BANDITSUM = "banditsum"
     RLSUM_MCTS = "rlsum_mcts"
@@ -30,7 +33,6 @@ class ModelFactory:
     SIT = "sit"
     SIT_PRIORS = "sit_priors"
     LINSIT = "linsit"
-    BINARY = "binary"
 
     @classmethod
     def get_model(cls, dataset, reward, config):
@@ -40,6 +42,10 @@ class ModelFactory:
             return BertCombiSum.from_config(dataset, reward, config)
         elif model == cls.BANDITSUM:
             return BanditSum.from_config(dataset, reward, config)
+        elif model == cls.BINARY:
+            return BinaryModel.from_config(dataset, reward, config)
+        elif model == cls.BERTBINARYSUM:
+            return BertBinaryModel.from_config(dataset, reward, config)
         elif model == cls.BANDITUM_MCS_EXP:
             return BanditSumMCSExperiment.from_config(dataset, reward, config)
         elif model == cls.RLSUM_MCTS_EXP:
@@ -62,7 +68,5 @@ class ModelFactory:
             return SITPriorsModel.from_config(dataset, reward, config)
         elif model == cls.LINSIT:
             return LinSITModel.from_config(dataset, reward, config)
-        elif model == cls.BINARY:
-            return BinaryModel.from_config(dataset, reward, config)
         else:
             raise ValueError(f"Model {model} not implemented.")

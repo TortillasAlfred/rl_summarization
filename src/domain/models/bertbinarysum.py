@@ -6,16 +6,15 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 import torch.multiprocessing as mp
-
+import numpy as np
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
 
-class BertCombiSum(pl.LightningModule):
+class BertBinaryModel(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
@@ -36,7 +35,6 @@ class BertCombiSum(pl.LightningModule):
         self.learning_rate = hparams.learning_rate
         self.n_sents_per_summary = hparams.n_sents_per_summary
         self.c_puct = hparams.c_puct
-        self.ucb_sampling = hparams.ucb_sampling
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
@@ -80,22 +78,28 @@ class BertCombiSum(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
-            ucb_results = self.pool.map(
-                BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
-            )
+            targets = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
+            best_summ_idxs = []
+            for sentence_gap_, scorer, valid_sentences_ in zip(sentence_gap, scorers, valid_sentences):
+                available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
+                available_sents = torch.combinations(available_sents, r=3)
+                available_scores = [
+                    torch.tensor([scorer(available_idxs.tolist())]) for available_idxs in available_sents
+                ]
+                available_scores = torch.stack(available_scores).squeeze()
+                best_available_summ_idxs = available_sents[available_scores.sum(-1).argmax(0)]
+                best_summ_idxs.append(torch.tensor(best_available_summ_idxs))
 
-            ucb_targets = pad_sequence(
-                [torch.tensor(r[0], device=valid_sentences.device) for r in ucb_results], batch_first=True
-            )
-            ucb_deltas = torch.tensor([r[1] for r in ucb_results])
+            best_summ_idxs = torch.stack(best_summ_idxs).cuda()
+            targets = targets.scatter(-1, best_summ_idxs, 1)
 
-            target_distro = 10 ** (-10 * (1 - ucb_targets))
-
-            loss = self.criterion(contents_extracted, target_distro) * valid_sentences
+            loss = self.criterion(contents_extracted, targets) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
 
-            return greedy_rewards, loss, ucb_deltas
+            suboptimality = (contents_extracted.max() - targets.max()).mean()
+
+            return greedy_rewards, loss, suboptimality
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
@@ -109,12 +113,12 @@ class BertCombiSum(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         start = time.time()
-        greedy_rewards, loss, ucb_deltas = self.forward(batch, subset="train")
+        greedy_rewards, loss, suboptimality = self.forward(batch, subset="train")
         end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
-            "ucb_deltas": ucb_deltas.mean(),
+            "suboptimality": suboptimality.mean(),
             "loss": loss.detach(),
             "batch_time": end - start,
         }
@@ -211,4 +215,4 @@ class BertCombiSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertCombiSum(dataset, reward, config)
+        return BertBinaryModel(dataset, reward, config)

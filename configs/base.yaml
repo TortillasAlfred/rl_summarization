@@ -8,7 +8,7 @@ slurm_log_path: "/project/def-adurand/magod/rl_summ/slurm_outputs/"
 ##################
 ### MODEL ARGS ###
 ##################
-model: "bertcombisum" # One of ['bertcombisum', 'banditsum', 'banditsum_mcts', 'rlsum_mcts', 'azsum_mcts', 'a2c', 'rlsum_oh']
+model: "bertcombisum" # One of ['sit', 'bertcombisum', 'banditsum', 'binary', 'bertbinarysum']
 encoder: "Classifier" # One of ['Transformer', 'Classifier']
 num_workers: 0
 train_batch_size: 12
