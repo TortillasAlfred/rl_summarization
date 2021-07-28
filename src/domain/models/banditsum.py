@@ -78,24 +78,22 @@ class BanditSum(pl.LightningModule):
         valid_sentences = valid_sentences.repeat_interleave(self.n_repeats_per_sample, 0)
 
         all_idxs = torch.zeros(
-            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
-            dtype=torch.int,
-            device=affinities.device,
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary), dtype=torch.int, device=affinities.device
         )
 
         loss_list = []
         for step in range(self.n_sents_per_summary):
             step_affinities = affinities * valid_sentences
             step_affinities = step_affinities / step_affinities.sum(-1, keepdim=True)
-            if random.uniform(0,1) <= self.epsilon:
+            if random.uniform(0, 1) <= self.epsilon:
                 idxs = torch.multinomial(valid_sentences.double(), 1)
             else:
                 idxs = torch.multinomial(step_affinities, 1)
 
             constant = self.epsilon / valid_sentences.sum(-1).reshape([-1])
-            affinities_loss = (1 - self.epsilon) * step_affinities.gather(1,idxs).reshape([-1])
+            affinities_loss = (1 - self.epsilon) * step_affinities.gather(1, idxs).reshape([-1])
             loss_i = (constant + affinities_loss).log()
-            loss_list.append(loss_i.reshape([-1,1]))
+            loss_list.append(loss_i.reshape([-1, 1]))
 
             valid_sentences = valid_sentences.scatter(1, idxs, 0)
 
@@ -128,13 +126,18 @@ class BanditSum(pl.LightningModule):
 
             greedy_rewards = greedy_rewards.repeat_interleave(self.n_repeats_per_sample, 1)
 
-            baseline_rewards = generated_rewards.mean(1,keepdim=True).repeat_interleave(self.n_repeats_per_sample, 1)
-            rewards = ((baseline_rewards - generated_rewards) / (baseline_rewards + 1e-9)).clone().detach().to(device=selected_logits.device)
+            baseline_rewards = generated_rewards.mean(1, keepdim=True).repeat_interleave(self.n_repeats_per_sample, 1)
+            rewards = (
+                ((baseline_rewards - generated_rewards) / (baseline_rewards + 1e-9))
+                .clone()
+                .detach()
+                .to(device=selected_logits.device)
+            )
 
             if len(rewards.shape) < 3:
                 rewards = rewards.unsqueeze(-1)
 
-            loss = rewards.mean(-1).reshape([-1,1]) * selected_logits
+            loss = rewards.mean(-1).reshape([-1, 1]) * selected_logits
             loss = loss.mean()
 
             return generated_rewards, loss, greedy_rewards
@@ -198,10 +201,7 @@ class BanditSum(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             [
-                {
-                    "params": self.embeddings.parameters(),
-                    "lr": self.learning_rate * 0.1,
-                },
+                {"params": self.embeddings.parameters(), "lr": self.learning_rate * 0.1},
                 {"params": self.wl_encoder.parameters()},
                 {"params": self.model.sl_encoder.parameters()},
                 {"params": self.model.decoder.parameters()},
@@ -250,22 +250,14 @@ class BanditSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BanditSum(
-            dataset,
-            reward,
-            config,
-        )
+        return BanditSum(dataset, reward, config)
 
 
 class RLSummModel(torch.nn.Module):
     def __init__(self, hidden_dim, decoder_dim):
         super().__init__()
         self.sl_encoder = torch.nn.LSTM(
-            input_size=2 * hidden_dim,
-            hidden_size=hidden_dim,
-            num_layers=2,
-            bidirectional=True,
-            batch_first=True,
+            input_size=2 * hidden_dim, hidden_size=hidden_dim, num_layers=2, bidirectional=True, batch_first=True
         )
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(hidden_dim * 2, decoder_dim),

@@ -15,7 +15,6 @@ class BertBanditSum(pl.LightningModule):
 
         self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
 
-
         self.hparams = hparams
         self.colname_2_field_objs = dataset.fields
         self.pad_idx = dataset.pad_idx
@@ -48,7 +47,6 @@ class BertBanditSum(pl.LightningModule):
         sent_scores = torch.sigmoid(sent_scores)
         return sent_scores, mask_cls
 
-
     def select_idxs(self, affinities, valid_sentences):
         n_docs = affinities.shape[0]
 
@@ -56,14 +54,10 @@ class BertBanditSum(pl.LightningModule):
         valid_sentences = valid_sentences.repeat_interleave(self.n_repeats_per_sample, 0)
 
         all_idxs = torch.zeros(
-            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
-            dtype=torch.int,
-            device=affinities.device,
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary), dtype=torch.int, device=affinities.device
         )
         all_logits = torch.zeros(
-            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary),
-            dtype=torch.float,
-            device=affinities.device,
+            (n_docs, self.n_repeats_per_sample, self.n_sents_per_summary), dtype=torch.float, device=affinities.device
         )
 
         uniform_distro = torch.ones_like(affinities) * valid_sentences
@@ -105,7 +99,6 @@ class BertBanditSum(pl.LightningModule):
             greedy_idx[1] += sentence_gap_[greedy_idx[1]]
             greedy_idx[2] += sentence_gap_[greedy_idx[2]]
 
-
         if subset == "train":
             greedy_rewards = []
             for scorer, sent_idxs in zip(scorers, greedy_idxs):
@@ -115,7 +108,7 @@ class BertBanditSum(pl.LightningModule):
             selected_idxs, selected_logits = self.select_idxs(contents_extracted, valid_sentences)
             generated_rewards = []
             for scorer, batch_idxs in zip(scorers, selected_idxs):
-                    generated_rewards.append(torch.tensor([scorer(sent_idxs.tolist()) for sent_idxs in batch_idxs]))
+                generated_rewards.append(torch.tensor([scorer(sent_idxs.tolist()) for sent_idxs in batch_idxs]))
 
             generated_rewards = torch.stack(generated_rewards)
 
@@ -243,9 +236,4 @@ class BertBanditSum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertBanditSum(
-            dataset,
-            reward,
-            config,
-        )
-
+        return BertBanditSum(dataset, reward, config)
