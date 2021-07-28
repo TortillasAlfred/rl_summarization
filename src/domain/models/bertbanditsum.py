@@ -15,10 +15,12 @@ class BertBanditSum(pl.LightningModule):
 
         self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
 
+
         self.hparams = hparams
         self.colname_2_field_objs = dataset.fields
         self.pad_idx = dataset.pad_idx
         self.reward_builder = reward
+        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
 
         self.pad_idx = dataset.pad_idx
         self.splits = dataset.get_splits()
@@ -43,6 +45,7 @@ class BertBanditSum(pl.LightningModule):
             contents : list of output berttokenizer
         """
         sent_scores, mask_cls = self.my_core_model(contents)
+        sent_scores = torch.sigmoid(sent_scores)
         return sent_scores, mask_cls
 
 
@@ -73,7 +76,7 @@ class BertBanditSum(pl.LightningModule):
 
             step_probas = self.epsilon * step_unif + (1 - self.epsilon) * step_affinities
 
-            #I added this lines to prevent probability turning into 0
+            # I added this lines to prevent probability turning into 0
             step_probas = step_probas * step_probas.ge(0)
 
             c = Categorical(step_probas)
@@ -90,7 +93,7 @@ class BertBanditSum(pl.LightningModule):
 
     def forward(self, batch, subset):
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
-        batch_size = len(contents)
+        batch_size = len(ids)
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
         masked_predictions = contents_extracted + valid_sentences.float().log()  # Adds 0 if sentence is valid else -inf
@@ -119,22 +122,26 @@ class BertBanditSum(pl.LightningModule):
             greedy_rewards = greedy_rewards.repeat_interleave(self.n_repeats_per_sample, 1)
 
             rewards = ((greedy_rewards - generated_rewards)).clone().detach().to(device=selected_logits.device)
+
+            if len(rewards.shape) < 3:
+                rewards = rewards.unsqueeze(-1)
+
             loss = rewards.mean(-1) * selected_logits
             loss = loss.mean()
-
             return generated_rewards, loss, greedy_rewards
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
 
             if subset == "test":
                 idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
-                idxs_repart.scatter_(1, greedy_idxs, 1)
+                idxs_repart.scatter(1, greedy_idxs, 1)
 
                 self.idxs_repart += idxs_repart.sum(0)
 
             return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
 
     def training_step(self, batch, batch_idx):
+        self.my_core_model.train()
         start = time.time()
         generated_rewards, loss, greedy_rewards = self.forward(batch, subset="train")
         end = time.time()
@@ -152,6 +159,7 @@ class BertBanditSum(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        self.my_core_model.eval()
         greedy_rewards = self.forward(batch, subset="val")
 
         reward_dict = {
@@ -174,6 +182,7 @@ class BertBanditSum(pl.LightningModule):
         self.log("lr", current_lr)
 
     def test_step(self, batch, batch_idx):
+        self.my_core_model.eval()
         greedy_rewards = self.forward(batch, subset="test")
 
         reward_dict = {
