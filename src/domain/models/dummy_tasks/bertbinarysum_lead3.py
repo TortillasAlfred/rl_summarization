@@ -14,8 +14,9 @@ from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
-# This is a version of bertbanditsum.py which has been modified to predict 
+# This is a version of bertbanditsum.py which has been modified to predict
 # the three first sentences of the article (Lead-3)
+
 
 class BertBinarySum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
@@ -83,13 +84,15 @@ class BertBinarySum(pl.LightningModule):
 
             targets = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
             best_summ_idxs = []
-            for sentence_gap_,scorer, valid_sentences_ in zip(sentence_gap,scorers,valid_sentences):
+            for sentence_gap_, scorer, valid_sentences_ in zip(sentence_gap, scorers, valid_sentences):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 available_sents = torch.combinations(available_sents, r=3)
-                available_scores = [torch.tensor([scorer(available_idxs.tolist())])for available_idxs in available_sents]
+                available_scores = [
+                    torch.tensor([scorer(available_idxs.tolist())]) for available_idxs in available_sents
+                ]
                 available_scores = torch.stack(available_scores).squeeze()
                 ##############
-                #dummy target lead-3 in available sentences
+                # dummy target lead-3 in available sentences
                 ##############
                 best_available_summ_idxs = available_sents[0]
                 ##############
@@ -120,7 +123,9 @@ class BertBinarySum(pl.LightningModule):
 
                 self.idxs_repart += idxs_repart.sum(0)
 
-            greedy_rewards = torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
+            greedy_rewards = (
+                torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
+            )
             return greedy_rewards, loss_v
 
     def training_step(self, batch, batch_idx):
@@ -145,10 +150,7 @@ class BertBinarySum(pl.LightningModule):
         self.my_core_model.eval()
         greedy_rewards, loss = self.forward(batch, subset="val")
 
-        reward_dict = {
-            "val_greedy_rouge_mean": greedy_rewards.mean(-1),
-            "val_loss": loss.detach(),
-        }
+        reward_dict = {"val_greedy_rouge_mean": greedy_rewards.mean(-1), "val_loss": loss.detach()}
 
         for name, val in reward_dict.items():
             self.log(name, val, prog_bar="mean" in name)
@@ -166,10 +168,7 @@ class BertBinarySum(pl.LightningModule):
         self.my_core_model.eval()
         greedy_rewards, loss = self.forward(batch, subset="test")
 
-        reward_dict = {
-            "test_greedy_rouge_mean": greedy_rewards.mean(-1),
-            "test_loss": loss.detach(),
-        }
+        reward_dict = {"test_greedy_rouge_mean": greedy_rewards.mean(-1), "test_loss": loss.detach()}
 
         for name, val in reward_dict.items():
             self.log(name, val)

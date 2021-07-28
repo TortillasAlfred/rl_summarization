@@ -96,17 +96,18 @@ class BertBinarySum(pl.LightningModule):
             # OGUL - we should find 3 best sentences and generate targets in oracle representation way
             targets = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
             best_summ_idxs = []
-            for sentence_gap_,scorer, valid_sentences_ in zip(sentence_gap,scorers,valid_sentences):
+            for sentence_gap_, scorer, valid_sentences_ in zip(sentence_gap, scorers, valid_sentences):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 available_sents = torch.combinations(available_sents, r=3)
-                available_scores = [torch.tensor([scorer(available_idxs.tolist())])for available_idxs in available_sents]
+                available_scores = [
+                    torch.tensor([scorer(available_idxs.tolist())]) for available_idxs in available_sents
+                ]
                 available_scores = torch.stack(available_scores).squeeze()
                 best_available_summ_idxs = available_sents[available_scores.sum(-1).argmax(0)]
                 best_summ_idxs.append(torch.tensor(best_available_summ_idxs))
 
             best_summ_idxs = torch.stack(best_summ_idxs).cuda()
             targets = targets.scatter(-1, best_summ_idxs, 1)
-
 
             # ucb_results = self.pool.map(
             #     BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
