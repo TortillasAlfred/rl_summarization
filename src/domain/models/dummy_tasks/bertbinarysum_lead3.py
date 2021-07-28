@@ -12,13 +12,13 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
-from .bertsum_transformer import Summarizer
+from ..bertsum_transformer import Summarizer
 
 # This is a version of bertbanditsum.py which has been modified to predict
 # the three first sentences of the article (Lead-3)
 
 
-class BertBinarySum(pl.LightningModule):
+class BertBinarySumLead3(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
         self.tensor_device = "cuda" if hparams.gpus > 0 and torch.cuda.is_available() else "cpu"
@@ -30,6 +30,7 @@ class BertBinarySum(pl.LightningModule):
         self.splits = dataset.get_splits()
         self.reward_builder = reward
         self.n_epochs_done = 0
+        self.first_val_batches_done = False
 
         self.train_batch_size = hparams.train_batch_size
         self.num_workers = hparams.num_workers
@@ -43,9 +44,19 @@ class BertBinarySum(pl.LightningModule):
         self.weight_decay = hparams.weight_decay
         self.batch_idx = 0
         self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
-        self.idxs_repart = torch.zeros(50, dtype=torch.float32, device=self.tensor_device)
+        self.predicted_idxs_repart = {
+            "train": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+            "val": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+            "test": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+        }
+        self.target_idxs_repart = {
+            "train": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+            "val": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+            "test": torch.zeros(50, dtype=torch.float32, device=self.tensor_device),
+        }
         self.test_size = len(self.splits["test"])
         self.train_size = len(self.splits["train"])
+        self.val_size = len(self.splits["val"])
         self.my_core_model = Summarizer(self.tensor_device, self.hparams)
         if hparams.n_jobs_for_mcts == -1:
             self.n_processes = os.cpu_count()
@@ -71,80 +82,63 @@ class BertBinarySum(pl.LightningModule):
         _, greedy_idxs = torch.topk(masked_predictions, self.n_sents_per_summary, sorted=False)
 
         sentence_gap = contents["sentence_gap"]
-        for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
-            greedy_idx[0] += sentence_gap_[greedy_idx[0]]
-            greedy_idx[1] += sentence_gap_[greedy_idx[1]]
-            greedy_idx[2] += sentence_gap_[greedy_idx[2]]
+        true_greedy_idxs = greedy_idxs.clone()
+        for sentence_gap_, true_greedy_idx in zip(sentence_gap, true_greedy_idxs):
+            true_greedy_idx[0] += sentence_gap_[true_greedy_idx[0]]
+            true_greedy_idx[1] += sentence_gap_[true_greedy_idx[1]]
+            true_greedy_idx[2] += sentence_gap_[true_greedy_idx[2]]
 
         if subset == "train":
             greedy_rewards = []
-            for scorer, sent_idxs in zip(scorers, greedy_idxs):
+            for scorer, sent_idxs in zip(scorers, true_greedy_idxs):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
-
-            targets = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
-            best_summ_idxs = []
-            for sentence_gap_, scorer, valid_sentences_ in zip(sentence_gap, scorers, valid_sentences):
-                available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
-                available_sents = torch.combinations(available_sents, r=3)
-                available_scores = [
-                    torch.tensor([scorer(available_idxs.tolist())]) for available_idxs in available_sents
-                ]
-                available_scores = torch.stack(available_scores).squeeze()
-                ##############
-                # dummy target lead-3 in available sentences
-                ##############
-                best_available_summ_idxs = available_sents[0]
-                ##############
-
-                best_summ_idxs.append(torch.tensor(best_available_summ_idxs))
-
-            best_summ_idxs = torch.stack(best_summ_idxs).cuda()
-            targets = targets.scatter(-1, best_summ_idxs, 1)
-
-            loss = self.criterion(contents_extracted, targets) * valid_sentences
-            loss = loss.sum(-1) / valid_sentences.sum(-1)
-            loss = loss.mean()
-
-            suboptimality = (contents_extracted.max() - targets.max()).mean()
-
-            return greedy_rewards, loss, suboptimality
         else:
-            greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
+            greedy_rewards = scorers.get_scores(true_greedy_idxs, raw_contents, raw_abstracts)
 
-            targets_v = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
-            loss_v = self.criterion(contents_extracted, targets_v) * valid_sentences
-            loss_v = loss_v.sum(-1) / valid_sentences.sum(-1)
-            loss_v = loss_v.mean()
+        targets = torch.zeros_like(contents_extracted)
+        targets[:, :3] = 1
 
-            if subset == "test":
-                idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
-                idxs_repart.scatter_(1, greedy_idxs, 1)
+        loss = self.criterion(contents_extracted, targets) * valid_sentences
+        loss = loss.sum(-1) / valid_sentences.sum(-1)
+        loss = loss.mean()
 
-                self.idxs_repart += idxs_repart.sum(0)
+        predicted_idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
+        predicted_idxs_repart.scatter_(1, greedy_idxs, 1)
 
-            greedy_rewards = (
-                torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
-            )
-            return greedy_rewards, loss_v
+        self.predicted_idxs_repart[subset] += predicted_idxs_repart.sum(0)
+
+        self.target_idxs_repart[subset] += F.pad(targets.sum(0), (0, 50 - targets.shape[-1]))
+
+        return greedy_rewards, loss
 
     def training_step(self, batch, batch_idx):
         self.my_core_model.train()
         start = time.time()
-        greedy_rewards, loss, suboptimality = self.forward(batch, subset="train")
+        greedy_rewards, loss = self.forward(batch, subset="train")
         end = time.time()
 
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
-            "suboptimality": suboptimality.mean(),
             "loss": loss.detach(),
             "batch_time": end - start,
         }
 
         for key, val in log_dict.items():
-            self.log(key, val, prog_bar="greedy" in key)
+            self.log(key, val, prog_bar="mean" in key)
 
         return loss
+
+    def training_epoch_end(self, outputs):
+        for i, idx_repart in enumerate(self.predicted_idxs_repart["train"] / self.train_size):
+            self.log(f"predicted_idx_train_sent_{i}_epoch_{self.n_epochs_done}", idx_repart)
+
+        self.predicted_idxs_repart["train"] = torch.zeros_like(self.predicted_idxs_repart["train"])
+
+        for i, idx_repart in enumerate(self.target_idxs_repart["train"] / self.train_size):
+            self.log(f"target_idx_train_sent_{i}_epoch_{self.n_epochs_done}", idx_repart)
+
+        self.target_idxs_repart["train"] = torch.zeros_like(self.target_idxs_repart["train"])
 
     def validation_step(self, batch, batch_idx):
         self.my_core_model.eval()
@@ -153,16 +147,25 @@ class BertBinarySum(pl.LightningModule):
         reward_dict = {"val_greedy_rouge_mean": greedy_rewards.mean(-1), "val_loss": loss.detach()}
 
         for name, val in reward_dict.items():
-            self.log(name, val, prog_bar="mean" in name)
+            self.log(name, val, prog_bar="loss" in name)
 
         return reward_dict["val_greedy_rouge_mean"].mean()
 
     def validation_epoch_end(self, outputs):
-        mean_rouge = torch.stack(outputs).mean()
-        self.lr_scheduler.step(mean_rouge)
+        if self.first_val_batches_done:
+            for i, idx_repart in enumerate(self.predicted_idxs_repart["val"] / self.val_size):
+                self.log(f"predicted_idx_val_sent_{i}_epoch_{self.n_epochs_done}", idx_repart)
 
-        current_lr = self.trainer.optimizers[0].param_groups[0]["lr"]
-        self.log("lr", current_lr)
+            for i, idx_repart in enumerate(self.target_idxs_repart["val"] / self.val_size):
+                self.log(f"target_idx_val_sent_{i}_epoch_{self.n_epochs_done}", idx_repart)
+
+            current_lr = self.trainer.optimizers[0].param_groups[0]["lr"]
+            self.log("lr", current_lr)
+        else:
+            self.first_val_batches_done = True
+
+        self.predicted_idxs_repart["val"] = torch.zeros_like(self.predicted_idxs_repart["val"])
+        self.target_idxs_repart["val"] = torch.zeros_like(self.target_idxs_repart["val"])
 
     def test_step(self, batch, batch_idx):
         self.my_core_model.eval()
@@ -174,8 +177,15 @@ class BertBinarySum(pl.LightningModule):
             self.log(name, val)
 
     def test_epoch_end(self, outputs):
-        for i, idx_repart in enumerate(self.idxs_repart / self.test_size):
-            self.log(f"idx_{i}", idx_repart)
+        for i, idx_repart in enumerate(self.predicted_idxs_repart["test"] / self.test_size):
+            self.log(f"predicted_idx_test_sent_{i}", idx_repart)
+
+        self.predicted_idxs_repart["test"] = torch.zeros_like(self.predicted_idxs_repart["test"])
+
+        for i, idx_repart in enumerate(self.target_idxs_repart["test"] / self.test_size):
+            self.log(f"target_idx_test_sent_{i}", idx_repart)
+
+        self.target_idxs_repart["test"] = torch.zeros_like(self.target_idxs_repart["test"])
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -225,4 +235,4 @@ class BertBinarySum(pl.LightningModule):
 
     @staticmethod
     def from_config(dataset, reward, config):
-        return BertBinarySum(dataset, reward, config)
+        return BertBinarySumLead3(dataset, reward, config)

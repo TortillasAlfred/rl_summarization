@@ -70,9 +70,9 @@ class PytorchLightningTrainer(Trainer):
             val_check_interval=val_check_interval,
             default_root_dir=default_save_path,
             weights_save_path=weights_save_path,
-            checkpoint_callback=checkpoint_callback,
             logger=logger,
             max_epochs=max_epochs,
+            num_sanity_val_steps=0,
         )
 
     @staticmethod
