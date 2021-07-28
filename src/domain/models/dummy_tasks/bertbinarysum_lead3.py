@@ -14,9 +14,9 @@ from src.domain.ucb import BertUCBProcess
 from src.domain.loader_utils import TextDataCollator
 from .bertsum_transformer import Summarizer
 
+# This is a version of bertbanditsum.py which has been modified to predict 
+# the three first sentences of the article (Lead-3)
 
-# TODO: I suggest you start from BertCombiSum. The vast
-# majority of the code will be identical.
 class BertBinarySum(pl.LightningModule):
     def __init__(self, dataset, reward, hparams):
         super().__init__()
@@ -30,7 +30,6 @@ class BertBinarySum(pl.LightningModule):
         self.reward_builder = reward
         self.n_epochs_done = 0
 
-        # TODO: remove anything that is related to ucb
         self.train_batch_size = hparams.train_batch_size
         self.num_workers = hparams.num_workers
         self.test_batch_size = hparams.test_batch_size
@@ -61,16 +60,15 @@ class BertBinarySum(pl.LightningModule):
         sent_scores, mask_cls = self.my_core_model(contents)
         return sent_scores, mask_cls
 
-    def forward(self, batch, subset):  # (data_batch, "train" or "test")
+    def forward(self, batch, subset):
         ids, contents, abstracts, raw_contents, raw_abstracts, scorers = batch
         batch_size = len(ids)
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
 
-        masked_predictions = contents_extracted + valid_sentences.float().log()  # Adds 0 if sentence is valid else -inf
+        masked_predictions = contents_extracted + valid_sentences.float().log()
         _, greedy_idxs = torch.topk(masked_predictions, self.n_sents_per_summary, sorted=False)
 
-        # revert greedy_idx into origin index (before truncate)
         sentence_gap = contents["sentence_gap"]
         for sentence_gap_, greedy_idx in zip(sentence_gap, greedy_idxs):
             greedy_idx[0] += sentence_gap_[greedy_idx[0]]
@@ -83,17 +81,6 @@ class BertBinarySum(pl.LightningModule):
                 greedy_rewards.append(scorer(sent_idxs.tolist()))
             greedy_rewards = torch.tensor(greedy_rewards)
 
-            # TODO: Remove all the code up to target_distro. For targets,
-            # we want a tensor of the same size as contents_extracted and
-            # valid_sentences. All the targets are at zero except the indexes
-            # corresponding to the sentences from the best summaries of
-            # each document.
-
-            # See my comments in analyze_preprocessing.py for a bit more
-            # detail on how to quickly get the best phrases for a particular
-            # document.
-
-            # OGUL - we should find 3 best sentences and generate targets in oracle representation way
             targets = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
             best_summ_idxs = []
             for sentence_gap_,scorer, valid_sentences_ in zip(sentence_gap,scorers,valid_sentences):
@@ -101,39 +88,31 @@ class BertBinarySum(pl.LightningModule):
                 available_sents = torch.combinations(available_sents, r=3)
                 available_scores = [torch.tensor([scorer(available_idxs.tolist())])for available_idxs in available_sents]
                 available_scores = torch.stack(available_scores).squeeze()
-                best_available_summ_idxs = available_sents[available_scores.sum(-1).argmax(0)]
+                ##############
+                #dummy target lead-3 in available sentences
+                ##############
+                best_available_summ_idxs = available_sents[0]
+                ##############
+
                 best_summ_idxs.append(torch.tensor(best_available_summ_idxs))
 
             best_summ_idxs = torch.stack(best_summ_idxs).cuda()
             targets = targets.scatter(-1, best_summ_idxs, 1)
 
-
-            # ucb_results = self.pool.map(
-            #     BertUCBProcess(self.ucb_sampling, self.c_puct), list(zip(sentence_gap, scorers))
-            # )
-            #
-            # ucb_targets = pad_sequence(
-            #     [torch.tensor(r[0], device=valid_sentences.device) for r in ucb_results], batch_first=True
-            # )
-            # ucb_deltas = torch.tensor([r[1] for r in ucb_results])
-            #
-            # target_distro = 10 ** (-10 * (1 - ucb_targets))
-
-            # This code is correct as it is. No adjustment to be made
             loss = self.criterion(contents_extracted, targets) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
             loss = loss.mean()
 
-            # OGUL calculating suboptimality
             suboptimality = (contents_extracted.max() - targets.max()).mean()
 
-            # TODO: Replace everything related to ucb_deltas with 'suboptimality'. Here,
-            # suboptimality will be the average difference between the best extractive
-            # summary available for a document (scorer.scores.max().mean()) and the
-            # best summary available to the model.
             return greedy_rewards, loss, suboptimality
         else:
             greedy_rewards = scorers.get_scores(greedy_idxs, raw_contents, raw_abstracts)
+
+            targets_v = torch.autograd.Variable(torch.zeros_like(contents_extracted), requires_grad=False).cuda()
+            loss_v = self.criterion(contents_extracted, targets_v) * valid_sentences
+            loss_v = loss_v.sum(-1) / valid_sentences.sum(-1)
+            loss_v = loss_v.mean()
 
             if subset == "test":
                 idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
@@ -141,16 +120,15 @@ class BertBinarySum(pl.LightningModule):
 
                 self.idxs_repart += idxs_repart.sum(0)
 
-            return torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
+            greedy_rewards = torch.from_numpy(greedy_rewards) if greedy_rewards.ndim > 1 else torch.tensor([greedy_rewards])
+            return greedy_rewards, loss_v
 
     def training_step(self, batch, batch_idx):
         self.my_core_model.train()
         start = time.time()
-        # TODO: replace ucb_deltas with suboptimality
         greedy_rewards, loss, suboptimality = self.forward(batch, subset="train")
         end = time.time()
 
-        # TODO: Update the values logged here to have suboptimality instead of ucb_deltas
         log_dict = {
             "greedy_rouge_mean": greedy_rewards.mean(),
             "suboptimality": suboptimality.mean(),
@@ -165,13 +143,11 @@ class BertBinarySum(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         self.my_core_model.eval()
-        greedy_rewards = self.forward(batch, subset="val")
+        greedy_rewards, loss = self.forward(batch, subset="val")
 
         reward_dict = {
-            "val_greedy_rouge_1": greedy_rewards[:, 0],
-            "val_greedy_rouge_2": greedy_rewards[:, 1],
-            "val_greedy_rouge_L": greedy_rewards[:, 2],
             "val_greedy_rouge_mean": greedy_rewards.mean(-1),
+            "val_loss": loss.detach(),
         }
 
         for name, val in reward_dict.items():
@@ -188,13 +164,11 @@ class BertBinarySum(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         self.my_core_model.eval()
-        greedy_rewards = self.forward(batch, subset="test")
+        greedy_rewards, loss = self.forward(batch, subset="test")
 
         reward_dict = {
-            "test_greedy_rouge_1": greedy_rewards[:, 0],
-            "test_greedy_rouge_2": greedy_rewards[:, 1],
-            "test_greedy_rouge_L": greedy_rewards[:, 2],
             "test_greedy_rouge_mean": greedy_rewards.mean(-1),
+            "test_loss": loss.detach(),
         }
 
         for name, val in reward_dict.items():
