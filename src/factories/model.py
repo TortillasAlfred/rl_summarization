@@ -1,5 +1,6 @@
 from src.domain.models.binary import *
-from src.domain.models.bertbinarysum import BertBinaryModel
+from src.domain.models.bertbinarysum import BertBinarySum
+from src.domain.models.dummy_tasks.bertbinarysum_lead3 import BertBinarySumLead3
 from src.domain.models.bertcombisum import BertCombiSum
 from src.domain.models.banditsum import *
 from src.domain.models.banditsum_exp import *
@@ -18,6 +19,7 @@ from src.domain.models.linsit import *
 class ModelFactory:
     BINARY = "binary"
     BERTBINARYSUM = "bertbinarysum"
+    BERTBINARYSUM_LEAD3 = "bertbinarysum_lead3"
     BERTCOMBISUM = "bertcombisum"
     BANDITSUM = "banditsum"
     RLSUM_MCTS = "rlsum_mcts"
@@ -45,7 +47,9 @@ class ModelFactory:
         elif model == cls.BINARY:
             return BinaryModel.from_config(dataset, reward, config)
         elif model == cls.BERTBINARYSUM:
-            return BertBinaryModel.from_config(dataset, reward, config)
+            return BertBinarySum.from_config(dataset, reward, config)
+        elif model == cls.BERTBINARYSUM_LEAD3:
+            return BertBinarySumLead3.from_config(dataset, reward, config)
         elif model == cls.BANDITUM_MCS_EXP:
             return BanditSumMCSExperiment.from_config(dataset, reward, config)
         elif model == cls.RLSUM_MCTS_EXP:
