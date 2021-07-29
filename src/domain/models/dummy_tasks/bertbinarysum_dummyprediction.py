@@ -86,7 +86,8 @@ class BertBinarySum(pl.LightningModule):
             ):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 for sent_idxs in available_sents:
-                    if "the" in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
+                    words = ["animal", "house", "criminal", "very"]
+                    if any([word in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()] for word in words]):
                         target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
@@ -109,7 +110,8 @@ class BertBinarySum(pl.LightningModule):
             for sentence_gap_, valid_sentences_, raw_contents_ in zip(sentence_gap, valid_sentences, raw_contents):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 for sent_idxs in available_sents:
-                    if "the" in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
+                    words = ["animal", "house", "criminal", "very"]
+                    if any([word in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()] for word in words]):
                         target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
