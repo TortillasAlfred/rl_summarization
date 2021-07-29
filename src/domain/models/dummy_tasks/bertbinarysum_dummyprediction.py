@@ -91,9 +91,13 @@ class BertBinarySum(pl.LightningModule):
                         target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
-            target_idx = torch.stack(target_idx)
-            val = torch.ones(len(target_idx))
-            targets = torch.sparse.FloatTensor(target_idx.t(), val, contents_extracted.shape).to_dense().cuda()
+            
+            if len(target_idx) > 0:
+                target_idx = torch.stack(target_idx)
+                val = torch.ones(len(target_idx))
+                targets = torch.sparse.FloatTensor(target_idx.t(), val, contents_extracted.shape).to_dense().cuda()
+            else:
+                targets = torch.zeros_like(contents_extracted)
 
             loss = self.criterion(contents_extracted, targets) * valid_sentences
             loss = loss.sum(-1) / valid_sentences.sum(-1)
@@ -115,9 +119,13 @@ class BertBinarySum(pl.LightningModule):
                         target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
-            target_idx = torch.stack(target_idx)
-            val = torch.ones(len(target_idx))
-            targets = torch.sparse.FloatTensor(target_idx.t(), val, contents_extracted.shape).to_dense().cuda()
+
+            if len(target_idx) > 0:
+                target_idx = torch.stack(target_idx)
+                val = torch.ones(len(target_idx))
+                targets = torch.sparse.FloatTensor(target_idx.t(), val, contents_extracted.shape).to_dense().cuda()
+            else:
+                targets = torch.zeros_like(contents_extracted)
 
             loss_v = self.criterion(contents_extracted, targets) * valid_sentences
             loss_v = loss_v.sum(-1) / valid_sentences.sum(-1)
