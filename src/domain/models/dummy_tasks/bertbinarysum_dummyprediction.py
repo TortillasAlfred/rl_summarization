@@ -64,7 +64,7 @@ class BertBinarySum(pl.LightningModule):
 
         contents_extracted, valid_sentences = self.__my_document_level_encoding(contents)
 
-        masked_predictions = contents_extracted + valid_sentences.float().log()  
+        masked_predictions = contents_extracted + valid_sentences.float().log()
         _, greedy_idxs = torch.topk(masked_predictions, self.n_sents_per_summary, sorted=False)
 
         sentence_gap = contents["sentence_gap"]
@@ -81,11 +81,13 @@ class BertBinarySum(pl.LightningModule):
 
             batch_idx = 0
             target_idx = []
-            for sentence_gap_,scorer, valid_sentences_, raw_contents_ in zip(sentence_gap,scorers,valid_sentences,raw_contents):
+            for sentence_gap_, scorer, valid_sentences_, raw_contents_ in zip(
+                sentence_gap, scorers, valid_sentences, raw_contents
+            ):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 for sent_idxs in available_sents:
-                    if 'the' in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
-                        target_idx.append(torch.tensor([batch_idx,sent_idxs]))
+                    if "the" in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
+                        target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
             target_idx = torch.stack(target_idx)
@@ -104,11 +106,11 @@ class BertBinarySum(pl.LightningModule):
 
             batch_idx = 0
             target_idx = []
-            for sentence_gap_, valid_sentences_, raw_contents_ in zip(sentence_gap,valid_sentences,raw_contents):
+            for sentence_gap_, valid_sentences_, raw_contents_ in zip(sentence_gap, valid_sentences, raw_contents):
                 available_sents = torch.arange(valid_sentences_.sum(-1)) + torch.tensor(sentence_gap_)
                 for sent_idxs in available_sents:
-                    if 'the' in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
-                        target_idx.append(torch.tensor([batch_idx,sent_idxs]))
+                    if "the" in raw_contents_[sent_idxs.detach().cpu().numpy().tolist()]:
+                        target_idx.append(torch.tensor([batch_idx, sent_idxs]))
 
                 batch_idx += 1
             target_idx = torch.stack(target_idx)
@@ -118,7 +120,6 @@ class BertBinarySum(pl.LightningModule):
             loss_v = self.criterion(contents_extracted, targets) * valid_sentences
             loss_v = loss_v.sum(-1) / valid_sentences.sum(-1)
             loss_v = loss_v.mean()
-
 
             if subset == "test":
                 idxs_repart = torch.zeros(batch_size, 50, device=self.tensor_device)
@@ -179,6 +180,7 @@ class BertBinarySum(pl.LightningModule):
     def test_epoch_end(self, outputs):
         for i, idx_repart in enumerate(self.idxs_repart / self.test_size):
             self.log(f"idx_{i}", idx_repart)
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             [{"params": self.my_core_model.parameters(), "lr": self.learning_rate}],
