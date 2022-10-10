@@ -50,7 +50,26 @@ class NGRAMSLoader:
                 reading_path = self.base_path + ".tar"
             with tarfile.open(reading_path) as tar:
                 logging.info(f"PCA vectors not yet extracted to {self.base_path} folder. Doing it now.")
-                tar.extractall(base_path)
+                def is_within_directory(directory, target):
+                    
+                    abs_directory = os.path.abspath(directory)
+                    abs_target = os.path.abspath(target)
+                
+                    prefix = os.path.commonprefix([abs_directory, abs_target])
+                    
+                    return prefix == abs_directory
+                
+                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                
+                    for member in tar.getmembers():
+                        member_path = os.path.join(path, member.name)
+                        if not is_within_directory(path, member_path):
+                            raise Exception("Attempted Path Traversal in Tar File")
+                
+                    tar.extractall(path, members, numeric_owner=numeric_owner) 
+                    
+                
+                safe_extract(tar, base_path)
 
     def __call__(self, id, subset):
         return np.load(os.path.join(self.base_path, subset, f"{id}.npy"))
